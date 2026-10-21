@@ -1,0 +1,11 @@
+# Marco familiar: lista de la compra cada minuto
+[Unit]
+Description=Familia: lista de la compra para el marco, cada minuto
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

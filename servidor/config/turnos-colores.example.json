@@ -1,0 +1,47 @@
+{
+  "_nota": "Colores de los turnos de la persona con turnos en Shifter (tablaTurnos). El marco pinta cada evento del calendario de turnos con el color de su título. Cópialo como config/turnos-colores.json y ajústalo a tus turnos (make_dashboard_props.py lo mete en el APK).",
+  "turnos": {
+    "Tarde": {
+      "color": "#7BCDC8",
+      "abreviatura": "T",
+      "inicio": "15:00",
+      "fin": "22:00"
+    },
+    "Noche": {
+      "color": "#8882BE",
+      "abreviatura": "N",
+      "inicio": "22:00",
+      "fin": "08:00"
+    },
+    "Mañana": {
+      "color": "#F49AC2",
+      "abreviatura": "M",
+      "inicio": "08:00",
+      "fin": "15:00"
+    },
+    "Saliente": {
+      "color": "#F26522",
+      "abreviatura": "Saliente",
+      "inicio": "00:00",
+      "fin": "00:00"
+    },
+    "Día libre": {
+      "color": "#C4DF9B",
+      "abreviatura": "Libre",
+      "inicio": "14:00",
+      "fin": "14:00"
+    },
+    "Cumpleaños": {
+      "color": "#6ECFF6",
+      "abreviatura": "Cumple",
+      "inicio": "14:00",
+      "fin": "14:00"
+    },
+    "Vacaciones": {
+      "color": "#FFF79A",
+      "abreviatura": "Vac",
+      "inicio": "14:00",
+      "fin": "14:00"
+    }
+  }
+}

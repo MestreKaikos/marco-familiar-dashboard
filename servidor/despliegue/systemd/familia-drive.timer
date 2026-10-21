@@ -1,0 +1,11 @@
+# Marco familiar: vigila la carpeta de Drive cada 15 minutos
+[Unit]
+Description=Familia: vigila la carpeta del marco en Google Drive cada 15 minutos
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

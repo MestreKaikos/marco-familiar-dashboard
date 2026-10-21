@@ -1,0 +1,150 @@
+{
+  "_nota": "Configuración de los scripts del servidor (servidor/scripts). Cópialo como config/familia.json (git lo ignora) o indica otra ruta con la variable de entorno FAMILIA_CONFIG. JSON no admite comentarios: las claves que empiezan por «_» son notas y los scripts no las leen. Todo lo de aquí es de EJEMPLO (familia inventada). Los secretos NO van aquí: el token de Home Assistant, el del marco, el PIN de padres, la clave de la cuenta de servicio de Google y secrets/calendarios.properties van en ficheros aparte con chmod 600 (ver README).",
+
+  "zona_horaria": "Europe/Madrid",
+
+  "rutas": {
+    "_nota": "Las rutas relativas se toman desde «base». Sin «base» (p. ej. en el ordenador donde se compila la app), desde la carpeta que contiene scripts/.",
+    "base": "/srv/familia/marco",
+    "secretos": "secrets",
+    "ha_token": "ha.token",
+    "menus": "menus",
+    "menu_ejemplo": "menus/menu-ejemplo.json",
+    "backups_turnos": "backups/turnos",
+    "drive_estado": "drive-state.json",
+    "drive_log": "drive-watch.log",
+    "compra_json": "/srv/familia/publico/compra.json",
+    "compra_sync_estado": "compra-sync.json",
+    "compra_frecuentes": "compra-frecuentes.json",
+    "_nota_compra_ignorar": "Un producto por línea (las que empiezan por # se ignoran): nunca se ofrecen como «habituales» (bromas a Alexa, errores).",
+    "compra_ignorar": "compra-ignorar.txt",
+    "turnos_colores": "config/turnos-colores.json",
+    "_nota_dashboard_properties": "Solo make_dashboard_props.py, en el ordenador donde se compila la app.",
+    "dashboard_properties": "../android/dashboard.properties"
+  },
+
+  "home_assistant": {
+    "_nota": "Home Assistant en el mismo servidor y SOLO en 127.0.0.1. Las entidades salen de Herramientas para desarrolladores → Estados. compra_alexa: lista de la compra de Alexa (integración Alexa Media Player); compra_bring: la de Bring!; tareas_todoist: el proyecto de Todoist donde llegan los avisos (déjalo vacío para no avisar); tareas_alexa: solo la usa la automatización de ejemplo Alexa → Todoist.",
+    "url": "http://127.0.0.1:8123",
+    "compra_alexa": "todo.alexa_lista_de_la_compra",
+    "compra_bring": "todo.bring_lista_de_la_compra",
+    "tareas_todoist": "todo.casa",
+    "tareas_alexa": "todo.alexa_lista_de_tareas"
+  },
+
+  "_nota_listas_marco": "Listas que se publican en compra.json, en este orden. «entidad» puede ser una entidad todo.* o una clave de «home_assistant» (compra_bring, tareas_todoist). La de Bring! es «la lista de la compra» del marco.",
+  "listas_marco": [
+    {"entidad": "compra_bring", "nombre": "Lista de la compra", "color": "#2E9E5B"},
+    {"entidad": "tareas_todoist", "nombre": "Tareas", "color": "#3F7FD9"}
+  ],
+
+  "casa": {
+    "_nota": "Lo que el marco enseña y maneja de la casa. Quita un bloque si no lo tienes.",
+    "termostato": {
+      "_nota": "climate.* del termostato (p. ej. un Somfy) y, si los hay, sus sensores de humedad y pila. Consigna admitida desde el marco: de consigna_min a consigna_max, de 0,5 en 0,5. Modos: los preset_mode de tu termostato.",
+      "entidad": "climate.salon_termostato",
+      "nombre": "Salón",
+      "humedad": "sensor.salon_termostato_humedad",
+      "pila": "sensor.salon_termostato_bateria",
+      "consigna_min": 15,
+      "consigna_max": 25,
+      "modos": ["home", "away", "night", "freeze"]
+    },
+    "_nota_estancias": "Sensores de temperatura (p. ej. los de los Echo).",
+    "estancias": [
+      {"entidad": "sensor.echo_salon_temperatura", "nombre": "Salón"},
+      {"entidad": "sensor.echo_dormitorio_ninos_temperatura", "nombre": "Niños"}
+    ],
+    "toldo": {
+      "_nota": "cover.* del toldo. «invertido»: true si HA da la posición al revés (open 100 = recogido); compruébalo con el toldo recogido.",
+      "entidad": "cover.toldo_terraza",
+      "nombre": "Toldo",
+      "invertido": true
+    },
+    "musica": {
+      "_nota": "Reproductores de Alexa Media Player que el marco puede ver y manejar: los de «altavoces» si no está vacía; si no, todos los media_player.* que acaben en «sufijo» (Alexa Media Player añade _2 si ya había una entidad con ese nombre).",
+      "sufijo": "_2",
+      "altavoces": []
+    }
+  },
+
+  "coche": {
+    "_nota": "Prefijo de las entidades de la integración del coche en HA (sensor.<prefijo>_nivel_de_bateria, _autonomia, _cuentakilometros, _ultima_actualizacion, _presion_neumatico_<rueda>, binary_sensor.<prefijo>_cargando y _enchufe, switch.<prefijo>_charge_to_full). «modelo» se publica tal cual en compra.json (coche.modelo). Pon \"coche\": null si no hay coche.",
+    "modelo": "Eléctrico compacto",
+    "prefijo_sensores": "mi_coche"
+  },
+
+  "_nota_ninos": "Nombre tal cual en TaskMate y color en el marco. A los niños de TaskMate que no estén aquí se les da uno de «otros_colores».",
+  "ninos": [
+    {"nombre": "Leo", "color": "#1E88E5"},
+    {"nombre": "Hugo", "color": "#43A047"}
+  ],
+  "otros_colores": ["#8E24AA", "#F4511E", "#00897B", "#FDD835"],
+
+  "tareas": {
+    "_nota": "Servicio familia-tareas (tareas_api.py): puerto local (solo 127.0.0.1), fallos seguidos del PIN de padres antes de bloquearlo y minutos de bloqueo. «emojis»: icono mdi de TaskMate → emoji, se añaden a los de serie del script o los sustituyen.",
+    "puerto": 8124,
+    "pin_fallos": 5,
+    "pin_bloqueo_min": 15,
+    "emojis": {
+      "mdi:fish": "🐟",
+      "mdi:flower": "🌷"
+    }
+  },
+
+  "publico": {
+    "_nota": "URL pública (nginx) de la carpeta secreta donde están compra.json y /tareas/. Solo la usa make_dashboard_props.py si calendarios.properties no trae compra.json ni tareas.url. Sustituye <RUTA-SECRETA> por una cadena aleatoria larga (p. ej. openssl rand -hex 16).",
+    "url_base": "https://familia.example.com/familia/<RUTA-SECRETA>/"
+  },
+
+  "calendarios": {
+    "_nota": "Calendarios del marco: clave → nombre, color y papel (events = citas, shifts = turnos, menu = menú del cole). Cada clave tiene en secrets/calendarios.properties «<clave>.ics» (dirección secreta iCal, para el marco) y, si algún script escribe en él, «<clave>.id» (ID del calendario, compartido con la cuenta de servicio con permiso para hacer cambios). Los que no tengan dirección se saltan.",
+    "familia": {"nombre": "Familia", "color": "#E8604C", "papel": "events"},
+    "turnos": {"nombre": "Ana", "color": "#8882BE", "papel": "shifts"},
+    "menu_cole": {"nombre": "Menú cole", "color": "#7CB342", "papel": "menu"},
+    "futbol": {"nombre": "Fútbol niños", "color": "#2E9E5B", "papel": "events"},
+    "deporte": {"nombre": "Mi equipo", "color": "#A50044", "papel": "events", "_nota": "opcional: p. ej. el calendario de tu equipo favorito de ECAL"}
+  },
+
+  "turnos": {
+    "_nota": "La persona con turnos (exportados desde la app Shifter). «calendario»: clave de «calendarios» donde los escribe shifter_sync.py. «dia_completo»: turnos que no son horas de trabajo (evento de día completo). «color_id_google»: turno → colorId de Google (1 Lavanda, 2 Salvia, 3 Uva, 4 Flamenco, 5 Plátano, 6 Mandarina, 7 Pavo real, 8 Grafito, 9 Arándano, 10 Albahaca, 11 Tomate); el marco pinta en cambio el color exacto de config/turnos-colores.json.",
+    "persona": "Ana",
+    "calendario": "turnos",
+    "nombre_calendario": "Turnos Ana",
+    "dia_completo": ["Saliente", "Día libre", "Cumpleaños", "Vacaciones"],
+    "color_id_google": {
+      "Mañana": "4", "Tarde": "7", "Noche": "1", "Saliente": "6", "Día libre": "2", "Vacaciones": "5",
+      "Cumpleaños": "7"
+    }
+  },
+
+  "menu": {
+    "_nota": "Menú del comedor escolar (PDF mensual en Drive → JSON → calendario «calendario»). «general»: el niño que come el menú general. «alternativo»: el que come otro menú (una dieta especial) y en qué página del PDF está; null si no hay. «claude»: ejecutable de Claude Code (lee el PDF).",
+    "calendario": "menu_cole",
+    "nombre_calendario": "Menú Colegio",
+    "colegio": "CEIP Ejemplo",
+    "empresa": "Comedores Ejemplo",
+    "general": "Leo",
+    "alternativo": {"nino": "Hugo", "descripcion": "dieta especial", "pagina": "la página titulada «DIETA ESPECIAL»"},
+    "ejemplo": "menus/menu-ejemplo.json",
+    "claude": "claude"
+  },
+
+  "drive": {
+    "_nota": "Carpeta de Google Drive compartida (solo lectura) con la cuenta de servicio: su ID es lo que va tras /folders/ en la URL. Dentro, las subcarpetas de turnos (.Shifter) y menús (PDF). Vacía = se usa drive.marco de calendarios.properties.",
+    "carpeta": "<ID-CARPETA-DRIVE>",
+    "subcarpetas": {"turnos": "Turnos", "menus": "Menús"}
+  },
+
+  "futbol": {
+    "_nota": "Equipos de los niños en la RFFM. «url»: rffm.es → Competición → Calendario del grupo, con sus parámetros (temporada, competicion, grupo); la página trae todas las jornadas en __NEXT_DATA__ aunque solo muestre la actual. «equipo»: el nombre EXACTO que usa la RFFM. «campo_casa»: el campo de los partidos en casa (para los «Pendiente de asignar») tal como lo escribe la RFFM. «color_google»: colorId del evento (ver turnos).",
+    "calendario": "futbol",
+    "campo_casa": "CIUDAD EJEMPLO - CAMPO MUNICIPAL",
+    "equipos": [
+      {"nino": "Leo", "equipo": "C.D. EJEMPLO 'A'", "color_google": "9",
+       "url": "https://www.rffm.es/competicion/calendario?temporada=<TEMPORADA>&tipojuego=2&competicion=<ID-COMPETICION>&grupo=<ID-GRUPO>"},
+      {"nino": "Hugo", "equipo": "C.D. EJEMPLO 'B'", "color_google": "10",
+       "url": "https://www.rffm.es/competicion/calendario?temporada=<TEMPORADA>&tipojuego=2&competicion=<ID-COMPETICION>&grupo=<ID-GRUPO>"}
+    ]
+  }
+}

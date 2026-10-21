@@ -1,0 +1,5 @@
+# Fragmento para config/configuration.yaml de Home Assistant: escuchar SOLO en 127.0.0.1.
+# Los scripts del marco y tareas_api.py hablan con HA en local; nada de HA se publica en Internet.
+http:
+  server_host: 127.0.0.1
+  server_port: 8123

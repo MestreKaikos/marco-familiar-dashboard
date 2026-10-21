@@ -1,0 +1,54 @@
+# Automatización de ejemplo para config/automations.yaml de Home Assistant.
+# La lista de la COMPRA de Alexa ya no necesita automatización: la mantiene compra_sync.py (espejo Alexa ⇄ Bring!).
+# Esta es solo para las TAREAS: lo que se dice a Alexa («Alexa, añade … a mi lista de tareas») pasa a Todoist.
+# Cambia las entidades por las tuyas (las mismas que home_assistant.tareas_alexa y tareas_todoist de familia.json).
+- id: alexa_a_todoist
+  alias: 'Tareas: Alexa → Todoist «Casa»'
+  description: Lo que se añade por voz a la lista de tareas de Alexa pasa al proyecto
+    «Casa» de Todoist (compartido por los padres), con mayúscula inicial y sin duplicar,
+    y se borra de Alexa. Proyecto del marco familiar.
+  triggers:
+  - trigger: state
+    entity_id: todo.alexa_lista_de_tareas
+  - trigger: time_pattern
+    minutes: /10
+  conditions:
+  - condition: template
+    value_template: '{{ states(''todo.alexa_lista_de_tareas'') | int(0) > 0 }}'
+  actions:
+  - action: todo.get_items
+    target:
+      entity_id: todo.alexa_lista_de_tareas
+    data:
+      status: needs_action
+    response_variable: alexa
+  - action: todo.get_items
+    target:
+      entity_id: todo.casa
+    data:
+      status: needs_action
+    response_variable: casa
+  - variables:
+      en_casa: '{{ casa[''todo.casa''][''items''] | map(attribute=''summary'') | map(''lower'')
+        | list }}'
+  - repeat:
+      for_each: '{{ alexa[''todo.alexa_lista_de_tareas''][''items''] }}'
+      sequence:
+      - variables:
+          tarea: '{{ repeat.item.summary | trim }}'
+      - if:
+        - condition: template
+          value_template: '{{ tarea | lower not in en_casa }}'
+        then:
+        - action: todo.add_item
+          target:
+            entity_id: todo.casa
+          data:
+            item: '{{ tarea[:1] | upper ~ tarea[1:] }}'
+      - action: todo.remove_item
+        target:
+          entity_id: todo.alexa_lista_de_tareas
+        data:
+          item: '{{ repeat.item.uid }}'
+  mode: queued
+  max: 5

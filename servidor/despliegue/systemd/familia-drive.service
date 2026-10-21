@@ -1,0 +1,15 @@
+# Marco familiar: carga turnos (.Shifter) y menús del cole (PDF) desde la carpeta del marco en Google Drive.
+[Unit]
+Description=Familia: carga turnos y menús del cole desde la carpeta del marco en Google Drive
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# claude -p (menús) necesita la configuración y la sesión de Claude Code del usuario que lo ejecuta
+Environment=HOME=/root
+WorkingDirectory=/srv/familia/marco
+ExecStart=/usr/bin/python3 -I /srv/familia/marco/scripts/drive_watch.py
+# Pasar un PDF a JSON con Claude puede tardar unos minutos
+TimeoutStartSec=30min
+Nice=10

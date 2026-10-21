@@ -1,0 +1,16 @@
+# Configuración y secretos reales de cada familia: solo se suben los *.example
+config/familia.json
+config/turnos-colores.json
+config/calendarios.properties
+secrets/
+*.token
+*.pin
+# Estado y datos generados en ejecución
+menus/*
+!menus/menu-ejemplo.json
+backups/
+drive-state.json
+drive-watch.log
+compra-*.json
+compra-ignorar.txt
+__pycache__/

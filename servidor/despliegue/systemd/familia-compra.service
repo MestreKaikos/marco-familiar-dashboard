@@ -1,0 +1,15 @@
+# Marco familiar: espejo Alexa ⇄ Bring! (compra_sync.py) y exportación de compra.json (compra_export.py).
+# Copia en /etc/systemd/system/ y activa el temporizador: systemctl enable --now familia-compra.timer
+[Unit]
+Description=Familia: sincroniza Alexa y Bring! y exporta la lista de la compra para el marco
+After=docker.service
+
+[Service]
+Type=oneshot
+# Si falla la sincronización (el «-»), se exporta igual lo que haya
+ExecStartPre=-/usr/bin/python3 -I /srv/familia/marco/scripts/compra_sync.py
+ExecStart=/usr/bin/python3 -I /srv/familia/marco/scripts/compra_export.py
+# Opcional: con un usuario propio dueño de /srv/familia/marco y /srv/familia/publico, en vez de root
+#User=familia
+#Environment=FAMILIA_CONFIG=/srv/familia/marco/config/familia.json
+Nice=10

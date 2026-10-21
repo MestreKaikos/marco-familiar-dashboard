@@ -1,0 +1,11 @@
+{
+  "_fuente": "menus/menu-2026-10.pdf (Comedores Ejemplo, CEIP Ejemplo, octubre 2026). Leo: menú general (pág. 1). Hugo: menú sin marisco (pág. 7); solo se anota lo que cambia. EJEMPLO INVENTADO: sirve de modelo de formato para drive_watch.py.",
+  "mes": "2026-10",
+  "dias": [
+    {"dia": 1, "primero": "Crema de calabacín", "segundo": "Pollo al horno", "extras": "Patatas panaderas · Fruta · Pan integral"},
+    {"dia": 2, "primero": "Arroz con verduras", "segundo": "Calamares a la romana", "extras": "Lechuga · Fruta · Pan", "alternativo": "Tortilla de patata"},
+    {"dia": 5, "primero": "Lentejas estofadas", "segundo": "Hamburguesa de garbanzos", "extras": "Ensalada · Yogur · Pan", "nota": "Día de proteína vegetal"},
+    {"dia": 6, "primero": "Sopa de marisco", "segundo": "Merluza a la plancha", "extras": "Tomate aliñado · Fruta · Pan integral", "alternativo_primero": "Sopa de fideos", "alternativo": "Lomo a la plancha"},
+    {"dia": 7, "primero": "Macarrones con tomate", "segundo": "Albóndigas en salsa", "extras": "Fruta · Pan"}
+  ]
+}

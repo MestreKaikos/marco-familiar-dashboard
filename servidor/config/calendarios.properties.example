@@ -1,0 +1,24 @@
+# Copia como <rutas.base>/secrets/calendarios.properties (chmod 600; NUNCA en git). Valores de ejemplo.
+# Por cada clave de «calendarios» en familia.json:
+#   <clave>.ics = dirección secreta en formato iCal (Google Calendar → Configuración del calendario → Integrar)
+#   <clave>.id  = ID del calendario (solo si un script escribe en él; compártelo con el correo de la cuenta de
+#                 servicio con «Hacer cambios en eventos»)
+familia.ics=https://calendar.google.com/calendar/ical/<ID-CALENDARIO>/private-<CLAVE-SECRETA>/basic.ics
+familia.id=<ID-CALENDARIO>@group.calendar.google.com
+turnos.ics=https://calendar.google.com/calendar/ical/<ID-CALENDARIO>/private-<CLAVE-SECRETA>/basic.ics
+turnos.id=<ID-CALENDARIO>@group.calendar.google.com
+menu_cole.ics=https://calendar.google.com/calendar/ical/<ID-CALENDARIO>/private-<CLAVE-SECRETA>/basic.ics
+menu_cole.id=<ID-CALENDARIO>@group.calendar.google.com
+futbol.ics=https://calendar.google.com/calendar/ical/<ID-CALENDARIO>/private-<CLAVE-SECRETA>/basic.ics
+futbol.id=<ID-CALENDARIO>@group.calendar.google.com
+# Opcional (solo lectura en el marco)
+#deporte.ics=https://ics.ecal.com/ecal-sub/<...>.ics
+
+# Carpeta de Drive (si no se pone en familia.json → drive.carpeta)
+#drive.marco=<ID-CARPETA-DRIVE>
+
+# Para make_dashboard_props.py (si no, se calculan con publico.url_base de familia.json)
+compra.json=https://familia.example.com/familia/<RUTA-SECRETA>/compra.json
+tareas.url=https://familia.example.com/familia/<RUTA-SECRETA>/tareas/
+# El mismo valor que <rutas.base>/marco.token en el servidor
+tareas.token=<TOKEN-DEL-MARCO>

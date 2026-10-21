@@ -1,0 +1,31 @@
+# Marco familiar: API de tareas y recompensas de los niños (TaskMate), compra y casa, en 127.0.0.1:8124.
+# tareas_api.py y familia.py se copian en /srv/familia/tareas/ (legibles por todos: el usuario es dinámico).
+# Los secretos y la configuración le llegan por LoadCredential (no necesita leer /srv/familia/marco).
+[Unit]
+Description=Familia: tareas de los niños (TaskMate en Home Assistant) para el marco
+After=docker.service network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 -I /srv/familia/tareas/tareas_api.py
+LoadCredential=ha.token:/srv/familia/marco/ha.token
+LoadCredential=marco.token:/srv/familia/marco/marco.token
+LoadCredential=padres.pin:/srv/familia/marco/padres.pin
+LoadCredential=familia.json:/srv/familia/marco/config/familia.json
+# %d = directorio de credenciales (familia.py también lo busca ahí si no hay FAMILIA_CONFIG)
+Environment=FAMILIA_CONFIG=%d/familia.json
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+# Solo red local: habla con Home Assistant (127.0.0.1:8123) y escucha en 127.0.0.1 para nginx
+RestrictAddressFamilies=AF_INET AF_INET6
+IPAddressAllow=localhost
+IPAddressDeny=any
+Restart=on-failure
+RestartSec=5
+Nice=5
+
+[Install]
+WantedBy=multi-user.target
