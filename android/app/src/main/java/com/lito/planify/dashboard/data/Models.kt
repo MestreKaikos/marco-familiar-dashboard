@@ -101,6 +101,8 @@ data class CarStatus(
     val km: Double? = null,
     val ruedas_bar: List<Double>? = null,
     val cargar_100: Boolean? = null,
+    /** Potencia a la que está cargando, en kW (null si no carga o no se sabe). */
+    val potencia_kw: Double? = null,
     /** Nombre que se enseña del coche; si no viene, «Coche eléctrico». */
     val modelo: String? = null
 )

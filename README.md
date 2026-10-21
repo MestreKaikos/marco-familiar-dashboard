@@ -37,14 +37,14 @@ La app de Lito lee calendarios, rutinas y tareas de su propio backend (Planify).
 | Lista de la compra | **Bring!** + lista de la compra de **Alexa** (por voz) | Espejo Alexa ⇄ Bring! en el servidor; `compra.json` en una ruta secreta |
 | Tareas de casa | **Todoist** (proyecto compartido) + «Alexa, añade… a mis tareas» | Home Assistant → `compra.json` |
 | Tareas de los niños, estrellas y recompensas | **TaskMate** (integración de Home Assistant) | Un pequeño servicio en el servidor: ver, marcar «hecha por X», deshacer, pedir canje y aprobarlo con PIN de padres |
-| Coche eléctrico (batería, autonomía, ruedas) | Integración de Home Assistant del fabricante | `compra.json` |
+| Coche eléctrico (batería, autonomía, carga y potencia, ruedas) | Integración de Home Assistant del fabricante | `compra.json` |
 | Calefacción, toldo, música de los Echo | Home Assistant (Overkiz/Somfy, Alexa Media Player) | `compra.json` + órdenes por el mismo servicio |
 
 Y en la pantalla:
 
 - **Hoy:** bloque «cielo» (cambia de color con el sol) con la hora, la fecha y el tiempo de 6 días con su % de lluvia; **lo próximo** (o **ahora**, mientras dura) con cuenta atrás; **la semana** con el turno de cada día en una pastilla, todas las citas y el menú del cole; abajo, niños, compra y luz/coche (cada bloque lleva a su pestaña).
-- **Calendario de pared:** semanas de lunes a domingo en vertical, con el tiempo de cada día.
-- **Casa y energía:** luz de las próximas 24 h y **mejores horas** para cargar el coche o poner el lavavajillas; calefacción con consigna y modos; coche; toldo; música.
+- **Calendario de pared:** unos 3 meses (13 semanas) de lunes a domingo en vertical, con el mes en cada semana, el día 1 resaltado y el tiempo de cada día.
+- **Casa y energía:** luz de las próximas 24 h y **mejores horas** para cargar el coche o poner el lavavajillas; calefacción con consigna y modos; coche (mientras carga, la batería en azul parpadea y enseña la potencia en kW); toldo; música.
 - **Tareas:** tareas de los niños (cada uno marca las suyas), recompensas con canje y PIN, tareas de casa y la compra con **habituales** (los 3 productos más pedidos que faltan, a un toque).
 - Tocar cualquier cita abre un aviso con el título entero, lugar y descripción.
 

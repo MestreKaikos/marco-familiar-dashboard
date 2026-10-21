@@ -1,5 +1,10 @@
 package com.lito.planify.dashboard.ui
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -56,6 +61,8 @@ fun Event.rangeLabel(): String? = if (all_day) null else listOfNotNull(at.format
 fun onColor(background: Color): Color = if (background.luminance() > 0.45f) Palette.Ink else Color.White
 
 internal val Green = Color(0xFF3BA55C)
+/** Azul «eléctrico» de la batería del coche mientras carga, para que no se confunda con el verde de batería alta. */
+internal val Charging = Color(0xFF1E90E8)
 internal val Amber = Color(0xFFF5A623)
 internal val Red = Color(0xFFD9483B)
 
@@ -227,19 +234,28 @@ fun EnergyCard(energy: Energy?, car: CarStatus?, now: LocalDateTime, modifier: M
 
 /**
  * Batería del coche como los «gauge» de Home Assistant: semicírculo grueso, la parte llena del color del nivel (verde
- * > 50 %, ámbar 20–50 %, rojo < 20 %; verde siempre que carga) y el resto en gris claro; el % dentro y debajo la
- * autonomía o «cargando».
+ * > 50 %, ámbar 20–50 %, rojo < 20 %; azul mientras carga) y el resto en gris claro; el % dentro y debajo la
+ * autonomía. Mientras carga, la potencia en pequeño encima y el relleno parpadea.
  */
 @Composable
 internal fun BatteryGauge(level: Double, car: CarStatus, modifier: Modifier) {
     val pct = (level / 100.0).toFloat().coerceIn(0f, 1f)
     val color = when {
-        car.cargando || level > 50 -> Green
+        car.cargando -> Charging
+        level > 50 -> Green
         level >= 20 -> Amber
         else -> Red
     }
+    val pulse = chargePulse(car.cargando)
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
-        Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.BottomCenter) {
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.BottomCenter) {
+            // Mientras carga, la potencia en pequeño justo encima del arco (no arriba del todo, junto al título)
+            if (car.cargando) Text(
+                "⚡ " + (car.potencia_kw?.let(::kilowatts) ?: "cargando"),
+                style = Type.Tiny.copy(color = Charging, fontWeight = FontWeight.SemiBold),
+                maxLines = 1,
+                modifier = Modifier.padding(bottom = (minOf(maxWidth, maxHeight * 2) - 18.dp) / 2 + 9.dp + 16.dp)
+            )
             Canvas(Modifier.fillMaxSize()) {
                 val stroke = 18.dp.toPx()
                 // El semicírculo más grande que cabe: ancho = 2·radio, alto = radio
@@ -248,13 +264,14 @@ internal fun BatteryGauge(level: Double, car: CarStatus, modifier: Modifier) {
                 val top = size.height - diameter / 2 - stroke / 2
                 val arc = Size(diameter, diameter)
                 drawArc(Palette.Line, 180f, 180f, false, Offset(left, top), arc, style = Stroke(stroke))
-                drawArc(color, 180f, 180f * pct, false, Offset(left, top), arc, style = Stroke(stroke))
+                drawArc(color.copy(alpha = chargeFillAlpha(pulse)), 180f, 180f * pct, false, Offset(left, top), arc, style = Stroke(stroke))
+                if (pulse > 0f) drawArc(color.copy(alpha = pulse), 180f + 180f * pct, 180f * chargeSpan(pct), false, Offset(left, top), arc, style = Stroke(stroke))
             }
             Text("${level.toInt()} %", style = Type.Large.copy(fontWeight = FontWeight.Medium), maxLines = 1)
         }
         Text(
-            if (car.cargando) "⚡ cargando" else car.autonomia_km?.let { "${it.toInt()} km" } ?: "",
-            style = Type.Tiny.copy(color = if (car.cargando) Green else Palette.InkSoft, fontWeight = FontWeight.SemiBold),
+            car.autonomia_km?.let { "${it.toInt()} km" } ?: "",
+            style = Type.Tiny.copy(color = Palette.InkSoft, fontWeight = FontWeight.SemiBold),
             maxLines = 1
         )
     }
@@ -289,3 +306,19 @@ internal fun PriceBars(day: List<HourPrice>, now: LocalDateTime, min: Double, ma
         }
     }
 }
+
+/** Mientras el coche carga, un brillo que sube y baja cada ~1,5 s para el tramo que se está llenando; 0 si no carga. */
+@Composable
+internal fun chargePulse(charging: Boolean): Float {
+    if (!charging) return 0f
+    val transition = rememberInfiniteTransition(label = "carga")
+    return transition.animateFloat(0.2f, 0.8f, infiniteRepeatable(tween(1500), RepeatMode.Reverse), label = "pulso").value
+}
+
+/** Mientras carga, todo el relleno parpadea suave con [chargePulse] (de ~60 % a 100 % de opacidad); si no, opaco. */
+internal fun chargeFillAlpha(pulse: Float) = if (pulse > 0f) (0.4f + pulse * 0.75f).coerceAtMost(1f) else 1f
+
+/** Lo que ocupa el tramo «llenándose»: un 12 % por delante del nivel, sin pasar del 100 %. */
+internal fun chargeSpan(pct: Float) = minOf(0.12f, 1f - pct)
+
+internal fun kilowatts(kw: Double) = String.format(java.util.Locale("es", "ES"), "%.1f kW", kw)

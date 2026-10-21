@@ -82,6 +82,8 @@ try:
         coche["ruedas_bar"] = [round(num(f"sensor.{car}_presion_neumatico_{r}") / 100, 1) for r in
                                ("delantero_izquierdo", "delantero_derecho", "trasero_izquierdo", "trasero_derecho")]
         coche["cargar_100"] = state(f"switch.{car}_charge_to_full") == "on"
+        potencia = num(f"sensor.{car}_battery_power")  # W; 0 cuando la carga está en pausa
+        coche["potencia_kw"] = round(abs(potencia) / 1000, 1) if potencia and abs(potencia) >= 100 else None
     except Exception:
         pass
 except Exception:

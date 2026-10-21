@@ -8,14 +8,15 @@ import com.lito.planify.dashboard.UiState
  * opcionales, `demo.rival=Rival FC` para el equipo contrario de los partidos de los niños, `demo.turnos.dias=3` para
  * mover los turnos esos días (siguen siendo turnos con sentido, pero no los de verdad) y `demo.coche=…` para el nombre
  * del coche, y `demo.ficticio=true` para cambiar del todo citas, turnos, menús y listas por una familia inventada
- * ([FakeFamily]). La versión del marco no las lleva: entonces [Demo.from] devuelve null y no se toca nada.
+ * ([FakeFamily]), y `demo.cargando=true` para enseñar el coche cargando. La versión del marco no las lleva: entonces [Demo.from] devuelve null y no se toca nada.
  */
 class Demo(
     private val replacements: List<Pair<Regex, String>>,
     private val rival: String?,
     private val shiftDays: Long = 0,
     private val car: String? = null,
-    private val fictitious: Boolean = false
+    private val fictitious: Boolean = false,
+    private val charging: Boolean = false
 ) {
     private val kids = replacements.map { it.second }
 
@@ -57,7 +58,9 @@ class Demo(
         },
         shopping = state.shopping?.let { sh ->
             fun items(l: List<ShoppingItem>?) = l?.map { it.copy(producto = text(it.producto), detalle = opt(it.detalle)) }
-            sh.copy(items = items(sh.items), listas = sh.listas?.map { it.copy(items = items(it.items)) }, coche = sh.coche?.let { c -> car?.let { c.copy(modelo = it) } ?: c })
+            sh.copy(items = items(sh.items), listas = sh.listas?.map { it.copy(items = items(it.items)) }, coche = sh.coche?.let { c ->
+                (car?.let { c.copy(modelo = it) } ?: c).let { if (charging) it.copy(cargando = true, enchufado = true, potencia_kw = it.potencia_kw ?: 3.2) else it }
+            })
         },
         location = state.location?.let { it.copy(name = text(it.name), detail = text(it.detail)) }
     )
@@ -68,12 +71,14 @@ class Demo(
                 val (from, to) = props.getProperty(key).split("=>", limit = 2).takeIf { it.size == 2 } ?: return@mapNotNull null
                 Regex("""\b${Regex.escape(from.trim())}\b""", RegexOption.IGNORE_CASE) to to.trim()
             }
-            return if (pairs.isEmpty()) null else Demo(
+            val any = props.stringPropertyNames().any { it.startsWith("demo.") }
+            return if (!any) null else Demo(
                 pairs,
                 props.getProperty("demo.rival")?.trim(),
                 props.getProperty("demo.turnos.dias")?.trim()?.toLongOrNull() ?: 0,
                 props.getProperty("demo.coche")?.trim(),
-                props.getProperty("demo.ficticio")?.trim() == "true"
+                props.getProperty("demo.ficticio")?.trim() == "true",
+                props.getProperty("demo.cargando")?.trim() == "true"
             )
         }
     }

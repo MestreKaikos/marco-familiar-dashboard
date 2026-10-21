@@ -29,6 +29,7 @@ import com.lito.planify.dashboard.UiState
 import com.lito.planify.dashboard.data.Event
 import com.lito.planify.dashboard.ui.theme.Palette
 import com.lito.planify.dashboard.ui.theme.Type
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.TextStyle
@@ -132,6 +133,12 @@ internal fun WeekDay(
                 if (isToday) "Hoy" else day.dayOfWeek.getDisplayName(TextStyle.SHORT, Spanish).trimEnd('.').capitalized(),
                 style = Type.Small.copy(color = if (isToday) Palette.Accent else Palette.InkSoft, fontWeight = FontWeight.SemiBold),
                 modifier = Modifier.weight(1f)
+            )
+            // Calendario: el mes en el lunes de cada semana y, resaltado, en el día 1 (donde cambia de mes)
+            if (small && (day.dayOfWeek == DayOfWeek.MONDAY || day.dayOfMonth == 1)) Text(
+                day.month.getDisplayName(TextStyle.SHORT, Spanish).trimEnd('.'),
+                style = Type.Small.copy(color = if (day.dayOfMonth == 1) Palette.Accent else Palette.InkSoft, fontWeight = FontWeight.SemiBold),
+                modifier = Modifier.padding(end = 8.dp, bottom = 3.dp)
             )
             Text("${day.dayOfMonth}", style = Type.Large.copy(color = if (isToday) Palette.Accent else Palette.Ink, fontWeight = FontWeight.SemiBold))
         }

@@ -69,7 +69,7 @@
   },
 
   "coche": {
-    "_nota": "Prefijo de las entidades de la integración del coche en HA (sensor.<prefijo>_nivel_de_bateria, _autonomia, _cuentakilometros, _ultima_actualizacion, _presion_neumatico_<rueda>, binary_sensor.<prefijo>_cargando y _enchufe, switch.<prefijo>_charge_to_full). «modelo» se publica tal cual en compra.json (coche.modelo). Pon \"coche\": null si no hay coche.",
+    "_nota": "Prefijo de las entidades de la integración del coche en HA (sensor.<prefijo>_nivel_de_bateria, _autonomia, _cuentakilometros, _ultima_actualizacion, _presion_neumatico_<rueda>, binary_sensor.<prefijo>_cargando y _enchufe, switch.<prefijo>_charge_to_full y sensor.<prefijo>_battery_power en W, para la potencia de carga). «modelo» se publica tal cual en compra.json (coche.modelo). Pon \"coche\": null si no hay coche.",
     "modelo": "Eléctrico compacto",
     "prefijo_sensores": "mi_coche"
   },

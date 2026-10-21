@@ -61,8 +61,8 @@ class ContentRepository(private val api: Api, cache: DiskCache, private val ics:
         const val PAST_MONTHS = 12L
         /** Con iCal, meses por delante (los mismos que se pueden ver en el calendario de Hoy). */
         const val FUTURE_MONTHS = 12L
-        /** Con iCal, días por delante de turnos y menú del cole: las 4 semanas del Calendario. */
-        const val WEEKS_AHEAD_DAYS = 28L
+        /** Con iCal, días por delante de turnos y menú del cole: las 13 semanas (unos 3 meses) del Calendario. */
+        const val WEEKS_AHEAD_DAYS = 91L
         const val MAX_AGE_MS = 5 * 60_000L
     }
 }

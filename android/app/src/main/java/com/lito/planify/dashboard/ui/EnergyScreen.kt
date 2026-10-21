@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.ElectricCar
 import androidx.compose.material.icons.outlined.Schedule
@@ -249,19 +251,22 @@ private fun CarFact(emoji: String, text: String, modifier: Modifier = Modifier) 
 
 /**
  * La batería del coche como una pila tumbada: el relleno hasta el % del color del nivel (verde > 50 %, ámbar 20–50 %,
- * rojo < 20 %; verde siempre que carga), con el % grande dentro y la autonomía al lado.
+ * rojo < 20 %; azul mientras carga, y entonces el relleno parpadea suave), con el % grande dentro y la autonomía al lado. Mientras carga, un rayo junto
+ * al % y el tramo que se está llenando late por delante del nivel; enchufado sin cargar (la carga va a tramos) lo dice.
  */
 @Composable
 private fun BatteryPile(car: CarStatus, modifier: Modifier) {
     val level = car.bateria ?: return
     val pct = (level / 100.0).toFloat().coerceIn(0f, 1f)
     val color = when {
-        car.cargando || level > 50 -> Green
+        car.cargando -> Charging
+        level > 50 -> Green
         level >= 20 -> Amber
         else -> Red
     }
+    val pulse = chargePulse(car.cargando)
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+        Box(Modifier.weight(1.25f).fillMaxHeight(), contentAlignment = Alignment.Center) {
             androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
                 val stroke = 6.dp.toPx()
                 val nub = 14.dp.toPx()
@@ -271,15 +276,26 @@ private fun BatteryPile(car: CarStatus, modifier: Modifier) {
                 // Relleno con margen dentro del contorno
                 val pad = stroke + 6.dp.toPx()
                 drawRoundRect(color.copy(alpha = 0.18f), o, body, r)
-                drawRoundRect(color.copy(alpha = 0.75f), androidx.compose.ui.geometry.Offset(pad, pad), androidx.compose.ui.geometry.Size((body.width - 2 * pad + stroke) * pct, body.height - 2 * pad + stroke), androidx.compose.ui.geometry.CornerRadius(16.dp.toPx()))
+                val inner = androidx.compose.ui.geometry.Size(body.width - 2 * pad + stroke, body.height - 2 * pad + stroke)
+                drawRoundRect(color.copy(alpha = 0.75f * chargeFillAlpha(pulse)), androidx.compose.ui.geometry.Offset(pad, pad), androidx.compose.ui.geometry.Size(inner.width * pct, inner.height), androidx.compose.ui.geometry.CornerRadius(16.dp.toPx()))
+                if (pulse > 0f) drawRoundRect(color.copy(alpha = pulse * 0.6f), androidx.compose.ui.geometry.Offset(pad + inner.width * pct, pad), androidx.compose.ui.geometry.Size(inner.width * chargeSpan(pct), inner.height), androidx.compose.ui.geometry.CornerRadius(16.dp.toPx()))
                 drawRoundRect(Palette.InkSoft, o, body, r, style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
                 drawRoundRect(Palette.InkSoft, androidx.compose.ui.geometry.Offset(size.width - nub, size.height * 0.32f), androidx.compose.ui.geometry.Size(nub, size.height * 0.36f), androidx.compose.ui.geometry.CornerRadius(6.dp.toPx()))
             }
-            Text("${level.toInt()} %", style = Type.Title.copy(color = Palette.Ink, fontWeight = FontWeight.Bold))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (car.cargando) androidx.compose.material3.Icon(Icons.Filled.Bolt, null, Modifier.size(44.dp), tint = Palette.Ink)
+                Text("${level.toInt()} %", style = Type.Title.copy(color = Palette.Ink, fontWeight = FontWeight.Bold))
+            }
         }
-        Column(Modifier.padding(start = 24.dp), horizontalAlignment = Alignment.End) {
-            Text("${car.autonomia_km?.toInt() ?: "—"} km", style = Type.Title.copy(fontWeight = FontWeight.SemiBold))
-            Text(if (car.cargando) "⚡ cargando" else "de autonomía", style = Type.Small.copy(color = if (car.cargando) Green else Palette.InkSoft))
+        Column(Modifier.weight(1f).padding(start = 20.dp), horizontalAlignment = Alignment.End) {
+            Text("${car.autonomia_km?.toInt() ?: "—"} km", style = Type.Title.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
+            // La ficha de debajo ya dice «Cargando»/«Enchufado»: aquí, la potencia o que la carga está en pausa
+            val status = when {
+                car.cargando -> "⚡ " + (car.potencia_kw?.let(::kilowatts) ?: "cargando")
+                car.enchufado -> "🔌 en pausa"
+                else -> "de autonomía"
+            }
+            Text(status, style = Type.Small.copy(color = if (car.cargando) Charging else Palette.InkSoft, fontWeight = FontWeight.SemiBold), maxLines = 1)
         }
     }
 }

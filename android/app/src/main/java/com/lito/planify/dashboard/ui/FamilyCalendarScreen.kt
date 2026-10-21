@@ -15,8 +15,8 @@ import com.lito.planify.dashboard.UiState
 import java.time.DayOfWeek
 import java.time.LocalDate
 
-/** Semanas que enseña el Calendario de la familia: esta y las 3 siguientes (lo que traen turnos y menús). */
-private const val WEEKS_SHOWN = 4
+/** Semanas que enseña el Calendario de la familia: esta y las 12 siguientes, unos 3 meses (lo que traen turnos y menús). */
+private const val WEEKS_SHOWN = 13
 
 /**
  * Calendario de la familia, como uno de pared: las semanas de lunes a domingo una debajo de otra, sin títulos
