@@ -110,6 +110,8 @@ fun DashboardApp(
     home: HomeCallbacks = HomeCallbacks()
 ) {
     var page by remember { mutableStateOf(Page.Today) }
+    // Sopars compartits entre la portada i el calendari, desats només al dispositiu.
+    val dinners = rememberDinnerPlan()
     var lastTouch by remember { mutableLongStateOf(0L) }
     /** Cita abierta en el aviso ([EventOverlay]); se cierra sola al volver a Hoy por inactividad. */
     var shownEvent by remember { mutableStateOf<Event?>(null) }
@@ -155,10 +157,10 @@ fun DashboardApp(
                 Box(Modifier.weight(1f).fillMaxHeight()) {
                     when (page) {
                         // La portada familiar funciona sense credencials; el backend antic és opcional.
-                        Page.Today -> if (state.ics || state.token == null) FamilyTodayScreen(state, onOpen = { page = it }) else TodayScreen(state, lastTouch)
+                        Page.Today -> if (state.ics || state.token == null) FamilyTodayScreen(state, dinners, onOpen = { page = it }) else TodayScreen(state, lastTouch)
                         Page.Photos -> PhotosScreen()
                         // Con los calendarios de la familia, semanas en vertical como la portada; con Planify, la de Lito
-                        Page.Calendar -> if (state.ics || state.token == null) FamilyCalendarScreen(state) else CalendarScreen(state, onLoadWeek)
+                        Page.Calendar -> if (state.ics || state.token == null) FamilyCalendarScreen(state, dinners) else CalendarScreen(state, onLoadWeek)
                         Page.Weather -> WeatherScreen(state)
                         Page.Energy -> EnergyScreen(state)
                         // Prueba: Casa y Energía juntas (EnergyScreen y HomeScreen siguen por si se separan)
