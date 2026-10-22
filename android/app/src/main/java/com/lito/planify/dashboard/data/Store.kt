@@ -18,6 +18,9 @@ data class Schedule(
     val screenOff: Boolean = false
 )
 
+/** L'enllaç iCal de Google és privat: no incloure'l mai en captures ni al repositori. */
+data class PersonalCalendar(val id: String, val name: String, val url: String)
+
 /** Sesión y ajustes del dispositivo (SharedPreferences). Los datos descargados van en DiskCache. */
 class Store(context: Context) {
     companion object {
@@ -39,6 +42,14 @@ class Store(context: Context) {
     var email: String?
         get() = prefs.getString("email", null)
         set(value) = prefs.edit { putString("email", value) }
+
+    /** Calendari(s) privats del marc, desats exclusivament dins les preferències de l'APK. */
+    var calendarFeeds: List<PersonalCalendar>
+        get() = runCatching {
+            gson.fromJson(prefs.getString("calendar_feeds", "[]"), Array<PersonalCalendar>::class.java)
+                ?.filter { it.name.isNotBlank() && it.url.isNotBlank() }?.take(5)?.toList().orEmpty()
+        }.getOrDefault(emptyList())
+        set(value) = prefs.edit { putString("calendar_feeds", gson.toJson(value.take(5))) }
 
     var location: Location?
         get() = read<Location>("location") ?: DEFAULT_LOCATION
