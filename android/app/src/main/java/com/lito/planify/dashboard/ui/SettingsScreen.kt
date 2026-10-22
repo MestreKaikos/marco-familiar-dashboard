@@ -76,7 +76,9 @@ class SettingsCallbacks(
     val onSelectLocation: (GeoResult) -> Unit,
     val onSchedule: (Schedule) -> Unit,
     val onBrightness: (Float?) -> Unit,
-    val onLogout: () -> Unit
+    val onLogout: () -> Unit,
+    val onAddCalendar: (String, String) -> String?,
+    val onRemoveCalendar: (String) -> Unit
 )
 
 /**
@@ -86,6 +88,11 @@ class SettingsCallbacks(
  */
 @Composable
 fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: SettingsCallbacks) {
+    var calendarSetup by remember { mutableStateOf(false) }
+    if (calendarSetup) {
+        CalendarSetupScreen(state, callbacks, onBack = { calendarSetup = false })
+        return
+    }
     ScreenPadding {
         Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
             Panel(Modifier.weight(1f).fillMaxHeight()) {
@@ -103,6 +110,7 @@ fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: Setting
                 Panel(Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
                         PillButton("Wi-Fi", Modifier.fillMaxWidth(), background = Control, onClick = actions.openWifi)
+                        PillButton("Calendaris de Google", Modifier.fillMaxWidth(), background = Control, onClick = { calendarSetup = true })
                         PillButton("Opcions d’Android", Modifier.fillMaxWidth(), background = Control, onClick = actions.openSettings)
                         // Con calendarios iCal no hay sesión: borra lo descargado y vuelve a pedirlo
                         if (state.ics || state.token != null) {
