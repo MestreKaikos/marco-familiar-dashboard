@@ -65,10 +65,10 @@ private fun LocalDate.monthWithPreposition(): String {
 /** Exemple: DIMECRES 21 D'OCTUBRE. */
 fun LocalDate.longLabel() = "${dayOfWeek.getDisplayName(TextStyle.FULL, Catalan)} $dayOfMonth ${monthWithPreposition()}".uppercase(Catalan)
 
-/** Los 7 días desde [from]: "13 – 19 de octubre" o "29 de septiembre – 5 de octubre" (con el año si no es el actual). */
+/** Els 7 dies des de [from]: «13 – 19 d'octubre» o «29 de setembre – 5 d'octubre». */
 fun weekRange(from: LocalDate): String {
     val to = from.plusDays(6)
-        val year = if (to.year != LocalDate.now().year) " de ${to.year}" else ""
+    val year = if (to.year != LocalDate.now().year) " de ${to.year}" else ""
     return if (from.month == to.month) "${from.dayOfMonth} – ${to.dayOfMonth} ${to.monthWithPreposition()}$year"
     else "${from.dayOfMonth} ${from.monthWithPreposition()} – ${to.dayOfMonth} ${to.monthWithPreposition()}$year"
 }
