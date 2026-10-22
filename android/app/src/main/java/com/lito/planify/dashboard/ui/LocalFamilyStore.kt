@@ -149,7 +149,7 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
     }
 
     fun status(chore: LocalChore, today: LocalDate): String =
-        if (chore.daily && chore.date != today.toString()) "todo" else chore.status
+        if (chore.daily && chore.status != "pending" && chore.date != today.toString()) "todo" else chore.status
 
     fun requestDone(id: String, today: LocalDate) {
         val i = chores.indexOfFirst { it.id == id }
