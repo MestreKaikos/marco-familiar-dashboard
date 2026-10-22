@@ -68,7 +68,7 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate) {
         FamilyPanel(Modifier.weight(1f).fillMaxHeight()) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("🛒 Llista de la compra", style = Type.Large.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
-                Text("${store.groceries.count { !it.bought }} pendent(s)", style = Type.Tiny)
+                Text("${store.groceries.count { !it.bought }} ${if (store.groceries.count { !it.bought } == 1) "pendent" else "pendents"}", style = Type.Tiny)
             }
             Spacer(Modifier.height(16.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
