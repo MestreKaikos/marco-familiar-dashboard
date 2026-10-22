@@ -102,7 +102,7 @@ interface Api {
             "https://apidatos.ree.es/es/datos/mercados/precios-mercados-tiempo-real" +
                 "?start_date=${from}T00:00&end_date=${to}T23:59&time_trunc=hour"
 
-        fun geocodeUrl(query: String) = "https://geocoding-api.open-meteo.com/v1/search?count=8&language=es&format=json&name=" +
+        fun geocodeUrl(query: String) = "https://geocoding-api.open-meteo.com/v1/search?count=8&language=ca&format=json&name=" +
             java.net.URLEncoder.encode(query, "UTF-8")
     }
 }
