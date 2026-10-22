@@ -21,6 +21,8 @@ class AdminReceiver : DeviceAdminReceiver()
 object Kiosk {
     /** Ajustes de Android se permite dentro del lock task para configurar el Wi-Fi. */
     private const val SETTINGS = "com.android.settings"
+    // Selector de carpetes del sistema per a la galeria en mode quiosc.
+    private const val DOCUMENTS = "com.android.documentsui"
 
     private fun dpm(context: Context) = context.getSystemService(DevicePolicyManager::class.java)
     private fun admin(context: Context) = ComponentName(context, AdminReceiver::class.java)
@@ -32,7 +34,7 @@ object Kiosk {
         if (!isOwner(activity)) return
         val dpm = dpm(activity)
         val admin = admin(activity)
-        dpm.setLockTaskPackages(admin, arrayOf(activity.packageName, SETTINGS))
+        dpm.setLockTaskPackages(admin, arrayOf(activity.packageName, SETTINGS, DOCUMENTS))
         // Solo el menú de apagado (pulsación larga del botón de encendido): sin él no hay forma limpia de apagar
         dpm.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_GLOBAL_ACTIONS)
         dpm.setKeyguardDisabled(admin, true)
