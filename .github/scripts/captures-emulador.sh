@@ -53,3 +53,21 @@ sleep 2
 adb shell input tap 1850 504
 sleep 4
 capture "07-familia-compra-tasques.png"
+
+# Prova funcional sense dades privades: afegir un producte de mostra.
+adb shell input tap 95 309
+sleep 3
+capture "08-compra-amb-producte.png"
+
+# Comprovem que continua guardat en reiniciar completament l'aplicació.
+adb shell am force-stop com.lito.planify.dashboard
+adb shell am start -W -n com.lito.planify.dashboard/.MainActivity
+sleep 9
+adb shell input tap 1850 500
+sleep 3
+capture "09-compra-despres-reinici.png"
+
+# Una feina d'exemple obre la primera configuració del PIN dels adults.
+adb shell input tap 950 336
+sleep 3
+capture "10-pin-dels-adults.png"
