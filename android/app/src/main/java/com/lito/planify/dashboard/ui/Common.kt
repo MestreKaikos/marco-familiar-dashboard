@@ -56,21 +56,21 @@ fun String.capitalized() = replaceFirstChar { it.titlecase(Spanish) }
 
 fun LocalDate.weekdayName(style: TextStyle = TextStyle.FULL) = dayOfWeek.getDisplayName(style, Spanish).capitalized()
 
-private fun LocalDate.monthWithPreposition(): String {
+fun LocalDate.monthWithArticle(): String {
     val name = month.getDisplayName(TextStyle.FULL, Catalan)
     val vowel = name.firstOrNull()?.lowercaseChar()?.let { it in "aeiou" } == true
     return if (vowel) "d'$name" else "de $name"
 }
 
 /** Exemple: DIMECRES 21 D'OCTUBRE. */
-fun LocalDate.longLabel() = "${dayOfWeek.getDisplayName(TextStyle.FULL, Catalan)} $dayOfMonth ${monthWithPreposition()}".uppercase(Catalan)
+fun LocalDate.longLabel() = "${dayOfWeek.getDisplayName(TextStyle.FULL, Catalan)} $dayOfMonth ${monthWithArticle()}".uppercase(Catalan)
 
 /** Els 7 dies des de [from]: «13 – 19 d'octubre» o «29 de setembre – 5 d'octubre». */
 fun weekRange(from: LocalDate): String {
     val to = from.plusDays(6)
     val year = if (to.year != LocalDate.now().year) " de ${to.year}" else ""
-    return if (from.month == to.month) "${from.dayOfMonth} – ${to.dayOfMonth} ${to.monthWithPreposition()}$year"
-    else "${from.dayOfMonth} ${from.monthWithPreposition()} – ${to.dayOfMonth} ${to.monthWithPreposition()}$year"
+    return if (from.month == to.month) "${from.dayOfMonth} – ${to.dayOfMonth} ${to.monthWithArticle()}$year"
+    else "${from.dayOfMonth} ${from.monthWithArticle()} – ${to.dayOfMonth} ${to.monthWithArticle()}$year"
 }
 
 /** "MIÉ 14 OCT", como en el widget de la app. */
