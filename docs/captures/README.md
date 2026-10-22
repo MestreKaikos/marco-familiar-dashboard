@@ -24,4 +24,8 @@ Es generen per comprovar l'aspecte de la versió horitzontal de **1920 × 1200**
 
 ![Opcions de Marc Familiar](05-opcions.png)
 
+## Sopars
+
+![Editor de sopars amb selecció del dia](06-editor-sopar.png)
+
 **Nota:** en un emulador acabat de crear, no apareixen esdeveniments, fotografies ni previsió fins que s'hi introdueixen les dades corresponents. Aquesta és una previsualització del disseny, no una prova de la integració amb els serveis personals.
