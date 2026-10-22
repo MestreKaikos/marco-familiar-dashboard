@@ -32,3 +32,25 @@ Aquest codi **encara no s'ha compilat ni comprovat en un emulador Android ni al 
 **No executeu `scripts/install.sh` fins que tinguem el marc físic.** Cal verificar el model i firmware exactes, fer una còpia de seguretat de la memòria interna i seguir les fases de la guia original. No pengeu claus, calendaris iCal privats, fotos familiars ni còpies del firmware al repositori públic.
 
 La llicència MIT i els crèdits dels autors originals s'han de conservar.
+
+
+## Fase següent · inici sense usuari ni contrasenya
+
+- L'aplicació obre directament la portada **Avui** sense haver de crear un compte de Planify.
+- Sense calendaris configurats, es mostra una setmana buida amb un avís clar, no es fan servir dades inventades.
+- A la portada hi ha accessos a les **Fotos**, a la configuració d'**El temps** i al **Calendari**.
+- La galeria continua funcionant sense xarxa. La meteorologia s'obté directament amb Open-Meteo quan es tria una ciutat a **Opcions**.
+- Les dades del calendari real encara requereixen configurar fonts iCal; no es demana contrasenya de Google.
+- El codi antic de Planify encara existeix per compatibilitat, però no es mostra la pantalla d'autenticació ni s'utilitza el backend sense una sessió configurada.
+- La funció de rellotge nocturn també pot funcionar en mode local.
+
+### Prova en Android real
+
+1. A l'apartat **Actions** de GitHub, obre la compilació més recent que hagi acabat amb èxit.
+2. Descarrega l'artefacte `marc-familiar-android-debug` i extreu-ne l'APK.
+3. **Si ja tens una APK de prova anterior**, és possible que Android no permeti instal·lar la nova al damunt: els certificats debug dels runners de GitHub poden ser diferents. En aquest cas, desinstal·la la versió anterior. Això elimina la carpeta triada i els ajustos locals de l'app; torna a seleccionar les fotos després de reinstal·lar.
+4. Obre Marc Familiar: la pantalla principal ha d'aparèixer **sense contrasenya**. Prem **Fotos** per triar la carpeta local.
+5. Prem **Opcions** per buscar la ubicació meteorològica. El calendari familiar encara es mostrarà com a pendent.
+6. **No introdueixis cap credencial de Google, Samsung ni SmartThings** dins l'APK de prova.
+
+El projecte està preparat per a 1920 × 1200 en horitzontal. La interfície pot quedar retallada en un telèfon; la prova del mòbil confirma la funcionalitat bàsica, no la maquetació final del XORO.
