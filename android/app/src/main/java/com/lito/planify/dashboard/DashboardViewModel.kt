@@ -86,7 +86,7 @@ data class UiState(
 ) {
     /** Reloj nocturno: fuera de horario (salvo mientras se mira el dashboard un momento) o pedido con la luna. */
     val night: Boolean
-        get() = clockValid && token != null && (
+        get() = clockValid && (
             (nightUntil != null && now.isBefore(nightUntil)) ||
                 (ScreenSchedule.isNight(schedule, now) && (peekUntil == null || !now.isBefore(peekUntil)))
             )
