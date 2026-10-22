@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Marc Familiar</string>
-    <string name="power_menu_service">Obre el menú d'apagada d'Android des de les opcions del marc.</string>
+    <string name="power_menu_service">Obre el menú per apagar o reiniciar Android des de les opcions del marc.</string>
 </resources>
