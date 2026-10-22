@@ -111,9 +111,9 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private val contentRepository = ContentRepository(api, cache, ics)
     private val weatherRepository = WeatherRepository(api, cache)
     private val calendarRepository = CalendarRepository(api, cache, ics = ics)
-    private val energyRepository = if (ics != null) EnergyRepository(api, cache) else null
-    private val shoppingRepository = icsConfig.shoppingUrl?.takeIf { ics != null }?.let { ShoppingRepository(api, cache, it) }
-    private val choresRepository = icsConfig.choresUrl?.takeIf { ics != null }?.let { url ->
+    private val energyRepository = if (icsConfig.enabled) EnergyRepository(api, cache) else null
+    private val shoppingRepository = icsConfig.shoppingUrl?.takeIf { icsConfig.enabled }?.let { ShoppingRepository(api, cache, it) }
+    private val choresRepository = icsConfig.choresUrl?.takeIf { icsConfig.enabled }?.let { url ->
         icsConfig.choresToken?.let { ChoresRepository(api, cache, url, it) }
     }
     /** Productos (en minúsculas) quitados en el marco que el servidor aún no ha sacado de compra.json. */
