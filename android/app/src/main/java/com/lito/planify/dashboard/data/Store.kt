@@ -20,6 +20,15 @@ data class Schedule(
 
 /** Sesión y ajustes del dispositivo (SharedPreferences). Los datos descargados van en DiskCache. */
 class Store(context: Context) {
+    companion object {
+        /** Ubicació inicial; es pot canviar a Opcions i queda desada al dispositiu. */
+        val DEFAULT_LOCATION = Location(
+            name = "Malgrat de Mar",
+            detail = "Maresme, Catalunya",
+            latitude = 41.6459118,
+            longitude = 2.7414054
+        )
+    }
     private val prefs = context.getSharedPreferences("dashboard", Context.MODE_PRIVATE)
     private val gson = Gson()
 
@@ -32,7 +41,7 @@ class Store(context: Context) {
         set(value) = prefs.edit { putString("email", value) }
 
     var location: Location?
-        get() = read("location")
+        get() = read<Location>("location") ?: DEFAULT_LOCATION
         set(value) = write("location", value)
 
     var schedule: Schedule
