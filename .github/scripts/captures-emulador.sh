@@ -40,3 +40,9 @@ capture "04-el-temps.png"
 adb shell input tap 1850 718
 sleep 3
 capture "05-opcions.png"
+# Torna a «Avui» i obre l'editor de sopars de la targeta inferior dreta.
+adb shell input tap 1850 90
+sleep 2
+adb shell input tap 1140 1000
+sleep 2
+capture "06-editor-sopar.png"
