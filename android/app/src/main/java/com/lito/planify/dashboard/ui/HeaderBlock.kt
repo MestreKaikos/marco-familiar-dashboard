@@ -97,7 +97,7 @@ private fun WeatherBlock(state: UiState, ink: Color, soft: Color, modifier: Modi
     val today = state.now.toLocalDate()
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         if (f == null) {
-            Text("Elige la ubicación del tiempo en Ajustes", style = Type.Small.copy(color = soft))
+            Text("Tria la ubicació del temps a Opcions", style = Type.Small.copy(color = soft))
             return@Row
         }
         val d = f.dayIndex(today)
