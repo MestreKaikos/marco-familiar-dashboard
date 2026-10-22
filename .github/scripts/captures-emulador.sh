@@ -71,3 +71,32 @@ capture "09-compra-despres-reinici.png"
 adb shell input tap 950 336
 sleep 3
 capture "10-pin-dels-adults.png"
+
+# Configuració del temps inicial i pantalla nova de Google Calendar.
+adb shell input keyevent KEYCODE_BACK
+sleep 2
+adb shell input tap 1850 726
+sleep 3
+capture "11-opcions-malgrat.png"
+
+# Busquem l'etiqueta tàctil per accessibilitat, sense dependre de la posició dels botons.
+adb shell uiautomator dump /sdcard/marc-calendars.xml >/dev/null
+adb pull /sdcard/marc-calendars.xml /tmp/marc-calendars.xml >/dev/null
+coords=$(python3 - <<'PY'
+import re
+import xml.etree.ElementTree as ET
+root = ET.parse("/tmp/marc-calendars.xml").getroot()
+for node in root.iter("node"):
+    if node.attrib.get("text") == "Calendaris de Google":
+        x1,y1,x2,y2 = map(int,re.findall(r"\d+",node.attrib["bounds"]))
+        print((x1+x2)//2, (y1+y2)//2)
+        break
+PY
+)
+if [ -z "$coords" ]; then
+  echo "No s'ha trobat el botó de Calendaris de Google a l'UI" >&2
+  exit 1
+fi
+adb shell input tap $coords
+sleep 3
+capture "12-configuracio-calendaris.png"
