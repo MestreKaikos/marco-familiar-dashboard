@@ -12,6 +12,10 @@ adb shell settings put system user_rotation 1
 
 adb shell am start -W -n com.lito.planify.dashboard/.MainActivity
 sleep 12
+# La primera obertura mostra un avís nadiu de l'emulador sobre la pantalla completa.
+# El tanquem abans de capturar la UI. Si no hi és, aquesta pulsació no canvia la portada.
+adb shell input tap 1065 202
+sleep 3
 
 capture() {
   local name="$1"
