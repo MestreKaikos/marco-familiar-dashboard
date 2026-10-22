@@ -27,7 +27,7 @@ jobs:
         with:
           log-accepted-android-sdk-licenses: "false"
       - name: Instal·la la plataforma Android
-        run: sdkmanager --install "platforms;android-37" "build-tools;37.0.0"
+        run: sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0"
       - name: Configura Gradle
         uses: gradle/actions/setup-gradle@v4
       - name: Compila la versió debug
