@@ -10,6 +10,11 @@ on:
 permissions:
   contents: read
 
+# Només compilar l'últim canvi del PR per estalviar minuts de GitHub Actions.
+concurrency:
+  group: android-build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
