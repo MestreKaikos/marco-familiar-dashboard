@@ -1,6 +1,9 @@
 package com.lito.planify.dashboard.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +15,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.lito.planify.dashboard.UiState
+import com.lito.planify.dashboard.ui.theme.Palette
+import com.lito.planify.dashboard.ui.theme.Type
 import java.time.DayOfWeek
 import java.time.LocalDate
 
@@ -37,6 +42,17 @@ fun FamilyCalendarScreen(state: UiState) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 24.dp)
     ) {
+        if (!state.ics && state.token == null) {
+            item {
+                Text(
+                    "Encara no hem connectat els calendaris familiars. Els afegirem sense contrasenyes de Planify.",
+                    style = Type.Small.copy(color = Palette.Ink),
+                    modifier = Modifier.fillMaxWidth()
+                        .background(Palette.Card, RoundedCornerShape(18.dp))
+                        .padding(horizontal = 24.dp, vertical = 18.dp)
+                )
+            }
+        }
         items(WEEKS_SHOWN) { w ->
             val monday = thisMonday.plusWeeks(w.toLong())
             Row(Modifier.fillMaxWidth().height(568.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
