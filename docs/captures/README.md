@@ -37,6 +37,14 @@ Es generen per comprovar l'aspecte de la versió horitzontal de **1920 × 1200**
 ![Configuració del PIN per protegir la validació de les tasques i premis](10-pin-dels-adults.png)
 
 
+## Meteorologia i Google Calendar
+
+La ubicació meteorològica inicial és **Malgrat de Mar**. La configuració de Google Calendar es mostra sempre **sense URL privades** en aquestes captures.
+
+![Opcions amb Malgrat de Mar com a ubicació](11-opcions-malgrat.png)
+
+![Afegir calendaris Google amb adreça iCal privada](12-configuracio-calendaris.png)
+
 ## Sopars
 
 ![Editor de sopars amb selecció del dia](06-editor-sopar.png)
