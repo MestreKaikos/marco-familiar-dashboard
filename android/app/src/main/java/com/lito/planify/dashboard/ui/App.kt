@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Checklist
+import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Settings
@@ -60,13 +61,14 @@ import java.time.LocalDate
 import kotlinx.coroutines.delay
 
 enum class Page(val label: String, val icon: ImageVector) {
-    Today("Hoy", Icons.Outlined.Today),
-    Calendar("Calendario", Icons.Outlined.CalendarMonth),
-    Weather("Tiempo", Icons.Outlined.Thermostat),
-    Energy("Energía", Icons.Outlined.Bolt),
-    Home("Casa y energía", Icons.Outlined.Home),
-    Tasks("Tareas", Icons.Outlined.Checklist),
-    Settings("Ajustes", Icons.Outlined.Settings)
+    Today("Avui", Icons.Outlined.Today),
+    Photos("Fotos", Icons.Outlined.PhotoLibrary),
+    Calendar("Calendari", Icons.Outlined.CalendarMonth),
+    Weather("El temps", Icons.Outlined.Thermostat),
+    Energy("Energia", Icons.Outlined.Bolt),
+    Home("Casa i energia", Icons.Outlined.Home),
+    Tasks("Tasques", Icons.Outlined.Checklist),
+    Settings("Opcions", Icons.Outlined.Settings)
 }
 
 /** Nombre corto bajo el icono de la barra lateral. */
@@ -115,7 +117,7 @@ fun DashboardApp(
 
     // Tras 2 minutos sin tocar se vuelve a Hoy.
     LaunchedEffect(page, lastTouch) {
-        if (page == Page.Today) return@LaunchedEffect
+        if (page == Page.Today || page == Page.Photos) return@LaunchedEffect
         delay(IDLE_MILLIS)
         page = Page.Today
     }
@@ -141,11 +143,12 @@ fun DashboardApp(
                 }
             }
     ) {
-        if (state.token == null) {
+        if (state.token == null && page != Page.Photos) {
             LoginScreen(state, onLogin, actions.openWifi)
+            PillButton("Veure fotografies", Modifier.align(Alignment.BottomEnd).padding(end = 32.dp, bottom = 24.dp)) { page = Page.Photos }
             return@Box
         }
-        if (state.night) {
+        if (state.night && page != Page.Photos) {
             NightScreen(state, onWake = {
                 page = Page.Today
                 onPeek()
@@ -159,6 +162,7 @@ fun DashboardApp(
                     when (page) {
                         // Con los calendarios de la familia, la portada nueva (por persona); con Planify, la de Lito
                         Page.Today -> if (state.ics) FamilyTodayScreen(state, onOpen = { page = it }) else TodayScreen(state, lastTouch)
+                        Page.Photos -> PhotosScreen()
                         // Con los calendarios de la familia, semanas en vertical como la portada; con Planify, la de Lito
                         Page.Calendar -> if (state.ics) FamilyCalendarScreen(state) else CalendarScreen(state, onLoadWeek)
                         Page.Weather -> WeatherScreen(state)
@@ -258,7 +262,7 @@ private fun RailClock(state: UiState) {
             RollingText(minute, style.copy(color = Palette.InkSoft))
         }
         if (!state.online || !state.connected) {
-            Text("Sin conexión", style = Type.Tiny.copy(color = Palette.Accent), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
+            Text("Sense connexió", style = Type.Tiny.copy(color = Palette.Accent), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }
