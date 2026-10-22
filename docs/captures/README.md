@@ -24,6 +24,10 @@ Es generen per comprovar l'aspecte de la versió horitzontal de **1920 × 1200**
 
 ![Opcions de Marc Familiar](05-opcions.png)
 
+## Compra i tasques familiars
+
+![Llista de la compra, feines d'en Rai i recompenses en una pantalla](07-familia-compra-tasques.png)
+
 ## Sopars
 
 ![Editor de sopars amb selecció del dia](06-editor-sopar.png)
