@@ -54,3 +54,13 @@ La llicència MIT i els crèdits dels autors originals s'han de conservar.
 6. **No introdueixis cap credencial de Google, Samsung ni SmartThings** dins l'APK de prova.
 
 El projecte està preparat per a 1920 × 1200 en horitzontal. La interfície pot quedar retallada en un telèfon; la prova del mòbil confirma la funcionalitat bàsica, no la maquetació final del XORO.
+
+
+## Planificació del sopar familiar (fase següent)
+
+- **No mostrem el menú escolar.** La part inferior de cada dia del calendari mostra el sopar familiar.
+- A la portada, la targeta discreta «Què sopem avui?» permet editar el sopar del dia.
+- Tocant la pastilla «🍽️ SOPAR» de qualsevol dia (portada o calendari), s'obre un editor de text; «Desar» guarda el plat i deixar el camp buit l'elimina.
+- Les dades es guarden a les preferències **locals del dispositiu**, indexades per data real; sobreviuen als reinicis, però no es sincronitzen entre dispositius i es perden en desinstal·lar l'APK.
+- No cal iniciar sessió a Planify ni connectar Google Calendar per fer servir els sopars.
+- Les captures automàtiques de GitHub continuen sense dades familiars; el nou editor es mostra a la galeria de captures.
