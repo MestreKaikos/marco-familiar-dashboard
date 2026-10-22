@@ -81,7 +81,7 @@ private fun DateLine(today: LocalDate, ink: Color, soft: Color) {
     Row(verticalAlignment = Alignment.Bottom) {
         Text(today.weekdayName(), style = Type.Large.copy(color = ink, fontWeight = FontWeight.SemiBold))
         Text(
-            "  ${today.dayOfMonth} de ${today.month.getDisplayName(TextStyle.FULL, Spanish)}",
+            "  ${today.dayOfMonth} ${today.monthWithArticle()}",
             style = Type.Large.copy(color = soft)
         )
     }
