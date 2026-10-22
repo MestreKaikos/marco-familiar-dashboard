@@ -57,7 +57,10 @@ fun String.capitalized() = replaceFirstChar { it.titlecase(Spanish) }
 fun LocalDate.weekdayName(style: TextStyle = TextStyle.FULL) = dayOfWeek.getDisplayName(style, Spanish).capitalized()
 
 fun LocalDate.monthWithArticle(): String {
+    // A Android/ICU el nom català d'alguns mesos ja inclou d' o de.
+    // Normalitzem-lo per no acabar mostrant «de d'octubre».
     val name = month.getDisplayName(TextStyle.FULL, Catalan)
+        .removePrefix("d'").removePrefix("d’").removePrefix("de ")
     val vowel = name.firstOrNull()?.lowercaseChar()?.let { it in "aeiou" } == true
     return if (vowel) "d'$name" else "de $name"
 }
