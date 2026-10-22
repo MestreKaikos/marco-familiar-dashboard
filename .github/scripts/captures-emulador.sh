@@ -46,3 +46,10 @@ sleep 2
 adb shell input tap 1140 1000
 sleep 2
 capture "06-editor-sopar.png"
+
+# Vista de la compra, les feines i les recompenses (sense cap dada familiar real).
+adb shell input keyevent KEYCODE_BACK
+sleep 2
+adb shell input tap 1850 504
+sleep 4
+capture "07-familia-compra-tasques.png"
