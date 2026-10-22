@@ -63,7 +63,7 @@ fun FamilyTodayScreen(state: UiState, onOpen: (Page) -> Unit) {
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 if (next != null) EventTapTarget(next, Modifier.fillMaxSize()) { NextCompact(next, now, live = next === live) }
                 else Box(Modifier.fillMaxSize().background(Palette.Card, RoundedCornerShape(28.dp)), contentAlignment = Alignment.Center) {
-                    Text("Setmana sense activitats", style = Type.Body.copy(color = Palette.InkMuted))
+                    Text(if (state.token == null && !state.ics) "Calendaris per configurar" else "Setmana sense activitats", style = Type.Body.copy(color = Palette.InkMuted))
                 }
             }
         }
@@ -80,9 +80,22 @@ fun FamilyTodayScreen(state: UiState, onOpen: (Page) -> Unit) {
             }
         }
         Row(Modifier.fillMaxWidth().weight(0.22f), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            KidsTile(state, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Tasks) }
-            ShoppingTile(state, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Tasks) }
-            EnergyTile(state, Modifier.weight(1.25f).fillMaxHeight()) { onOpen(Page.Home) }
+            if (state.token == null && !state.ics) {
+                Tile("Fotografies", "🖼️", Palette.Warm, Modifier.weight(1f).fillMaxHeight(), onClick = { onOpen(Page.Photos) }) {
+                    Text("Veure l'àlbum familiar", style = Type.Body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 8.dp))
+                }
+                Tile("El temps", "☀️", Palette.Online, Modifier.weight(1f).fillMaxHeight(), onClick = { onOpen(if (state.location == null) Page.Settings else Page.Weather) }) {
+                    Text(state.location?.name ?: "Tria la teva ciutat a Opcions", style = Type.Body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 8.dp))
+                }
+                Tile("Calendari", "📅", Palette.Accent, Modifier.weight(1.25f).fillMaxHeight(), onClick = { onOpen(Page.Calendar) }) {
+                    Text("Connexió familiar pendent", style = Type.Body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 8.dp))
+                    Text("Sense usuari ni contrasenya", style = Type.Small.copy(color = Palette.InkMuted), modifier = Modifier.padding(top = 4.dp))
+                }
+            } else {
+                KidsTile(state, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Tasks) }
+                ShoppingTile(state, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Tasks) }
+                EnergyTile(state, Modifier.weight(1.25f).fillMaxHeight()) { onOpen(Page.Home) }
+            }
         }
     }
 }
@@ -102,7 +115,7 @@ private fun NextCompact(event: Event, now: LocalDateTime, live: Boolean) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(if (live) "● ARA" else "EL SEGÜENT", style = Type.Label.copy(color = ink.copy(alpha = 0.9f), fontSize = 17.sp), modifier = Modifier.weight(1f))
             Text(
-                if (live) "hasta ${(event.end ?: event.at.plusHours(1)).format(HourMinute)}" else "en $left",
+                if (live) "fins a les ${(event.end ?: event.at.plusHours(1)).format(HourMinute)}" else "en $left",
                 style = Type.Small.copy(color = ink, fontWeight = FontWeight.Bold),
                 modifier = Modifier.background(ink.copy(alpha = 0.18f), RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 2.dp)
             )
