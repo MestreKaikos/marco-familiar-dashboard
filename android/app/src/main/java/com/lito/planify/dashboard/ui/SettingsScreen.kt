@@ -105,7 +105,9 @@ fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: Setting
                         PillButton("Wi-Fi", Modifier.fillMaxWidth(), background = Control, onClick = actions.openWifi)
                         PillButton("Opcions d’Android", Modifier.fillMaxWidth(), background = Control, onClick = actions.openSettings)
                         // Con calendarios iCal no hay sesión: borra lo descargado y vuelve a pedirlo
-                        PillButton(if (state.ics || state.token == null) "Actualitzar les dades" else "Tancar la sessió", Modifier.fillMaxWidth(), background = Control, onClick = callbacks.onLogout)
+                        if (state.ics || state.token != null) {
+                            PillButton(if (state.ics) "Netejar dades del calendari" else "Tancar la sessió", Modifier.fillMaxWidth(), background = Control, onClick = callbacks.onLogout)
+                        }
                         PillButton("Apagar o reiniciar", Modifier.fillMaxWidth(), background = Control, onClick = actions.powerMenu)
                     }
                 }
