@@ -106,7 +106,7 @@ fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: Setting
                         PillButton("Opcions d’Android", Modifier.fillMaxWidth(), background = Control, onClick = actions.openSettings)
                         // Con calendarios iCal no hay sesión: borra lo descargado y vuelve a pedirlo
                         PillButton(if (state.ics) "Esborrar dades" else "Tancar la sessió", Modifier.fillMaxWidth(), background = Control, onClick = callbacks.onLogout)
-                        PillButton("S’apagar o reiniciar", Modifier.fillMaxWidth(), background = Control, onClick = actions.powerMenu)
+                        PillButton("Apagar o reiniciar", Modifier.fillMaxWidth(), background = Control, onClick = actions.powerMenu)
                     }
                 }
             }
@@ -212,7 +212,7 @@ private fun BrightnessSection(brightness: Float?, onChange: (Float?) -> Unit) {
     var manual by remember { mutableFloatStateOf(brightness ?: 0.8f) }
     val auto = brightness == null
     // El valor elegido va en el título, para no quitarle ancho al deslizador
-    Section(if (auto) "Brillantor · automàtica" else "Brillo · ${(manual * 100).roundToInt()}%") {
+    Section(if (auto) "Brillantor · automàtica" else "Brillantor · ${(manual * 100).roundToInt()}%") {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             LevelSlider(manual, enabled = !auto, modifier = Modifier.weight(1f)) {
                 manual = it
