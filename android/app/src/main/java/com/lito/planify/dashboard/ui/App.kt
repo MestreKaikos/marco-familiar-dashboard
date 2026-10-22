@@ -102,7 +102,6 @@ private val RAIL_CLOCK_OVERLAP = (-30).dp
 fun DashboardApp(
     state: UiState,
     actions: DashboardActions,
-    onLogin: (String, String) -> Unit,
     onLoadWeek: (LocalDate) -> Unit,
     onSync: () -> Unit,
     settings: SettingsCallbacks,
@@ -115,7 +114,7 @@ fun DashboardApp(
     /** Cita abierta en el aviso ([EventOverlay]); se cierra sola al volver a Hoy por inactividad. */
     var shownEvent by remember { mutableStateOf<Event?>(null) }
 
-    // Tras 2 minutos sin tocar se vuelve a Hoy.
+    // Després de dos minuts sense tocar, tornem a Avui, excepte durant la presentació de fotos.
     LaunchedEffect(page, lastTouch) {
         if (page == Page.Today || page == Page.Photos) return@LaunchedEffect
         delay(IDLE_MILLIS)
@@ -143,11 +142,6 @@ fun DashboardApp(
                 }
             }
     ) {
-        if (state.token == null && page != Page.Photos) {
-            LoginScreen(state, onLogin, actions.openWifi)
-            PillButton("Veure fotografies", Modifier.align(Alignment.BottomEnd).padding(end = 32.dp, bottom = 24.dp)) { page = Page.Photos }
-            return@Box
-        }
         if (state.night && page != Page.Photos) {
             NightScreen(state, onWake = {
                 page = Page.Today
@@ -160,11 +154,11 @@ fun DashboardApp(
             Row(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f).fillMaxHeight()) {
                     when (page) {
-                        // Con los calendarios de la familia, la portada nueva (por persona); con Planify, la de Lito
-                        Page.Today -> if (state.ics) FamilyTodayScreen(state, onOpen = { page = it }) else TodayScreen(state, lastTouch)
+                        // La portada familiar funciona sense credencials; el backend antic és opcional.
+                        Page.Today -> if (state.ics || state.token == null) FamilyTodayScreen(state, onOpen = { page = it }) else TodayScreen(state, lastTouch)
                         Page.Photos -> PhotosScreen()
                         // Con los calendarios de la familia, semanas en vertical como la portada; con Planify, la de Lito
-                        Page.Calendar -> if (state.ics) FamilyCalendarScreen(state) else CalendarScreen(state, onLoadWeek)
+                        Page.Calendar -> if (state.ics || state.token == null) FamilyCalendarScreen(state) else CalendarScreen(state, onLoadWeek)
                         Page.Weather -> WeatherScreen(state)
                         Page.Energy -> EnergyScreen(state)
                         // Prueba: Casa y Energía juntas (EnergyScreen y HomeScreen siguen por si se separan)
