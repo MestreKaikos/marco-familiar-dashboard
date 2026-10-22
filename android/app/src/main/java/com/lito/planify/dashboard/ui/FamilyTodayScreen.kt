@@ -51,7 +51,7 @@ private const val WEEK_DAYS = 7
  * - abajo, tres resúmenes que llevan a su pestaña: tareas de los niños, compra, y luz y coche.
  */
 @Composable
-fun FamilyTodayScreen(state: UiState, dinners: DinnerPlan, onOpen: (Page) -> Unit) {
+fun FamilyTodayScreen(state: UiState, dinners: DinnerPlan, family: LocalFamilyStore, onOpen: (Page) -> Unit) {
     var editingDinner by remember { mutableStateOf<LocalDate?>(null) }
     val now = state.now
     val today = now.toLocalDate()
@@ -85,19 +85,9 @@ fun FamilyTodayScreen(state: UiState, dinners: DinnerPlan, onOpen: (Page) -> Uni
             }
         }
         Row(Modifier.fillMaxWidth().weight(0.22f), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            if (state.token == null && !state.ics) {
-                Tile("Fotografies", "🖼️", Palette.Warm, Modifier.weight(1f).fillMaxHeight(), onClick = { onOpen(Page.Photos) }) {
-                    Text("Veure l'àlbum familiar", style = Type.Body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 8.dp))
-                }
-                Tile("El temps", "☀️", Palette.Online, Modifier.weight(1f).fillMaxHeight(), onClick = { onOpen(if (state.location == null) Page.Settings else Page.Weather) }) {
-                    Text(state.location?.name ?: "Tria la teva ciutat a Opcions", style = Type.Body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 8.dp))
-                }
-                DinnerTile(dinners, today, Modifier.weight(1.25f).fillMaxHeight()) { editingDinner = today }
-            } else {
-                KidsTile(state, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Tasks) }
-                ShoppingTile(state, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Tasks) }
-                DinnerTile(dinners, today, Modifier.weight(1.25f).fillMaxHeight()) { editingDinner = today }
-            }
+            LocalShoppingTile(family, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Tasks) }
+            LocalRaiTile(family, today, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Tasks) }
+            DinnerTile(dinners, today, Modifier.weight(1.25f).fillMaxHeight()) { editingDinner = today }
         }
     }
     editingDinner?.let { day ->
@@ -248,6 +238,48 @@ private fun Tile(title: String, emoji: String, tint: Color, modifier: Modifier, 
             Text(title.uppercase(Spanish), style = Type.Label.copy(color = tint, fontSize = 18.sp), modifier = Modifier.padding(start = 10.dp))
         }
         content()
+    }
+}
+
+/** Targeta de la compra, amb tota la gestió des de la pestanya Família. */
+@Composable
+private fun LocalShoppingTile(store: LocalFamilyStore, modifier: Modifier, onClick: () -> Unit) {
+    val pending = store.groceries.filterNot { it.bought }
+    Tile("Llista de la compra", "🛒", Palette.Online, modifier, onClick) {
+        Text(
+            if (pending.isEmpty()) "No falta res per comprar" else "${pending.size} producte${if (pending.size == 1) "" else "s"} pendents",
+            style = Type.Body.copy(fontWeight = FontWeight.SemiBold),
+            modifier = Modifier.padding(top = 8.dp),
+            maxLines = 1
+        )
+        Text(
+            if (pending.isEmpty()) "Toca per afegir productes" else pending.take(3).joinToString(" · ") { it.name },
+            style = Type.Tiny.copy(color = Palette.InkMuted),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 6.dp)
+        )
+    }
+}
+
+/** Resum de les feines d'en Rai i les estrelles disponibles. */
+@Composable
+private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Modifier, onClick: () -> Unit) {
+    val tasks = store.chores.filter { it.owner == "Rai" }
+    val awaiting = tasks.count { store.status(it, today) == "pending" }
+    val remaining = tasks.count { store.status(it, today) == "todo" }
+    Tile("Feines d'en Rai", "⭐", Palette.Warm, modifier, onClick) {
+        Text(
+            if (tasks.isEmpty()) "Afegir feines per a en Rai" else "⭐ ${store.stars} disponibles · $remaining pendents",
+            style = Type.Body.copy(fontWeight = FontWeight.SemiBold),
+            maxLines = 2,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+        Text(
+            if (awaiting > 0) "${awaiting} feina${if (awaiting == 1) "" else "s"} per validar" else "Tasques i recompenses",
+            style = Type.Tiny.copy(color = if (awaiting > 0) Palette.Accent else Palette.InkMuted),
+            modifier = Modifier.padding(top = 6.dp)
+        )
     }
 }
 
