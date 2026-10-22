@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Checklist
+import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Settings
@@ -60,13 +61,14 @@ import java.time.LocalDate
 import kotlinx.coroutines.delay
 
 enum class Page(val label: String, val icon: ImageVector) {
-    Today("Hoy", Icons.Outlined.Today),
-    Calendar("Calendario", Icons.Outlined.CalendarMonth),
-    Weather("Tiempo", Icons.Outlined.Thermostat),
-    Energy("Energía", Icons.Outlined.Bolt),
-    Home("Casa y energía", Icons.Outlined.Home),
-    Tasks("Tareas", Icons.Outlined.Checklist),
-    Settings("Ajustes", Icons.Outlined.Settings)
+    Today("Avui", Icons.Outlined.Today),
+    Photos("Fotos", Icons.Outlined.PhotoLibrary),
+    Calendar("Calendari", Icons.Outlined.CalendarMonth),
+    Weather("El temps", Icons.Outlined.Thermostat),
+    Energy("Energia", Icons.Outlined.Bolt),
+    Home("Casa i energia", Icons.Outlined.Home),
+    Tasks("Família", Icons.Outlined.Checklist),
+    Settings("Opcions", Icons.Outlined.Settings)
 }
 
 /** Nombre corto bajo el icono de la barra lateral. */
@@ -100,7 +102,6 @@ private val RAIL_CLOCK_OVERLAP = (-30).dp
 fun DashboardApp(
     state: UiState,
     actions: DashboardActions,
-    onLogin: (String, String) -> Unit,
     onLoadWeek: (LocalDate) -> Unit,
     onSync: () -> Unit,
     settings: SettingsCallbacks,
@@ -109,13 +110,16 @@ fun DashboardApp(
     home: HomeCallbacks = HomeCallbacks()
 ) {
     var page by remember { mutableStateOf(Page.Today) }
+    // Sopars compartits entre la portada i el calendari, desats només al dispositiu.
+    val dinners = rememberDinnerPlan()
+    val family = rememberLocalFamilyStore()
     var lastTouch by remember { mutableLongStateOf(0L) }
     /** Cita abierta en el aviso ([EventOverlay]); se cierra sola al volver a Hoy por inactividad. */
     var shownEvent by remember { mutableStateOf<Event?>(null) }
 
-    // Tras 2 minutos sin tocar se vuelve a Hoy.
+    // Després de dos minuts sense tocar, tornem a Avui, excepte durant la presentació de fotos.
     LaunchedEffect(page, lastTouch) {
-        if (page == Page.Today) return@LaunchedEffect
+        if (page == Page.Today || page == Page.Photos) return@LaunchedEffect
         delay(IDLE_MILLIS)
         page = Page.Today
     }
@@ -141,11 +145,7 @@ fun DashboardApp(
                 }
             }
     ) {
-        if (state.token == null) {
-            LoginScreen(state, onLogin, actions.openWifi)
-            return@Box
-        }
-        if (state.night) {
+        if (state.night && page != Page.Photos) {
             NightScreen(state, onWake = {
                 page = Page.Today
                 onPeek()
@@ -157,15 +157,16 @@ fun DashboardApp(
             Row(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f).fillMaxHeight()) {
                     when (page) {
-                        // Con los calendarios de la familia, la portada nueva (por persona); con Planify, la de Lito
-                        Page.Today -> if (state.ics) FamilyTodayScreen(state, onOpen = { page = it }) else TodayScreen(state, lastTouch)
+                        // La portada familiar funciona sense credencials; el backend antic és opcional.
+                        Page.Today -> if (state.ics || state.token == null) FamilyTodayScreen(state, dinners, family, onOpen = { page = it }) else TodayScreen(state, lastTouch)
+                        Page.Photos -> PhotosScreen()
                         // Con los calendarios de la familia, semanas en vertical como la portada; con Planify, la de Lito
-                        Page.Calendar -> if (state.ics) FamilyCalendarScreen(state) else CalendarScreen(state, onLoadWeek)
+                        Page.Calendar -> if (state.ics || state.token == null) FamilyCalendarScreen(state, dinners) else CalendarScreen(state, onLoadWeek)
                         Page.Weather -> WeatherScreen(state)
                         Page.Energy -> EnergyScreen(state)
                         // Prueba: Casa y Energía juntas (EnergyScreen y HomeScreen siguen por si se separan)
                         Page.Home -> HomeEnergyScreen(state, home)
-                        Page.Tasks -> TasksScreen(state, chores)
+                        Page.Tasks -> LocalFamilyScreen(family, state.now.toLocalDate())
                         Page.Settings -> SettingsScreen(state, actions, settings)
                     }
                 }
@@ -258,7 +259,7 @@ private fun RailClock(state: UiState) {
             RollingText(minute, style.copy(color = Palette.InkSoft))
         }
         if (!state.online || !state.connected) {
-            Text("Sin conexión", style = Type.Tiny.copy(color = Palette.Accent), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
+            Text("Sense connexió", style = Type.Tiny.copy(color = Palette.Accent), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }

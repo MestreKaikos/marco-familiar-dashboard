@@ -17,6 +17,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -43,16 +47,16 @@ private const val WEEK_DAYS = 7
  * - arriba, un bloque ancho con la hora, la fecha y el tiempo de hoy y de los próximos días, y a la derecha lo
  *   siguiente que toca (con cuánto falta);
  * - en el centro, la semana: hoy y los 6 días siguientes, cada uno con los turnos (Shifter) en una pastilla, todas las
- *   citas (familia, fútbol, Barça…), como la pestaña Calendario, y abajo el menú del cole de ese día;
+ *   citas (familia, fútbol, Barça…), como la pestaña Calendario, i al peu el sopar previst, editable tocant cada dia;
  * - abajo, tres resúmenes que llevan a su pestaña: tareas de los niños, compra, y luz y coche.
  */
 @Composable
-fun FamilyTodayScreen(state: UiState, onOpen: (Page) -> Unit) {
+fun FamilyTodayScreen(state: UiState, dinners: DinnerPlan, family: LocalFamilyStore, onOpen: (Page) -> Unit) {
+    var editingDinner by remember { mutableStateOf<LocalDate?>(null) }
     val now = state.now
     val today = now.toLocalDate()
     val events = state.content?.events.orEmpty()
     val shifts = state.content?.sessions.orEmpty()
-    val menu = state.content?.menu.orEmpty()
     // Lo que está pasando ahora (con hora, empezado y sin terminar) va antes que lo próximo
     val live = events.firstOrNull { !it.all_day && !it.at.isAfter(now) && (it.end ?: it.at.plusHours(1)).isAfter(now) }
     val next = live ?: events.firstOrNull { !it.at.isBefore(now) && it.at.toLocalDate() < today.plusDays(WEEK_DAYS.toLong()) }
@@ -63,7 +67,7 @@ fun FamilyTodayScreen(state: UiState, onOpen: (Page) -> Unit) {
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 if (next != null) EventTapTarget(next, Modifier.fillMaxSize()) { NextCompact(next, now, live = next === live) }
                 else Box(Modifier.fillMaxSize().background(Palette.Card, RoundedCornerShape(28.dp)), contentAlignment = Alignment.Center) {
-                    Text("Semana sin citas", style = Type.Body.copy(color = Palette.InkMuted))
+                    Text(if (state.token == null && !state.ics) "Calendaris per configurar" else "Setmana sense activitats", style = Type.Body.copy(color = Palette.InkMuted))
                 }
             }
         }
@@ -74,16 +78,25 @@ fun FamilyTodayScreen(state: UiState, onOpen: (Page) -> Unit) {
                     day, today, now,
                     events.filter { it.at.toLocalDate() == day },
                     shifts.filter { it.at.toLocalDate() == day },
-                    menu.firstOrNull { it.at.toLocalDate() == day },
-                    Modifier.weight(1f).fillMaxHeight()
+                    dinners[day],
+                    Modifier.weight(1f).fillMaxHeight(),
+                    onDinnerClick = { editingDinner = day }
                 )
             }
         }
         Row(Modifier.fillMaxWidth().weight(0.22f), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            KidsTile(state, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Tasks) }
-            ShoppingTile(state, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Tasks) }
-            EnergyTile(state, Modifier.weight(1.25f).fillMaxHeight()) { onOpen(Page.Home) }
+            LocalShoppingTile(family, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Tasks) }
+            LocalRaiTile(family, today, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Tasks) }
+            DinnerTile(dinners, today, Modifier.weight(1.25f).fillMaxHeight()) { editingDinner = today }
         }
+    }
+    editingDinner?.let { day ->
+        DinnerEditor(
+            date = day,
+            initial = dinners[day],
+            onDismiss = { editingDinner = null },
+            onSave = { meal -> dinners.save(day, meal); editingDinner = null }
+        )
     }
 }
 
@@ -100,9 +113,9 @@ private fun NextCompact(event: Event, now: LocalDateTime, live: Boolean) {
         verticalArrangement = Arrangement.Center
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(if (live) "● AHORA" else "LO PRÓXIMO", style = Type.Label.copy(color = ink.copy(alpha = 0.9f), fontSize = 17.sp), modifier = Modifier.weight(1f))
+            Text(if (live) "● ARA" else "EL SEGÜENT", style = Type.Label.copy(color = ink.copy(alpha = 0.9f), fontSize = 17.sp), modifier = Modifier.weight(1f))
             Text(
-                if (live) "hasta ${(event.end ?: event.at.plusHours(1)).format(HourMinute)}" else "en $left",
+                if (live) "fins a les ${(event.end ?: event.at.plusHours(1)).format(HourMinute)}" else "en $left",
                 style = Type.Small.copy(color = ink, fontWeight = FontWeight.Bold),
                 modifier = Modifier.background(ink.copy(alpha = 0.18f), RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 2.dp)
             )
@@ -122,7 +135,8 @@ private fun NextCompact(event: Event, now: LocalDateTime, live: Boolean) {
 /** Un día de la semana: cabecera (hoy resaltado), el turno en una pastilla y las citas con su color. */
 @Composable
 internal fun WeekDay(
-    day: LocalDate, today: LocalDate, now: LocalDateTime, events: List<Event>, shifts: List<Event>, menu: Event?, modifier: Modifier,
+    day: LocalDate, today: LocalDate, now: LocalDateTime, events: List<Event>, shifts: List<Event>, dinner: String?, modifier: Modifier,
+    onDinnerClick: () -> Unit = {},
     forecast: com.lito.planify.dashboard.data.Forecast? = null,
     small: Boolean = false
 ) {
@@ -130,13 +144,13 @@ internal fun WeekDay(
     Column(modifier.background(if (isToday) Palette.Card else Palette.Card.copy(alpha = 0.6f), RoundedCornerShape(24.dp)).padding(horizontal = 14.dp, vertical = 14.dp).alpha(if (day < today) 0.55f else 1f)) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
-                if (isToday) "Hoy" else day.dayOfWeek.getDisplayName(TextStyle.SHORT, Spanish).trimEnd('.').capitalized(),
+                if (isToday) "Avui" else day.dayOfWeek.getDisplayName(TextStyle.SHORT, Spanish).trimEnd('.').capitalized(),
                 style = Type.Small.copy(color = if (isToday) Palette.Accent else Palette.InkSoft, fontWeight = FontWeight.SemiBold),
                 modifier = Modifier.weight(1f)
             )
             // Calendario: el mes en el lunes de cada semana y, resaltado, en el día 1 (donde cambia de mes)
             if (small && (day.dayOfWeek == DayOfWeek.MONDAY || day.dayOfMonth == 1)) Text(
-                day.month.getDisplayName(TextStyle.SHORT, Spanish).trimEnd('.'),
+                day.month.getDisplayName(TextStyle.SHORT, Spanish).trimEnd('.').removePrefix("d'").removePrefix("d’").removePrefix("de "),
                 style = Type.Small.copy(color = if (day.dayOfMonth == 1) Palette.Accent else Palette.InkSoft, fontWeight = FontWeight.SemiBold),
                 modifier = Modifier.padding(end = 8.dp, bottom = 3.dp)
             )
@@ -171,28 +185,30 @@ internal fun WeekDay(
             if (events.isEmpty()) Text("—", style = Type.Small.copy(color = Palette.InkMuted))
             events.forEach { e -> EventTapTarget(e) { WeekItem(e, past = e.isPast(now), small = small) } }
         }
-        menu?.let { MenuPill(it, Modifier.padding(top = 8.dp), small = small) }
+        DinnerPill(dinner, Modifier.padding(top = 8.dp), onDinnerClick, small)
     }
 }
 
-private val MenuGreen = Color(0xFF7CB342)
-
-/** El menú del cole de un día: «🍽️ primero · segundo» y, si un niño come otra cosa, «Nombre: …» debajo. */
+/** El sopar previst, sempre editable tocant la pastilla de cada dia. */
 @Composable
-private fun MenuPill(menu: Event, modifier: Modifier, small: Boolean = false) {
-    val other = Regex("""\s*\(([^():]+):\s*([^()]+)\)\s*$""").find(menu.title)
-    EventTapTarget(menu, modifier) {
-        Column(Modifier.fillMaxWidth().background(MenuGreen.copy(alpha = 0.14f), RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 6.dp)) {
-            Text(
-                "🍽️ " + (other?.let { menu.title.substring(0, it.range.first) } ?: menu.title),
-                style = Type.Tiny.copy(color = Palette.Ink, fontSize = if (small) 17.sp else 19.sp, lineHeight = if (small) 21.sp else 24.sp),
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis
-            )
-            other?.let {
-                Text("${it.groupValues[1]}: ${it.groupValues[2]}", style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 17.sp, lineHeight = 21.sp), maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
-        }
+private fun DinnerPill(dinner: String?, modifier: Modifier, onClick: () -> Unit, small: Boolean) {
+    Column(
+        modifier.fillMaxWidth()
+            .background(Palette.Warm.copy(alpha = 0.13f), RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 7.dp)
+    ) {
+        Text("🍽️ SOPAR", style = Type.Tiny.copy(color = Palette.InkSoft, fontWeight = FontWeight.SemiBold, fontSize = 15.sp))
+        Text(
+            dinner ?: "＋ Afegir sopar",
+            style = Type.Tiny.copy(
+                color = if (dinner == null) Palette.InkMuted else Palette.Ink,
+                fontSize = if (small) 17.sp else 19.sp,
+                lineHeight = if (small) 21.sp else 24.sp
+            ),
+            maxLines = if (small) 3 else 4,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -201,7 +217,7 @@ private fun WeekItem(e: Event, past: Boolean, small: Boolean = false) {
     Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min).alpha(if (past) 0.4f else 1f)) {
         Box(Modifier.width(5.dp).fillMaxHeight().background(parseColor(e.calendar_color), RoundedCornerShape(3.dp)))
         Column(Modifier.padding(start = 8.dp)) {
-            Text(if (e.all_day) "Todo el día" else e.at.format(HourMinute), style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = if (small) 17.sp else 19.sp, fontWeight = FontWeight.SemiBold))
+            Text(if (e.all_day) "Tot el dia" else e.at.format(HourMinute), style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = if (small) 17.sp else 19.sp, fontWeight = FontWeight.SemiBold))
             Text(e.title, style = Type.Small.copy(color = Palette.Ink, fontSize = if (small) 20.sp else 23.sp, lineHeight = if (small) 25.sp else 28.sp), maxLines = 4, overflow = TextOverflow.Ellipsis)
         }
     }
@@ -225,13 +241,75 @@ private fun Tile(title: String, emoji: String, tint: Color, modifier: Modifier, 
     }
 }
 
+/** Targeta de la compra, amb tota la gestió des de la pestanya Família. */
+@Composable
+private fun LocalShoppingTile(store: LocalFamilyStore, modifier: Modifier, onClick: () -> Unit) {
+    val pending = store.groceries.filterNot { it.bought }
+    Tile("Llista de la compra", "🛒", Palette.Online, modifier, onClick) {
+        Text(
+            if (pending.isEmpty()) "No falta res per comprar" else "${pending.size} producte${if (pending.size == 1) "" else "s"} pendents",
+            style = Type.Body.copy(fontWeight = FontWeight.SemiBold),
+            modifier = Modifier.padding(top = 8.dp),
+            maxLines = 1
+        )
+        Text(
+            if (pending.isEmpty()) "Toca per afegir productes" else pending.take(3).joinToString(" · ") { it.name },
+            style = Type.Tiny.copy(color = Palette.InkMuted),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 6.dp)
+        )
+    }
+}
+
+/** Resum de les feines d'en Rai i les estrelles disponibles. */
+@Composable
+private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Modifier, onClick: () -> Unit) {
+    val tasks = store.chores.filter { it.owner == "Rai" }
+    val awaiting = tasks.count { store.status(it, today) == "pending" }
+    val remaining = tasks.count { store.status(it, today) == "todo" }
+    Tile("Feines d'en Rai", "⭐", Palette.Warm, modifier, onClick) {
+        Text(
+            if (tasks.isEmpty()) "Afegir feines per a en Rai" else "⭐ ${store.stars} disponibles · $remaining pendents",
+            style = Type.Body.copy(fontWeight = FontWeight.SemiBold),
+            maxLines = 2,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+        Text(
+            if (awaiting > 0) "${awaiting} feina${if (awaiting == 1) "" else "s"} per validar" else "Tasques i recompenses",
+            style = Type.Tiny.copy(color = if (awaiting > 0) Palette.Accent else Palette.InkMuted),
+            modifier = Modifier.padding(top = 6.dp)
+        )
+    }
+}
+
+/** Resum discret a la portada, sense canviar-ne la distribució. */
+@Composable
+private fun DinnerTile(dinners: DinnerPlan, today: LocalDate, modifier: Modifier, onClick: () -> Unit) {
+    Tile("Què sopem avui?", "🍽️", Palette.Warm, modifier, onClick) {
+        Text(
+            dinners[today] ?: "Toca per decidir el sopar",
+            style = Type.Body.copy(fontWeight = FontWeight.SemiBold),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+        Text(
+            "Toca per editar · també pots planificar la setmana",
+            style = Type.Tiny.copy(color = Palette.InkMuted),
+            maxLines = 2,
+            modifier = Modifier.padding(top = 6.dp)
+        )
+    }
+}
+
 @Composable
 private fun KidsTile(state: UiState, modifier: Modifier, onClick: () -> Unit) {
     val chores = state.chores
-    Tile("Niños", "🐾", Palette.Warm, modifier, onClick) {
+    Tile("Infants", "🐾", Palette.Warm, modifier, onClick) {
         if (chores == null) return@Tile
         val left = chores.pending()
-        Text(if (left == 0) "🎉 Todo hecho" else "$left ${if (left == 1) "tarea" else "tareas"} por hacer", style = Type.Body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 8.dp))
+        Text(if (left == 0) "🎉 Tot fet" else "$left ${if (left == 1) "tarea" else "tareas"} por hacer", style = Type.Body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 8.dp))
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             chores.ninos.orEmpty().forEach { k ->
                 Text(
@@ -249,7 +327,7 @@ private fun KidsTile(state: UiState, modifier: Modifier, onClick: () -> Unit) {
 private fun ShoppingTile(state: UiState, modifier: Modifier, onClick: () -> Unit) {
     val items = state.shopping?.shopping().orEmpty()
     Tile("Compra", "🛒", Palette.Online, modifier, onClick) {
-        Text(if (items.isEmpty()) "Nada que comprar" else "${items.size} ${if (items.size == 1) "cosa" else "cosas"}", style = Type.Body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 8.dp))
+        Text(if (items.isEmpty()) "Res per comprar" else "${items.size} ${if (items.size == 1) "cosa" else "cosas"}", style = Type.Body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 8.dp))
         Text(items.take(4).joinToString(" · ") { it.producto }, style = Type.Small.copy(color = Palette.InkSoft), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
     }
 }
@@ -262,7 +340,7 @@ private fun EnergyTile(state: UiState, modifier: Modifier, onClick: () -> Unit) 
     val min = window.minOfOrNull { it.eur_kwh } ?: 0.0
     val max = window.maxOfOrNull { it.eur_kwh } ?: 0.0
     val car = state.shopping?.coche
-    Tile("Luz y coche", "⚡", Amber, modifier, onClick) {
+    Tile("Llum i cotxe", "⚡", Amber, modifier, onClick) {
         Row(Modifier.fillMaxWidth().weight(1f).padding(top = 6.dp)) {
             car?.bateria?.let { BatteryGauge(it, car, Modifier.width(170.dp).fillMaxHeight().padding(end = 18.dp)) }
             Column(Modifier.weight(1f).fillMaxHeight()) {

@@ -55,7 +55,7 @@ fun TasksScreen(state: UiState, chores: ChoreCallbacks) {
     val lists = state.content?.tasks.orEmpty().groupBy { it.task_list_id }.values.toList()
     ScreenPadding {
         if (lists.isEmpty()) {
-            EmptyState(Icons.Outlined.TaskAlt, Palette.Online, "Todo hecho", "No quedan tareas pendientes en las listas del dashboard", Modifier.fillMaxSize(), large = true)
+            EmptyState(Icons.Outlined.TaskAlt, Palette.Online, "Tot fet", "No queden tasques pendents a les llistes", Modifier.fillMaxSize(), large = true)
             return@ScreenPadding
         }
         val width = if (lists.size <= 4) null else 480
@@ -130,7 +130,7 @@ private fun FamilyListPanel(
         CardHeader(list.nombre, if (shopping) Icons.Outlined.ShoppingCart else Icons.Outlined.Checklist, color, count = items.size, compact = compact)
         if (items.isEmpty()) {
             EmptyState(
-                Icons.Outlined.TaskAlt, color, if (shopping) "Nada que comprar" else "Nada pendiente",
+                Icons.Outlined.TaskAlt, color, if (shopping) "Res per comprar" else "Res pendent",
                 if (shopping) "Añade en Bring! o «Alexa, añade… a la lista de la compra»" else "Añade en Todoist o «Alexa, añade… a mis tareas»",
                 Modifier.weight(1f).fillMaxWidth()
             )
@@ -145,12 +145,12 @@ private fun FamilyListPanel(
 
 /**
  * Habituales de la compra al pie de la lista: los 3 productos más pedidos como pastillas. Tocar uno lo añade; si ya
- * está en la lista sale oscuro con «✓ En la lista».
+ * está en la lista sale oscuro con «✓ A la llista».
  */
 @Composable
 private fun UsualsRow(usuals: List<Frequent>, color: Color, onAdd: (String) -> Unit) {
     Hairline(Modifier.padding(top = 12.dp, bottom = 14.dp))
-    Text("HABITUALES · TOCA PARA AÑADIR", style = Type.Tiny.copy(color = Palette.InkMuted, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp))
+    Text("HABITUALS · TOCA PER AFEGIR", style = Type.Tiny.copy(color = Palette.InkMuted, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp))
     Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         usuals.forEach { u ->
             Column(
@@ -162,7 +162,7 @@ private fun UsualsRow(usuals: List<Frequent>, color: Color, onAdd: (String) -> U
             ) {
                 Text(u.producto, style = Type.Small.copy(color = if (u.en_lista) Color.White else Palette.Ink, fontWeight = FontWeight.SemiBold), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
-                    if (u.en_lista) "✓ En la lista" else "+ Añadir",
+                    if (u.en_lista) "✓ A la llista" else "+ Afegir",
                     style = Type.Tiny.copy(color = if (u.en_lista) Color.White.copy(alpha = 0.8f) else color, fontWeight = FontWeight.SemiBold),
                     modifier = Modifier.padding(top = 4.dp)
                 )
@@ -172,7 +172,7 @@ private fun UsualsRow(usuals: List<Frequent>, color: Color, onAdd: (String) -> U
 }
 
 /**
- * Un elemento de una lista. Con [onRemove] (la compra), tocarlo enseña «Quitar» 8 segundos y tocar «Quitar» lo
+ * Un elemento de una lista. Con [onRemove] (la compra), tocarlo enseña «Treure» 8 segundos y tocar «Treure» lo
  * quita: dos toques, para no borrar nada sin querer.
  */
 @Composable
@@ -206,7 +206,7 @@ private fun FamilyItemRow(item: ShoppingItem, today: LocalDate, onRemove: ((Stri
         }
         if (asking && onRemove != null) {
             Text(
-                "Quitar",
+                "Treure",
                 style = Type.Small.copy(color = Color.White, fontWeight = FontWeight.SemiBold),
                 modifier = Modifier
                     .padding(start = 12.dp)

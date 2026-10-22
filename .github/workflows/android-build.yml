@@ -1,0 +1,50 @@
+name: Android · Compilació
+
+on:
+  pull_request:
+    paths:
+      - "android/**"
+      - ".github/workflows/android-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Només compilar l'últim canvi del PR per estalviar minuts de GitHub Actions.
+concurrency:
+  group: android-build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Baixa el codi
+        uses: actions/checkout@v4
+      - name: Configura Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Configura Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          log-accepted-android-sdk-licenses: "false"
+      - name: Instal·la la plataforma Android
+        run: sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0"
+      - name: Configura Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Compila la versió debug
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:assembleDebug :app:testDebugUnitTest --no-daemon --stacktrace
+      - name: Desa l'APK de prova
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marc-familiar-android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
