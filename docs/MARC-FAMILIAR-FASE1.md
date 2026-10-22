@@ -64,3 +64,31 @@ El projecte està preparat per a 1920 × 1200 en horitzontal. La interfície pot
 - Les dades es guarden a les preferències **locals del dispositiu**, indexades per data real; sobreviuen als reinicis, però no es sincronitzen entre dispositius i es perden en desinstal·lar l'APK.
 - No cal iniciar sessió a Planify ni connectar Google Calendar per fer servir els sopars.
 - Les captures automàtiques de GitHub continuen sense dades familiars; el nou editor es mostra a la galeria de captures.
+
+
+## Compra, tasques familiars i recompenses · fase local
+
+La pestanya **Família** s'organitza en tres columnes: **Llista de la compra**, **Feines de casa** i **Recompenses**.
+
+### Compra
+- Afegeix qualsevol producte amb el teclat; pots marcar-lo com a comprat, tornar-lo a desmarcar, editar el nom, eliminar-lo o esborrar tots els comprats.
+- Els suggeriments inicials («Llet», «Fruita», «Pa») són botons que creen elements **només quan es toquen**; la llista comença buida.
+
+### Tasques
+- Tasques assignades a **Rai** o a **Família**. Es poden definir com a *diàries* (tornen a estar pendents l'endemà) o *puntuals*.
+- En Rai pot prémer «Ja l'he feta». Això la deixa en **pendent de validar**, sense acreditar estrelles.
+- Un adult valida o rebutja amb un **PIN local de quatre xifres**. Només en validar s'afegeixen les estrelles definides per a aquella feina (1–5).
+- Les feines generals de la família es poden marcar com a completades, sense sistema de punts.
+- La primera acció reservada als adults demana crear el PIN; després es requerirà per a aprovar, rebutjar, crear i eliminar feines i recompenses.
+
+### Recompenses
+- Els adults poden crear recompenses amb un cost personalitzat en estrelles.
+- Quan en Rai té prou estrelles, pot prémer «Demanar». L'import **no es descompta fins que un adult aprova** amb el PIN; si rebutja la petició, les estrelles es conserven.
+- La quantitat d'estrelles disponibles es conserva al marc entre dies, independentment de la repetició de tasques.
+
+### Privadesa i limitacions
+- Compra, feines, estrelles i recompenses es guarden **localment** al dispositiu Android. No es comparteixen amb GitHub, Google o Planify.
+- **Encara no hi ha sincronització** entre el telèfon i el futur XORO. Les dades es perdran quan es desinstal·li l'APK o s'esborrin les dades de l'app.
+- El PIN parental està protegit amb hash SHA-256 i salt aleatori desat al dispositiu. És una barrera domèstica, **no substitueix una autenticació segura multiusuari**.
+- Si s'oblida el PIN, aquesta primera versió no permet recuperar-lo sense esborrar les dades locals de l'aplicació.
+- Les captures d'Android a `docs/captures/` són d'un emulador net, sense cap informació personal ni tasca real de la família.
