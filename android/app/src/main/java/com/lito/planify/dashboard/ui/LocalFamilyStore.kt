@@ -168,7 +168,7 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
         val i = chores.indexOfFirst { it.id == id }
         if (i < 0) return
         val task = chores[i]
-        if (task.owner != "Rai" || status(task, today) != "pending" || task.date != today.toString()) return
+        if (task.owner != "Rai" || status(task, today) != "pending") return
         chores[i] = task.copy(status = "approved")
         stars += task.stars
         persist()
