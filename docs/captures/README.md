@@ -28,6 +28,15 @@ Es generen per comprovar l'aspecte de la versió horitzontal de **1920 × 1200**
 
 ![Llista de la compra, feines d'en Rai i recompenses en una pantalla](07-familia-compra-tasques.png)
 
+**Prova funcional a l'emulador (dades d'exemple, no reals):**
+
+![Producte afegit a la llista de la compra](08-compra-amb-producte.png)
+
+![La compra es conserva després de reiniciar l'app](09-compra-despres-reinici.png)
+
+![Configuració del PIN per protegir la validació de les tasques i premis](10-pin-dels-adults.png)
+
+
 ## Sopars
 
 ![Editor de sopars amb selecció del dia](06-editor-sopar.png)
