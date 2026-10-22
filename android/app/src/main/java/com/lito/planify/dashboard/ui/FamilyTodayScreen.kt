@@ -143,13 +143,13 @@ internal fun WeekDay(
     Column(modifier.background(if (isToday) Palette.Card else Palette.Card.copy(alpha = 0.6f), RoundedCornerShape(24.dp)).padding(horizontal = 14.dp, vertical = 14.dp).alpha(if (day < today) 0.55f else 1f)) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
-                if (isToday) "Hoy" else day.dayOfWeek.getDisplayName(TextStyle.SHORT, Spanish).trimEnd('.').capitalized(),
+                if (isToday) "Avui" else day.dayOfWeek.getDisplayName(TextStyle.SHORT, Spanish).trimEnd('.').capitalized(),
                 style = Type.Small.copy(color = if (isToday) Palette.Accent else Palette.InkSoft, fontWeight = FontWeight.SemiBold),
                 modifier = Modifier.weight(1f)
             )
             // Calendario: el mes en el lunes de cada semana y, resaltado, en el día 1 (donde cambia de mes)
             if (small && (day.dayOfWeek == DayOfWeek.MONDAY || day.dayOfMonth == 1)) Text(
-                day.month.getDisplayName(TextStyle.SHORT, Spanish).trimEnd('.'),
+                day.month.getDisplayName(TextStyle.SHORT, Spanish).trimEnd('.').removePrefix("d'").removePrefix("d’").removePrefix("de "),
                 style = Type.Small.copy(color = if (day.dayOfMonth == 1) Palette.Accent else Palette.InkSoft, fontWeight = FontWeight.SemiBold),
                 modifier = Modifier.padding(end = 8.dp, bottom = 3.dp)
             )
