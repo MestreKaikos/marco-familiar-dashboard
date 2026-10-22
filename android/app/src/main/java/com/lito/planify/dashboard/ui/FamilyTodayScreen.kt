@@ -63,7 +63,7 @@ fun FamilyTodayScreen(state: UiState, onOpen: (Page) -> Unit) {
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 if (next != null) EventTapTarget(next, Modifier.fillMaxSize()) { NextCompact(next, now, live = next === live) }
                 else Box(Modifier.fillMaxSize().background(Palette.Card, RoundedCornerShape(28.dp)), contentAlignment = Alignment.Center) {
-                    Text("Semana sin citas", style = Type.Body.copy(color = Palette.InkMuted))
+                    Text("Setmana sense activitats", style = Type.Body.copy(color = Palette.InkMuted))
                 }
             }
         }
@@ -100,7 +100,7 @@ private fun NextCompact(event: Event, now: LocalDateTime, live: Boolean) {
         verticalArrangement = Arrangement.Center
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(if (live) "● AHORA" else "LO PRÓXIMO", style = Type.Label.copy(color = ink.copy(alpha = 0.9f), fontSize = 17.sp), modifier = Modifier.weight(1f))
+            Text(if (live) "● ARA" else "EL SEGÜENT", style = Type.Label.copy(color = ink.copy(alpha = 0.9f), fontSize = 17.sp), modifier = Modifier.weight(1f))
             Text(
                 if (live) "hasta ${(event.end ?: event.at.plusHours(1)).format(HourMinute)}" else "en $left",
                 style = Type.Small.copy(color = ink, fontWeight = FontWeight.Bold),
@@ -201,7 +201,7 @@ private fun WeekItem(e: Event, past: Boolean, small: Boolean = false) {
     Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min).alpha(if (past) 0.4f else 1f)) {
         Box(Modifier.width(5.dp).fillMaxHeight().background(parseColor(e.calendar_color), RoundedCornerShape(3.dp)))
         Column(Modifier.padding(start = 8.dp)) {
-            Text(if (e.all_day) "Todo el día" else e.at.format(HourMinute), style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = if (small) 17.sp else 19.sp, fontWeight = FontWeight.SemiBold))
+            Text(if (e.all_day) "Tot el dia" else e.at.format(HourMinute), style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = if (small) 17.sp else 19.sp, fontWeight = FontWeight.SemiBold))
             Text(e.title, style = Type.Small.copy(color = Palette.Ink, fontSize = if (small) 20.sp else 23.sp, lineHeight = if (small) 25.sp else 28.sp), maxLines = 4, overflow = TextOverflow.Ellipsis)
         }
     }
@@ -228,10 +228,10 @@ private fun Tile(title: String, emoji: String, tint: Color, modifier: Modifier, 
 @Composable
 private fun KidsTile(state: UiState, modifier: Modifier, onClick: () -> Unit) {
     val chores = state.chores
-    Tile("Niños", "🐾", Palette.Warm, modifier, onClick) {
+    Tile("Infants", "🐾", Palette.Warm, modifier, onClick) {
         if (chores == null) return@Tile
         val left = chores.pending()
-        Text(if (left == 0) "🎉 Todo hecho" else "$left ${if (left == 1) "tarea" else "tareas"} por hacer", style = Type.Body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 8.dp))
+        Text(if (left == 0) "🎉 Tot fet" else "$left ${if (left == 1) "tarea" else "tareas"} por hacer", style = Type.Body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 8.dp))
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             chores.ninos.orEmpty().forEach { k ->
                 Text(
@@ -249,7 +249,7 @@ private fun KidsTile(state: UiState, modifier: Modifier, onClick: () -> Unit) {
 private fun ShoppingTile(state: UiState, modifier: Modifier, onClick: () -> Unit) {
     val items = state.shopping?.shopping().orEmpty()
     Tile("Compra", "🛒", Palette.Online, modifier, onClick) {
-        Text(if (items.isEmpty()) "Nada que comprar" else "${items.size} ${if (items.size == 1) "cosa" else "cosas"}", style = Type.Body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 8.dp))
+        Text(if (items.isEmpty()) "Res per comprar" else "${items.size} ${if (items.size == 1) "cosa" else "cosas"}", style = Type.Body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 8.dp))
         Text(items.take(4).joinToString(" · ") { it.producto }, style = Type.Small.copy(color = Palette.InkSoft), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
     }
 }
@@ -262,7 +262,7 @@ private fun EnergyTile(state: UiState, modifier: Modifier, onClick: () -> Unit) 
     val min = window.minOfOrNull { it.eur_kwh } ?: 0.0
     val max = window.maxOfOrNull { it.eur_kwh } ?: 0.0
     val car = state.shopping?.coche
-    Tile("Luz y coche", "⚡", Amber, modifier, onClick) {
+    Tile("Llum i cotxe", "⚡", Amber, modifier, onClick) {
         Row(Modifier.fillMaxWidth().weight(1f).padding(top = 6.dp)) {
             car?.bateria?.let { BatteryGauge(it, car, Modifier.width(170.dp).fillMaxHeight().padding(end = 18.dp)) }
             Column(Modifier.weight(1f).fillMaxHeight()) {
