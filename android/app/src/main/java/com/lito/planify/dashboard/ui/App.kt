@@ -67,7 +67,7 @@ enum class Page(val label: String, val icon: ImageVector) {
     Weather("El temps", Icons.Outlined.Thermostat),
     Energy("Energia", Icons.Outlined.Bolt),
     Home("Casa i energia", Icons.Outlined.Home),
-    Tasks("Tasques", Icons.Outlined.Checklist),
+    Tasks("Família", Icons.Outlined.Checklist),
     Settings("Opcions", Icons.Outlined.Settings)
 }
 
@@ -112,6 +112,7 @@ fun DashboardApp(
     var page by remember { mutableStateOf(Page.Today) }
     // Sopars compartits entre la portada i el calendari, desats només al dispositiu.
     val dinners = rememberDinnerPlan()
+    val family = rememberLocalFamilyStore()
     var lastTouch by remember { mutableLongStateOf(0L) }
     /** Cita abierta en el aviso ([EventOverlay]); se cierra sola al volver a Hoy por inactividad. */
     var shownEvent by remember { mutableStateOf<Event?>(null) }
@@ -157,7 +158,7 @@ fun DashboardApp(
                 Box(Modifier.weight(1f).fillMaxHeight()) {
                     when (page) {
                         // La portada familiar funciona sense credencials; el backend antic és opcional.
-                        Page.Today -> if (state.ics || state.token == null) FamilyTodayScreen(state, dinners, onOpen = { page = it }) else TodayScreen(state, lastTouch)
+                        Page.Today -> if (state.ics || state.token == null) FamilyTodayScreen(state, dinners, family, onOpen = { page = it }) else TodayScreen(state, lastTouch)
                         Page.Photos -> PhotosScreen()
                         // Con los calendarios de la familia, semanas en vertical como la portada; con Planify, la de Lito
                         Page.Calendar -> if (state.ics || state.token == null) FamilyCalendarScreen(state, dinners) else CalendarScreen(state, onLoadWeek)
@@ -165,7 +166,7 @@ fun DashboardApp(
                         Page.Energy -> EnergyScreen(state)
                         // Prueba: Casa y Energía juntas (EnergyScreen y HomeScreen siguen por si se separan)
                         Page.Home -> HomeEnergyScreen(state, home)
-                        Page.Tasks -> TasksScreen(state, chores)
+                        Page.Tasks -> LocalFamilyScreen(family, state.now.toLocalDate())
                         Page.Settings -> SettingsScreen(state, actions, settings)
                     }
                 }
