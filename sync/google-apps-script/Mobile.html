@@ -86,7 +86,8 @@ button:focus-visible,input:focus-visible{outline:3px solid #7c9ef1}
 <script>
 (function(){
 'use strict';
-let key = sessionStorage.getItem("marc-sync-key") || "";
+let key = "";
+try { key = sessionStorage.getItem("marc-sync-key") || ""; } catch (_) { /* Navegador que bloqueja emmagatzematge de tercers */ }
 let data = {groceries:[], dinners:{}};
 let busy = false;
 const $ = id => document.getElementById(id);
@@ -119,7 +120,7 @@ function call(ops, onDone) {
     .apiAction(key,'sync',{ops:ops||[]});
 }
 function showLogin(){
-  key='';sessionStorage.removeItem('marc-sync-key');
+  key='';try { sessionStorage.removeItem('marc-sync-key'); } catch (_) {}
   $('auth').hidden=false;$('application').hidden=true;$('disconnect').hidden=true;
 }
 function showApp(){
@@ -173,7 +174,8 @@ $('login').addEventListener('submit',e=>{
   e.preventDefault();
   const value=$('secret').value.trim();
   if(!/^[a-f0-9]{64}$/.test(value)){alert('La clau ha de tenir 64 caràcters hexadecimals.');return;}
-  key=value;sessionStorage.setItem('marc-sync-key',key);showApp();
+  key=value;try { sessionStorage.setItem('marc-sync-key',key); } catch (_) {}
+  showApp();
 });
 $('disconnect').addEventListener('click',showLogin);
 $('addProduct').addEventListener('submit',e=>{
