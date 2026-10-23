@@ -15,6 +15,9 @@ class FakeSheet {
   getLastRow() { return this.rows.length; }
   setFrozenRows() {}
   getRange(startRow, startCol, numRows, numCols) {
+    if (typeof startRow === "string") {
+      return { setNumberFormat: format => { assert.equal(format, "@"); return this; } };
+    }
     const sheet = this;
     return {
       getValues() {
