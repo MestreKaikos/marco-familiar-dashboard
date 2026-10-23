@@ -62,8 +62,12 @@ function sheet_(name, header) {
 }
 
 function setupSheets_() {
-  sheet_(COMPRA, ["id", "producte", "comprat"]);
-  sheet_(SOPARS, ["data", "sopar"]);
+  const groceries = sheet_(COMPRA, ["id", "producte", "comprat"]);
+  const dinners = sheet_(SOPARS, ["data", "sopar"]);
+  // Conservar el nom literal dels productes i les dates YYYY-MM-DD,
+  // sense que Google Sheets les converteixi en fórmules o dates numèriques.
+  groceries.getRange("B:B").setNumberFormat("@");
+  dinners.getRange("A:A").setNumberFormat("@");
 }
 
 function rows_(tab, count) {
