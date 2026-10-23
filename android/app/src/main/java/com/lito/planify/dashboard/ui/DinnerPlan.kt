@@ -29,6 +29,21 @@ import java.time.LocalDate
  */
 class DinnerPlan internal constructor(private val preferences: SharedPreferences) {
     private val meals = mutableStateMapOf<LocalDate, String>()
+    /** Desactivat en actualitzacions rebudes del núvol, per evitar bucles. */
+    var onLocalChange: ((LocalDate, String) -> Unit)? = null
+
+    fun snapshot(): Map<LocalDate, String> = meals.toMap()
+
+    fun replaceFromCloud(values: Map<LocalDate, String>) {
+        val editor = preferences.edit()
+        preferences.all.keys.filter { it.startsWith(PREFIX) }.forEach(editor::remove)
+        values.forEach { (date, meal) ->
+            if (meal.isNotBlank()) editor.putString(PREFIX + date, meal.take(180))
+        }
+        editor.apply()
+        meals.clear()
+        values.forEach { (date, meal) -> if (meal.isNotBlank()) meals[date] = meal.take(180) }
+    }
 
     init {
         preferences.all.forEach { (key, value) ->
@@ -50,6 +65,7 @@ class DinnerPlan internal constructor(private val preferences: SharedPreferences
             meals[date] = cleaned
             preferences.edit().putString(PREFIX + date, cleaned).apply()
         }
+        onLocalChange?.invoke(date, cleaned)
     }
 
     private companion object {
@@ -88,7 +104,7 @@ fun DinnerEditor(date: LocalDate, initial: String?, onDismiss: () -> Unit, onSav
                     maxLines = 3
                 )
                 Text(
-                    "Només es guarda en aquest marc.",
+                    "Es desa al marc i, si actives la sincronització, també a la família.",
                     style = Type.Tiny.copy(color = Palette.InkMuted),
                     modifier = Modifier.padding(top = 12.dp)
                 )

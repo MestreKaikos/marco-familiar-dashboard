@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Marc Familiar · Compra i sopars</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#26231e;background:#f7f0e6}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh}
+main{max-width:700px;margin:0 auto;padding:22px 16px 64px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0 22px}
+h1{font-size:25px;margin:0;font-weight:750;letter-spacing:-.7px}
+h2{font-size:20px;margin:0 0 18px}
+p{color:#716a60;line-height:1.55}
+.panel{background:#fff;border-radius:22px;padding:20px;margin-bottom:16px;box-shadow:0 2px 10px #54452e08}
+.row{display:flex;gap:8px;align-items:center}
+.row>*{min-width:0}
+input{min-width:0;flex:1;border:1px solid #e4d6c2;border-radius:12px;font:inherit;padding:12px 13px;background:#fffcf9;color:#26231e}
+button{font:inherit;border:0;border-radius:12px;padding:12px 16px;cursor:pointer;background:#e9dccb;color:#26231e;font-weight:600}
+button.primary{background:#29221d;color:white}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.small{font-size:13px;padding:9px 11px}
+button.ghost{background:transparent;color:#74695c}
+button:focus-visible,input:focus-visible{outline:3px solid #7c9ef1}
+#message{font-size:14px;min-height:20px;margin:0 0 14px}
+#message.error{color:#ac3434}
+#message.good{color:#298252}
+.item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f1ede7}
+.item:last-child{border:0}
+.item input[type=checkbox]{flex:0;min-width:22px;width:22px;height:22px;accent-color:#31865a}
+.item .name{flex:1;overflow-wrap:anywhere}
+.bought{text-decoration:line-through;color:#9c958c}
+.day{display:flex;flex-direction:column;gap:8px;border-top:1px solid #f1ede7;padding:12px 0}
+.day:first-child{border-top:0}
+.day label{font-weight:650}
+.day .row input{width:100%}
+.pill{font-size:12px;background:#faebd3;padding:5px 10px;border-radius:99px;color:#98600e;white-space:nowrap}
+#auth{max-width:470px;margin:14vh auto}
+[hidden]{display:none!important}
+#syncTime{font-size:12px;color:#777}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>🏡 Marc Familiar</h1>
+    <button class="small ghost" id="disconnect" hidden>Desconnectar</button>
+  </header>
+  <div id="auth" class="panel">
+    <h2>Connectar la família</h2>
+    <p>Escriu la clau privada creada al teu Google Apps Script. No és la contrasenya de Google i no es comparteix per URL.</p>
+    <form id="login" class="row">
+      <input id="secret" type="password" aria-label="Clau familiar" autocomplete="off" required maxlength="64" placeholder="Clau de 64 caràcters" />
+      <button class="primary" type="submit">Entrar</button>
+    </form>
+    <p><small>La clau es recorda només durant aquesta sessió del navegador.</small></p>
+  </div>
+  <div id="application" hidden>
+    <p id="message" aria-live="polite"></p>
+    <section class="panel">
+      <div class="row" style="justify-content:space-between;margin-bottom:14px">
+        <h2 style="margin:0">🛒 Llista de la compra</h2>
+        <span class="pill" id="pendingCount">0 pendents</span>
+      </div>
+      <form id="addProduct" class="row">
+        <input id="productName" placeholder="Afegir producte..." required maxlength="80" aria-label="Nou producte"/>
+        <button class="primary" type="submit">Afegir</button>
+      </form>
+      <div id="items" style="margin-top:14px"></div>
+    </section>
+    <section class="panel">
+      <div class="row" style="justify-content:space-between;align-items:start">
+        <div><h2>🍽️ Què sopem?</h2><p style="margin:-8px 0 12px">Planifica els pròxims set dies.</p></div>
+        <span class="pill">7 dies</span>
+      </div>
+      <div id="dinners"></div>
+    </section>
+    <div class="row" style="justify-content:space-between">
+      <span id="syncTime">Connectat · Sincronització automàtica</span>
+      <button class="small" id="refresh">Actualitzar ara</button>
+    </div>
+  </div>
+</main>
+<script>
+(function(){
+'use strict';
+let key = "";
+try { key = sessionStorage.getItem("marc-sync-key") || ""; } catch (_) { /* Navegador que bloqueja emmagatzematge de tercers */ }
+let data = {groceries:[], dinners:{}};
+let busy = false;
+const $ = id => document.getElementById(id);
+function message(text,error) {
+  $('message').textContent=text||'';
+  $('message').className=error?'error':'good';
+}
+function call(ops, onDone) {
+  if(!key || busy) return;
+  busy=true;
+  message('Sincronitzant...',false);
+  google.script.run
+    .withSuccessHandler(function(result){
+      busy=false;
+      if(!result||!result.ok){
+        message((result&&result.error)||'No es pot sincronitzar',true);
+        if(result&&/Clau/.test(result.error||'')) showLogin();
+        return;
+      }
+      data=result.data||{groceries:[],dinners:{}};
+      render();
+      message('',false);
+      $('syncTime').textContent='Actualitzat a les '+new Date().toLocaleTimeString('ca-ES',{hour:'2-digit',minute:'2-digit'});
+      if(onDone)onDone();
+    })
+    .withFailureHandler(function(err){
+      busy=false;
+      message('Sense connexió: '+(err&&err.message||'Error temporal'),true);
+    })
+    .apiAction(key,'sync',{ops:ops||[]});
+}
+function showLogin(){
+  key='';try { sessionStorage.removeItem('marc-sync-key'); } catch (_) {}
+  $('auth').hidden=false;$('application').hidden=true;$('disconnect').hidden=true;
+}
+function showApp(){
+  $('auth').hidden=true;$('application').hidden=false;$('disconnect').hidden=false;
+  call([]);
+}
+function makeText(tag,text,cls){
+  const e=document.createElement(tag);e.textContent=text;if(cls)e.className=cls;return e;
+}
+function newId(){
+  if(self.crypto&&crypto.randomUUID)return crypto.randomUUID();
+  return String(Date.now())+'-'+Math.random().toString(36).slice(2);
+}
+function render(){
+  const groceries=(data.groceries||[]).slice().sort((a,b)=>Number(a.bought)-Number(b.bought));
+  const list=$('items');list.replaceChildren();
+  const pending=groceries.filter(x=>!x.bought).length;
+  $('pendingCount').textContent=pending+(pending===1?' pendent':' pendents');
+  if(!groceries.length)list.appendChild(makeText('p','La llista és buida. Afegeix-hi allò que falta a casa.'));
+  groceries.forEach(function(item){
+    const line=makeText('div','','item');
+    const box=document.createElement('input');box.type='checkbox';box.checked=!!item.bought;
+    box.setAttribute('aria-label','Marcar '+item.name+' com a comprat');
+    box.addEventListener('change',()=>call([{type:'grocery_set',id:item.id,name:item.name,bought:box.checked}]));
+    line.appendChild(box);line.appendChild(makeText('span',item.name,'name'+(item.bought?' bought':'')));
+    const del=makeText('button','Treure','small ghost');del.type='button';
+    del.setAttribute('aria-label','Eliminar '+item.name);
+    del.addEventListener('click',()=>call([{type:'grocery_delete',id:item.id}]));
+    line.appendChild(del);list.appendChild(line);
+  });
+  const days=$('dinners');days.replaceChildren();
+  const now=new Date();
+  const names=['Diumenge','Dilluns','Dimarts','Dimecres','Dijous','Divendres','Dissabte'];
+  for(let i=0;i<7;i++){
+    const day=new Date(now.getFullYear(),now.getMonth(),now.getDate()+i);
+    const date=day.getFullYear()+'-'+String(day.getMonth()+1).padStart(2,'0')+'-'+String(day.getDate()).padStart(2,'0');
+    const outer=makeText('div','','day');
+    outer.appendChild(makeText('label',(i===0?'Avui':names[day.getDay()])+' · '+day.getDate()+'/'+(day.getMonth()+1)));
+    const row=makeText('form','','row');
+    const input=document.createElement('input');input.type='text';input.maxLength=180;input.placeholder='Encara sense sopar...';
+    input.value=(data.dinners||{})[date]||'';input.setAttribute('aria-label','Sopar '+date);
+    const save=makeText('button','Desar','small');save.type='submit';
+    row.append(input,save);
+    row.addEventListener('submit',e=>{
+      e.preventDefault();call([{type:'dinner_set',date:date,value:input.value}],()=>{save.textContent='Desat';setTimeout(()=>save.textContent='Desar',1200);});
+    });
+    outer.appendChild(row);days.appendChild(outer);
+  }
+}
+$('login').addEventListener('submit',e=>{
+  e.preventDefault();
+  const value=$('secret').value.trim();
+  if(!/^[a-f0-9]{64}$/.test(value)){alert('La clau ha de tenir 64 caràcters hexadecimals.');return;}
+  key=value;try { sessionStorage.setItem('marc-sync-key',key); } catch (_) {}
+  showApp();
+});
+$('disconnect').addEventListener('click',showLogin);
+$('addProduct').addEventListener('submit',e=>{
+  e.preventDefault();const name=$('productName').value.trim();
+  if(!name)return;
+  call([{type:'grocery_set',id:newId(),name:name.slice(0,80),bought:false}],()=>$('productName').value='');
+});
+$('refresh').addEventListener('click',()=>call([]));
+if(key)showApp();
+setInterval(()=>{if(key&&!document.hidden)call([])},45000);
+})();
+</script>
+</body>
+</html>

@@ -45,6 +45,14 @@ La ubicació meteorològica inicial és **Malgrat de Mar**. La configuració de 
 
 ![Afegir calendaris Google amb adreça iCal privada](12-configuracio-calendaris.png)
 
+## Sincronització familiar (compra i sopars)
+
+Pantalla inicial **sense dades personals ni clau configurada**:
+
+![Sincronització familiar via Google Sheets i pàgina mòbil](13-sincronitzacio-familiar.png)
+
+La configuració s'explica a [Sincronització familiar](../SINCRONITZACIO-FAMILIAR.md). Encara s'ha de desplegar un Apps Script privat per activar les dades compartides.
+
 ## Sopars
 
 ![Editor de sopars amb selecció del dia](06-editor-sopar.png)
