@@ -39,6 +39,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import com.lito.planify.dashboard.data.Event
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import org.json.JSONObject
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
@@ -113,6 +116,31 @@ fun DashboardApp(
     // Sopars compartits entre la portada i el calendari, desats només al dispositiu.
     val dinners = rememberDinnerPlan()
     val family = rememberLocalFamilyStore()
+    val sync = rememberFamilySync()
+    val coroutineScope = rememberCoroutineScope()
+    // Escolta els canvis locals: en cas de no tenir Internet, queden a la cua del marc.
+    LaunchedEffect(sync, dinners, family) {
+        dinners.onLocalChange = { day, meal ->
+            sync.queue(JSONObject().put("type", "dinner_set")
+                .put("date", day.toString()).put("value", meal))
+        }
+        family.onGroceryMutation = { op -> sync.queue(op) }
+        try {
+            while (true) {
+                sync.synchronize(dinners, family)
+                delay(45_000)
+            }
+        } finally {
+            dinners.onLocalChange = null
+            family.onGroceryMutation = null
+        }
+    }
+    LaunchedEffect(sync.pendingCount, sync.connected) {
+        if (sync.connected && sync.pendingCount > 0) {
+            delay(1200)
+            sync.synchronize(dinners, family)
+        }
+    }
     var lastTouch by remember { mutableLongStateOf(0L) }
     /** Cita abierta en el aviso ([EventOverlay]); se cierra sola al volver a Hoy por inactividad. */
     var shownEvent by remember { mutableStateOf<Event?>(null) }
@@ -167,10 +195,13 @@ fun DashboardApp(
                         // Prueba: Casa y Energía juntas (EnergyScreen y HomeScreen siguen por si se separan)
                         Page.Home -> HomeEnergyScreen(state, home)
                         Page.Tasks -> LocalFamilyScreen(family, state.now.toLocalDate())
-                        Page.Settings -> SettingsScreen(state, actions, settings)
+                        Page.Settings -> SettingsScreen(state, actions, settings, sync, dinners, family)
                     }
                 }
-                Rail(page, state, onSelect = { page = it }, onSync = onSync, onSleep = actions.sleep)
+                Rail(page, state, onSelect = { page = it }, onSync = {
+                    onSync()
+                    coroutineScope.launch { sync.synchronize(dinners, family) }
+                }, onSleep = actions.sleep)
             }
         }
         EventOverlay(shownEvent) { shownEvent = null }
