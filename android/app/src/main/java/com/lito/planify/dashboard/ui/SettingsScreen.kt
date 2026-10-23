@@ -87,8 +87,13 @@ class SettingsCallbacks(
  * Dentro de las cajas (blancas) los controles van en crema ([Control]) para que se distingan.
  */
 @Composable
-fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: SettingsCallbacks) {
+fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: SettingsCallbacks, sync: FamilySync, dinners: DinnerPlan, family: LocalFamilyStore) {
     var calendarSetup by remember { mutableStateOf(false) }
+    var syncSetup by remember { mutableStateOf(false) }
+    if (syncSetup) {
+        FamilySyncSettings(sync, dinners, family, onBack = { syncSetup = false })
+        return
+    }
     if (calendarSetup) {
         CalendarSetupScreen(state, callbacks, onBack = { calendarSetup = false })
         return
@@ -111,6 +116,7 @@ fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: Setting
                     Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
                         PillButton("Wi-Fi", Modifier.fillMaxWidth(), background = Control, onClick = actions.openWifi)
                         PillButton("Calendaris de Google", Modifier.fillMaxWidth(), background = Control, onClick = { calendarSetup = true })
+                        PillButton("Sincronització familiar", Modifier.fillMaxWidth(), background = Control, onClick = { syncSetup = true })
                         PillButton("Opcions d’Android", Modifier.fillMaxWidth(), background = Control, onClick = actions.openSettings)
                         // Con calendarios iCal no hay sesión: borra lo descargado y vuelve a pedirlo
                         if (state.ics || state.token != null) {
