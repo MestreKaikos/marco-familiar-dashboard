@@ -58,14 +58,11 @@ class FamilySync internal constructor(context: Context) {
             val uri = runCatching { Uri.parse(input.trim()) }.getOrNull() ?: return false
             return uri.scheme == "https" && uri.host == "script.google.com" &&
                 uri.path?.matches(Regex("^/macros/s/[A-Za-z0-9_-]+/exec$")) == true &&
-                uri.query == null && uri.fragment == null && uri.userInfoSafe() == null
+                uri.query == null && uri.fragment == null && (uri.encodedAuthority?.contains("@") != true)
         }
 
         fun validKey(input: String) = input.matches(Regex("^[0-9a-fA-F]{64}$"))
     }
-
-    /** No permet autoritat amb credencials incloses a l'adreça. */
-    private fun Uri.userInfoSafe(): String? = runCatching { encodedAuthority?.substringBefore("@")?.takeIf { "@" in (encodedAuthority ?: "") } }.getOrNull()
 
     private fun readQueue(): List<JSONObject> = runCatching {
         val json = JSONArray(prefs.getString("queue", "[]") ?: "[]")
@@ -74,7 +71,7 @@ class FamilySync internal constructor(context: Context) {
 
     private fun putQueue(ops: List<JSONObject>) {
         val items = JSONArray()
-        ops.forEach(items::put)
+        ops.forEach { items.put(it) }
         prefs.edit().putString("queue", items.toString()).apply()
         pendingCount = ops.size
     }
@@ -192,7 +189,6 @@ class FamilySync internal constructor(context: Context) {
     }
 
     private fun applySnapshot(root: JSONObject, dinners: DinnerPlan, family: LocalFamilyStore) {
-        val remote = root.getJSONObject("data")
         family.replaceGroceries(parseGroceries(root))
         dinners.replaceFromCloud(parseDinners(root))
     }
