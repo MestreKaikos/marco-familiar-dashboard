@@ -49,7 +49,7 @@ internal object SharedPhotoSync {
                 "Cal una URL HTTPS de Google Apps Script acabada en /exec"
             }
             val dir = File(context.filesDir, "shared_photos").apply { mkdirs() }
-            val items = post(url.toString(), JSONObject().put("action","list").put("key",key))
+            val items = post(url.toString(), JSONObject().put("action","photos_list").put("key",key))
                 .getJSONArray("data")
             require(items.length() <= 300) { "Massa fotos al manifest" }
             val photos = mutableListOf<SharedPhoto>()
@@ -61,8 +61,8 @@ internal object SharedPhotoSync {
                 if (!id.matches(Regex("[A-Za-z0-9_-]{10,100}")) || size < 1 || size > 5_242_880) continue
                 val file = File(dir, fileName(id))
                 if (!file.isFile && downloads < 4) {
-                    val photo = post(url.toString(), JSONObject().put("action","get")
-                        .put("key",key).put("id",id)).getJSONObject("data")
+                    val photo = post(url.toString(), JSONObject().put("action","photos_get")
+                        .put("key",key).put("payload", JSONObject().put("id",id))).getJSONObject("data")
                     require(photo.optString("mime") in setOf("image/jpeg","image/png","image/webp")) {
                         "Format no admès"
                     }
