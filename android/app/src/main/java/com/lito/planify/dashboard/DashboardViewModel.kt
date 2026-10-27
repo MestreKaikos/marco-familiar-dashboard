@@ -18,6 +18,7 @@ import com.lito.planify.dashboard.data.GeoResult
 import com.lito.planify.dashboard.data.HttpError
 import com.lito.planify.dashboard.data.Location
 import com.lito.planify.dashboard.data.PersonalCalendar
+import com.lito.planify.dashboard.data.CalendarColors
 import com.lito.planify.dashboard.data.ReferenceClock
 import com.lito.planify.dashboard.data.Schedule
 import com.lito.planify.dashboard.data.Store
@@ -487,12 +488,22 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         val items = store.calendarFeeds
         if (items.size >= 5) return "Ja hi ha cinc calendaris configurats."
         if (items.any { it.url == url }) return "Aquest calendari ja està afegit."
-        applyPersonalCalendars(items + PersonalCalendar(UUID.randomUUID().toString(), name, url))
+        applyPersonalCalendars(items + PersonalCalendar(UUID.randomUUID().toString(), name, url, CalendarColors.nextAvailable(items)))
         return null
     }
 
     fun removePersonalCalendar(id: String) {
         applyPersonalCalendars(store.calendarFeeds.filterNot { it.id == id })
+    }
+
+    /** Només canvia el color d'aquest calendari; no altera els altres ni la seva URL. */
+    fun changePersonalCalendarColor(id: String, hex: String) {
+        val color = CalendarColors.normalize(hex) ?: return
+        if (CalendarColors.options.none { it.hex == color }) return
+        val calendars = store.calendarFeeds
+        val current = calendars.firstOrNull { it.id == id } ?: return
+        if (current.color == color) return
+        applyPersonalCalendars(calendars.map { if (it.id == id) it.copy(color = color) else it })
     }
 
     private fun applyPersonalCalendars(feeds: List<PersonalCalendar>) {
