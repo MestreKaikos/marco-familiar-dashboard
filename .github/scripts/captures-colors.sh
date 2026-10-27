@@ -40,6 +40,10 @@ adb shell run-as com.lito.planify.dashboard cp /data/local/tmp/marc-calendar-col
 adb shell rm /data/local/tmp/marc-calendar-colors.xml
 adb shell am start -W -n com.lito.planify.dashboard/.MainActivity
 sleep 12
+# Android 10 mostra un avís inicial de pantalla completa.
+# El tanquem igual que al procés habitual abans de tocar cap pestanya.
+adb shell input tap 1065 202
+sleep 3
 capture "14-llegenda-colors-avui.png"
 adb shell input tap 1850 302
 sleep 3
