@@ -48,7 +48,25 @@ capture "14-llegenda-colors-avui.png"
 adb shell input tap 1850 302
 sleep 3
 capture "15-llegenda-colors-calendari.png"
-adb shell input tap 1850 718
+# Localitza les Opcions a través de l'accessibilitat per no dependre dels píxels exactes.
+adb shell uiautomator dump /sdcard/marc-rail-colors.xml >/dev/null
+adb pull /sdcard/marc-rail-colors.xml /tmp/marc-rail-colors.xml >/dev/null
+options_coords=$(python3 - <<'PY'
+import re
+import xml.etree.ElementTree as ET
+root=ET.parse("/tmp/marc-rail-colors.xml").getroot()
+for node in root.iter("node"):
+    if node.attrib.get("text") == "Opcions":
+        x1,y1,x2,y2=map(int,re.findall(r"\d+",node.attrib["bounds"]))
+        print((x1+x2)//2,(y1+y2)//2)
+        break
+PY
+)
+if [ -z "$options_coords" ]; then
+  echo "No s'ha trobat la pestanya Opcions al rail" >&2
+  exit 1
+fi
+adb shell input tap $options_coords
 sleep 3
 capture "diagnostic-opcions.png"
 adb shell dumpsys activity activities | grep -E "ResumedActivity|mResumedActivity" | tail -n 4 || true
