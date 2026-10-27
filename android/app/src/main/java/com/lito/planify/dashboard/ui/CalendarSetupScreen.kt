@@ -85,16 +85,21 @@ fun CalendarSetupScreen(state: UiState, callbacks: SettingsCallbacks, onBack: ()
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     state.personalCalendars.forEach { calendar ->
-                        Row(
+                        Column(
                             Modifier.fillMaxWidth().background(Palette.Highlight, RoundedCornerShape(16.dp))
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(horizontal = 16.dp, vertical = 10.dp)
                         ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(calendar.name, style = Type.Small.copy(fontWeight = FontWeight.SemiBold))
-                                Text("Enllaç privat guardat · només lectura", style = Type.Tiny.copy(color = Palette.InkMuted))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(calendar.name, style = Type.Small.copy(fontWeight = FontWeight.SemiBold))
+                                    Text("Color del calendari · enllaç privat guardat", style = Type.Tiny.copy(color = Palette.InkMuted))
+                                }
+                                TextButton(onClick = { deleteId = calendar.id }) { Text("Eliminar") }
                             }
-                            TextButton(onClick = { deleteId = calendar.id }) { Text("Eliminar") }
+                            CalendarColorPicker(
+                                current = calendar.color,
+                                onSelect = { hex -> callbacks.onChangeCalendarColor(calendar.id, hex) }
+                            )
                         }
                     }
                 }

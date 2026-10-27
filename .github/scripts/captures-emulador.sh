@@ -100,3 +100,27 @@ fi
 adb shell input tap $coords
 sleep 3
 capture "12-configuracio-calendaris.png"
+
+# Configuració compartida, sense clau ni servidor real en aquest emulador.
+adb shell input tap 385 1127
+sleep 3
+adb shell uiautomator dump /sdcard/marc-family-sync.xml >/dev/null
+adb pull /sdcard/marc-family-sync.xml /tmp/marc-family-sync.xml >/dev/null
+sync_coords=$(python3 - <<'PY'
+import re
+import xml.etree.ElementTree as ET
+root=ET.parse("/tmp/marc-family-sync.xml").getroot()
+for node in root.iter("node"):
+    if node.attrib.get("text") == "Sincronització familiar":
+        x1,y1,x2,y2 = map(int,re.findall(r"\d+",node.attrib["bounds"]))
+        print((x1+x2)//2,(y1+y2)//2)
+        break
+PY
+)
+if [ -z "$sync_coords" ]; then
+  echo "No hi ha el botó de Sincronització familiar" >&2
+  exit 1
+fi
+adb shell input tap $sync_coords
+sleep 3
+capture "13-sincronitzacio-familiar.png"

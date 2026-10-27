@@ -38,6 +38,25 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
     val groceries = mutableStateListOf<LocalGrocery>()
     val chores = mutableStateListOf<LocalChore>()
     val rewards = mutableStateListOf<LocalReward>()
+    /** Només notificacions de la compra; les feines/premis continuen locals. */
+    var onGroceryMutation: ((JSONObject) -> Unit)? = null
+
+    /** Rep les compres del núvol sense tocar tasques, recompenses ni PIN dels adults. */
+    fun replaceGroceries(items: List<LocalGrocery>) {
+        groceries.clear()
+        groceries.addAll(items)
+        persist()
+    }
+
+    private fun emitSet(item: LocalGrocery) {
+        onGroceryMutation?.invoke(JSONObject().put("type", "grocery_set").put("id", item.id)
+            .put("name", item.name).put("bought", item.bought))
+    }
+
+    private fun emitDelete(id: String) {
+        onGroceryMutation?.invoke(JSONObject().put("type", "grocery_delete").put("id", id))
+    }
+
     var stars by mutableIntStateOf(0)
         private set
     var pendingRewardId by mutableStateOf<String?>(null)
@@ -110,29 +129,45 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
     fun addGrocery(raw: String) {
         val name = raw.trim().take(80)
         if (name.isBlank() || groceries.any { it.name.equals(name, ignoreCase = true) && !it.bought }) return
-        groceries.add(LocalGrocery(newId(), name))
+        val item = LocalGrocery(newId(), name)
+        groceries.add(item)
         persist()
+        emitSet(item)
     }
 
     fun toggleGrocery(id: String) {
         val i = groceries.indexOfFirst { it.id == id }
-        if (i >= 0) { groceries[i] = groceries[i].copy(bought = !groceries[i].bought); persist() }
+        if (i >= 0) {
+            val item = groceries[i].copy(bought = !groceries[i].bought)
+            groceries[i] = item
+            persist()
+            emitSet(item)
+        }
     }
 
     fun renameGrocery(id: String, raw: String) {
         val name = raw.trim().take(80)
         val i = groceries.indexOfFirst { it.id == id }
-        if (i >= 0 && name.isNotBlank()) { groceries[i] = groceries[i].copy(name = name); persist() }
+        if (i >= 0 && name.isNotBlank()) {
+            val item = groceries[i].copy(name = name)
+            groceries[i] = item
+            persist()
+            emitSet(item)
+        }
     }
 
     fun removeGrocery(id: String) {
-        groceries.removeAll { it.id == id }
-        persist()
+        if (groceries.removeAll { it.id == id }) {
+            persist()
+            emitDelete(id)
+        }
     }
 
     fun clearBought() {
+        val ids = groceries.filter { it.bought }.map { it.id }
         groceries.removeAll { it.bought }
         persist()
+        ids.forEach(::emitDelete)
     }
 
     fun addChore(raw: String, owner: String, daily: Boolean, points: Int) {
