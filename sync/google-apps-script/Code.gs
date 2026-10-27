@@ -193,6 +193,17 @@ function photoFolder_() {
   return folder;
 }
 
+/**
+ * PAS D'ACTUALITZACIÓ: executa aquesta funció PÚBLICA una vegada des de
+ * l'editor per autoritzar l'accés a Drive. No canvia la clau familiar.
+ * La carpeta i el full Fotos continuen sent privats.
+ */
+function prepararFotosFamiliars() {
+  photoFolder_();
+  photoTab_();
+  Logger.log("Fotografies familiars preparades. No cal canviar la clau.");
+}
+
 /** Identificador aportat pel navegador, per evitar duplicats en reintents. */
 function photoUpload_(payload) {
   const id = validateId_(payload && payload.id);
