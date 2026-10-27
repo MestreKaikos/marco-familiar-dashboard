@@ -15,4 +15,4 @@ Codi: `Code.gs` + `Index.html`. **Encara no desplegat**. L'Android encara no con
 - Google Apps Script té límits de temps, memòria i mida de missatge; no és adequat per arxius enormes.
 - La pàgina de moment puja una foto per vegada i no en desa còpia al navegador.
 - No s'han implementat encara la sincronització Android, l'autenticació per membre, les quotes per usuari ni l'edició/esborrat des de mòbil.
-- `listPhotos` i `getPhoto` són funcions internes preparades per al client Android, però Google Apps Script HTML Service **no proporciona automàticament una API JSON pública interoperable**. Cal afegir una passarel·la autenticada o un protocol explícit abans de connectar el marc.
+- El servei també ofereix `doPost` amb JSON per al futur client Android: `{"action":"list","key":"CLAU_LECTURA"}` i `{"action":"get","key":"CLAU_LECTURA","id":"ID_FOTO"}`. Encara falta implementar el client Android i provar redireccions/limitacions de ContentService. No posar mai la clau de lectura al codi font o dins d’un APK públic.
