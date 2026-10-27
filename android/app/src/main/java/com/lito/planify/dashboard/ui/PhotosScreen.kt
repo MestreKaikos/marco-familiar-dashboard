@@ -54,6 +54,16 @@ fun PhotosScreen() {
     var draftKey by remember { mutableStateOf(sharedKey) }
     var showSharedSetup by remember { mutableStateOf(false) }
     var sharedStatus by remember { mutableStateOf("") }
+    // Recupera les còpies ja descarregades fins i tot si no hi ha connexió en iniciar l'APK.
+    LaunchedEffect(Unit) {
+        sharedPhotos = withContext(Dispatchers.IO) {
+            val dir = java.io.File(context.filesDir, "shared_photos")
+            dir.listFiles()?.filter { it.isFile && it.extension == "jpg" }
+                ?.sortedBy { it.name }
+                ?.map { LocalPhoto(Uri.fromFile(it), "Foto compartida", remote = true) }
+                .orEmpty()
+        }
+    }
     var index by remember { mutableIntStateOf(0) }
     var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var loading by remember { mutableStateOf(false) }
