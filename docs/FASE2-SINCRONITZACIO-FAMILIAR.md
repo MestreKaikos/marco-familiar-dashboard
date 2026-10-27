@@ -1,4 +1,6 @@
-# Fase 2 · sincronització familiar entre mòbils i marc
+# Fase posterior · sincronització familiar entre mòbils i marc
+
+**Nota de prioritats (27/10/2026): la propera millora acordada és pujar fotografies des del mòbil a la galeria del marc.** Aquest document queda com a planificació de la sincronització de tasques i recompenses, que s'abordarà després de les fotos i la millora de la web mòbil. La compra i els sopars ja s'han provat amb Google Sheets en el flux mòbil existent; no reconstruir-los de zero.
 
 Actualitzat: 27/10/2026. Document de treball de la branca `feature/marc-familiar-cat-fotos`. **No està implementat encara**.
 
