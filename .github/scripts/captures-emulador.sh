@@ -124,3 +124,69 @@ fi
 adb shell input tap $sync_coords
 sleep 3
 capture "13-sincronitzacio-familiar.png"
+
+# Prova visual dels colors AMB DADES FICTÍCIES. No s'hi posa cap URL privada real.
+# Només es modifica la configuració de l'emulador (APK debug) amb run-as.
+adb shell am force-stop com.lito.planify.dashboard
+python3 - <<'PY'
+import json
+from xml.sax.saxutils import escape
+calendars = [
+    {"id": "demo-rai", "name": "Rai", "url": "https://calendar.google.com/calendar/ical/demo-rai/private-1/basic.ics", "color": "#36A070"},
+    {"id": "demo-familia", "name": "Família", "url": "https://calendar.google.com/calendar/ical/demo-familia/private-2/basic.ics", "color": "#3977CB"}
+]
+data = escape(json.dumps(calendars))
+with open("/tmp/marc-calendar-colors.xml", "w", encoding="utf-8") as f:
+    f.write('<?xml version="1.0" encoding="utf-8" standalone="yes" ?>\n<map>\n')
+    f.write('<string name="calendar_feeds">' + data + '</string>\n</map>\n')
+PY
+adb shell run-as com.lito.planify.dashboard mkdir -p shared_prefs
+adb shell -T run-as com.lito.planify.dashboard sh -c 'cat > shared_prefs/dashboard.xml' < /tmp/marc-calendar-colors.xml
+adb shell am start -W -n com.lito.planify.dashboard/.MainActivity
+sleep 12
+capture "14-llegenda-colors-avui.png"
+adb shell input tap 1850 302
+sleep 3
+capture "15-llegenda-colors-calendari.png"
+adb shell input tap 1850 718
+sleep 3
+adb shell uiautomator dump /sdcard/marc-colors-options.xml >/dev/null
+adb pull /sdcard/marc-colors-options.xml /tmp/marc-colors-options.xml >/dev/null
+calendar_coords=$(python3 - <<'PY'
+import re
+import xml.etree.ElementTree as ET
+root = ET.parse("/tmp/marc-colors-options.xml").getroot()
+for node in root.iter("node"):
+    if node.attrib.get("text") == "Calendaris de Google":
+        x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.attrib["bounds"]))
+        print((x1+x2)//2, (y1+y2)//2)
+        break
+PY
+)
+if [ -z "$calendar_coords" ]; then
+  echo "No s'ha trobat Calendaris de Google" >&2
+  exit 1
+fi
+adb shell input tap $calendar_coords
+sleep 3
+capture "16-calendaris-amb-colors.png"
+adb shell uiautomator dump /sdcard/marc-color-buttons.xml >/dev/null
+adb pull /sdcard/marc-color-buttons.xml /tmp/marc-color-buttons.xml >/dev/null
+color_coords=$(python3 - <<'PY'
+import re
+import xml.etree.ElementTree as ET
+root = ET.parse("/tmp/marc-color-buttons.xml").getroot()
+for node in root.iter("node"):
+    if node.attrib.get("text") == "Color":
+        x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.attrib["bounds"]))
+        print((x1+x2)//2, (y1+y2)//2)
+        break
+PY
+)
+if [ -z "$color_coords" ]; then
+  echo "No s'ha trobat el selector de color" >&2
+  exit 1
+fi
+adb shell input tap $color_coords
+sleep 3
+capture "17-selector-color-calendari.png"
