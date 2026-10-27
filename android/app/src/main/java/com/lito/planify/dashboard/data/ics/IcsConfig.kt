@@ -3,6 +3,7 @@ package com.lito.planify.dashboard.data.ics
 import android.util.Base64
 import com.lito.planify.dashboard.BuildConfig
 import com.lito.planify.dashboard.data.PersonalCalendar
+import com.lito.planify.dashboard.data.CalendarColors
 import java.io.InputStreamReader
 import java.util.Properties
 
@@ -43,13 +44,12 @@ class IcsConfig(private val props: Properties) {
     val calendars: List<IcsCalendar> get() = personalCalendars ?: builtInCalendars
 
     fun setPersonalCalendars(calendars: List<PersonalCalendar>) {
-        val colors = listOf("#3977CB", "#B965AF", "#36A070", "#E09132", "#BF5960")
-        personalCalendars = calendars.take(5).mapIndexed { i, calendar ->
+        personalCalendars = CalendarColors.normalize(calendars.take(5)).mapIndexed { i, calendar ->
             IcsCalendar(
                 id = i + 1,
                 key = calendar.id,
                 name = calendar.name.take(50),
-                color = colors[i % colors.size],
+                color = calendar.color ?: CalendarColors.fallback(i),
                 role = CalendarRole.EVENTS,
                 url = calendar.url
             )
