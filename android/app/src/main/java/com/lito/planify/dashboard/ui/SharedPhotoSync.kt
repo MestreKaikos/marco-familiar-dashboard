@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
@@ -42,7 +43,7 @@ internal object SharedPhotoSync {
     suspend fun sync(context: Context, rawUrl: String, key: String): PhotoSyncResult =
         withContext(Dispatchers.IO) {
             require(key.length >= 32) { "La clau de lectura és massa curta" }
-            val url = okhttp3.HttpUrl.Companion.toHttpUrlOrNull(rawUrl.trim())
+            val url = rawUrl.trim().toHttpUrlOrNull()
                 ?: error("URL invàlida")
             require(url.isHttps && url.host == "script.google.com" && url.encodedPath.endsWith("/exec")) {
                 "Cal una URL HTTPS de Google Apps Script acabada en /exec"
