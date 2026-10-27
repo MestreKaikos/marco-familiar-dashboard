@@ -78,7 +78,8 @@ class SettingsCallbacks(
     val onBrightness: (Float?) -> Unit,
     val onLogout: () -> Unit,
     val onAddCalendar: (String, String) -> String?,
-    val onRemoveCalendar: (String) -> Unit
+    val onRemoveCalendar: (String) -> Unit,
+    val onChangeCalendarColor: (String, String) -> Unit
 )
 
 /**

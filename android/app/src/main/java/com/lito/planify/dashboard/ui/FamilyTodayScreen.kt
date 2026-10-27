@@ -71,6 +71,9 @@ fun FamilyTodayScreen(state: UiState, dinners: DinnerPlan, family: LocalFamilySt
                 }
             }
         }
+        if (state.personalCalendars.isNotEmpty()) {
+            CalendarLegend(state.personalCalendars)
+        }
         Row(Modifier.fillMaxWidth().weight(0.53f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             (0 until WEEK_DAYS).forEach { i ->
                 val day = today.plusDays(i.toLong())
