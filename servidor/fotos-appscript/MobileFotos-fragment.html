@@ -1,0 +1,44 @@
+<!-- Afegir dins de #application, després de la secció de sopars.
+     No requereix una segona web ni cap altre doGet. -->
+<section class="panel" id="familyPhotos">
+  <h2>📸 Fotografies del Marc Familiar</h2>
+  <p>Envia una fotografia a la carpeta compartida. JPG, PNG o WebP, màxim 5 MB.</p>
+  <form id="uploadFamilyPhotoForm">
+    <input type="file" id="familyPhotoFile" accept="image/jpeg,image/png,image/webp" required
+      aria-label="Selecciona una fotografia">
+    <button type="submit" id="familyPhotoSubmit" class="primary">Enviar fotografia</button>
+  </form>
+  <p id="familyPhotoStatus" role="status" aria-live="polite"></p>
+</section>
+<script>
+/* Aquest codi s'ha d'integrar DINS de l'IIFE de Mobile.html, després de declarar
+ * 'key' i '$', just abans del '})();' final. NO col·loquis aquest script
+ * separat sense accés a la clau de sessió. */
+$('uploadFamilyPhotoForm').addEventListener('submit', function(event) {
+  event.preventDefault();
+  const input = $('familyPhotoFile');
+  const photo = input.files && input.files[0];
+  const status = $('familyPhotoStatus');
+  const button = $('familyPhotoSubmit');
+  if (!photo || !key) { status.textContent='Cal iniciar sessió i triar una fotografia.'; return; }
+  if (!['image/jpeg','image/png','image/webp'].includes(photo.type) || photo.size > 5*1024*1024) {
+    status.textContent='Només JPG, PNG o WebP fins a 5 MB.'; return;
+  }
+  button.disabled=true;
+  status.textContent='Enviant…';
+  const reader=new FileReader();
+  reader.onerror=function() { button.disabled=false;status.textContent='No s’ha pogut llegir la imatge.'; };
+  reader.onload=function() {
+    const encoded=String(reader.result).split(',')[1];
+    google.script.run.withSuccessHandler(function(res) {
+      button.disabled=false;
+      if(res && res.ok) {input.value='';status.textContent='Fotografia enviada correctament!';}
+      else status.textContent=(res && res.error)||'No s’ha pogut enviar.';
+    }).withFailureHandler(function(err) {
+      button.disabled=false;
+      status.textContent=(err&&err.message)||'Error de connexió.';
+    }).uploadFamilyPhoto(key,{name:photo.name,mime:photo.type,base64:encoded});
+  };
+  reader.readAsDataURL(photo);
+});
+</script>
