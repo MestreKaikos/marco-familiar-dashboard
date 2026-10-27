@@ -1,6 +1,10 @@
 package com.lito.planify.dashboard.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,6 +34,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.lito.planify.dashboard.UiState
+import com.lito.planify.dashboard.data.CalendarColors
+import com.lito.planify.dashboard.data.PersonalCalendar
 import com.lito.planify.dashboard.ui.theme.Palette
 import com.lito.planify.dashboard.ui.theme.Type
 
@@ -41,6 +47,7 @@ fun CalendarSetupScreen(state: UiState, callbacks: SettingsCallbacks, onBack: ()
     var showUrl by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var deleteId by remember { mutableStateOf<String?>(null) }
+    var colorEditorId by remember { mutableStateOf<String?>(null) }
 
     Row(
         Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 30.dp),
@@ -90,10 +97,17 @@ fun CalendarSetupScreen(state: UiState, callbacks: SettingsCallbacks, onBack: ()
                                 .padding(horizontal = 16.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(Modifier.weight(1f)) {
+                            Box(
+                                Modifier.size(28.dp).background(
+                                    parseColor(CalendarColors.normalize(calendar.color), Palette.InkMuted),
+                                    CircleShape
+                                )
+                            )
+                            Column(Modifier.weight(1f).padding(start = 14.dp)) {
                                 Text(calendar.name, style = Type.Small.copy(fontWeight = FontWeight.SemiBold))
-                                Text("Enllaç privat guardat · només lectura", style = Type.Tiny.copy(color = Palette.InkMuted))
+                                Text("Color propi · enllaç privat guardat", style = Type.Tiny.copy(color = Palette.InkMuted))
                             }
+                            TextButton(onClick = { colorEditorId = calendar.id }) { Text("Color") }
                             TextButton(onClick = { deleteId = calendar.id }) { Text("Eliminar") }
                         }
                     }
@@ -141,6 +155,19 @@ fun CalendarSetupScreen(state: UiState, callbacks: SettingsCallbacks, onBack: ()
         }
     }
 
+    colorEditorId?.let { id ->
+        state.personalCalendars.firstOrNull { it.id == id }?.let { calendar ->
+            CalendarColorDialog(
+                calendar = calendar,
+                onDismiss = { colorEditorId = null },
+                onChoose = { color ->
+                    callbacks.onChangeCalendarColor(id, color)
+                    colorEditorId = null
+                }
+            )
+        }
+    }
+
     deleteId?.let { id ->
         val calendar = state.personalCalendars.firstOrNull { it.id == id }
         AlertDialog(
@@ -153,4 +180,54 @@ fun CalendarSetupScreen(state: UiState, callbacks: SettingsCallbacks, onBack: ()
             dismissButton = { TextButton(onClick = { deleteId = null }) { Text("Cancel·lar") } }
         )
     }
+}
+
+/** Selector tàctil de colors amb etiquetes accessibles, no només punts de color. */
+@Composable
+private fun CalendarColorDialog(
+    calendar: PersonalCalendar,
+    onDismiss: () -> Unit,
+    onChoose: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Color del calendari", style = Type.Large) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(calendar.name, style = Type.Small.copy(color = Palette.InkSoft))
+                Text(
+                    "Tria un color. Es conservarà encara que canviïs els altres calendaris.",
+                    style = Type.Tiny.copy(color = Palette.InkMuted)
+                )
+                CalendarColors.options.chunked(2).forEach { options ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        options.forEach { option ->
+                            FilterChip(
+                                selected = CalendarColors.normalize(calendar.color) == option.hex,
+                                onClick = { onChoose(option.hex) },
+                                label = {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            Modifier.size(20.dp).background(
+                                                parseColor(option.hex, Palette.Accent),
+                                                CircleShape
+                                            )
+                                        )
+                                        Text(option.name, style = Type.Tiny)
+                                    }
+                                },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Tancar") }
+        }
+    )
 }
