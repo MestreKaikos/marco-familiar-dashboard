@@ -25,6 +25,12 @@ object CalendarColors {
     /** Respecta l'ordre antic només en la migració; després cada color queda guardat. */
     fun legacy(index: Int): String = options[index % 5].hex
 
+    /** Migració: els colors antics s'assignen una sola vegada, sense tocar cap URL privada. */
+    fun migrate(existing: List<PersonalCalendar>): List<PersonalCalendar> =
+        existing.mapIndexed { index, calendar ->
+            calendar.copy(color = normalize(calendar.color) ?: legacy(index))
+        }
+
     /** Un calendari nou rep preferentment un color diferent dels que ja s'usen. */
     fun nextAvailable(calendars: List<PersonalCalendar>): String {
         val used = calendars.mapNotNull { normalize(it.color) }.toSet()
