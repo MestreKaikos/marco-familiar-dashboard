@@ -163,7 +163,13 @@ function perform_(ops) {
  */
 function photoTab_() {
   const tab = sheet_(FOTOS, ["id", "nom", "fitxer_drive", "pujat_el"]);
-  tab.getRange("A:D").setNumberFormat("@");
+  // Només les 120 files de fotos: mai aplicar format a 4 columnes senceres
+  // a cada consulta (Apps Script té quotes i temps màxim d'execució).
+  const props = PropertiesService.getScriptProperties();
+  if (!props.getProperty("PHOTO_SHEET_FORMATTED")) {
+    tab.getRange("A2:D121").setNumberFormat("@");
+    props.setProperty("PHOTO_SHEET_FORMATTED", "1");
+  }
   return tab;
 }
 
