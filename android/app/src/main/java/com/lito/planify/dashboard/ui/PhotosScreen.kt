@@ -50,6 +50,8 @@ fun PhotosScreen() {
     var sharedPhotos by remember { mutableStateOf<List<LocalPhoto>>(emptyList()) }
     var sharedUrl by remember { mutableStateOf(prefs.getString("shared_url", "").orEmpty()) }
     var sharedKey by remember { mutableStateOf(prefs.getString("shared_key", "").orEmpty()) }
+    var draftUrl by remember { mutableStateOf(sharedUrl) }
+    var draftKey by remember { mutableStateOf(sharedKey) }
     var showSharedSetup by remember { mutableStateOf(false) }
     var sharedStatus by remember { mutableStateOf("") }
     var index by remember { mutableIntStateOf(0) }
@@ -110,7 +112,7 @@ fun PhotosScreen() {
                 sharedPhotos = result.photos.map { LocalPhoto(Uri.fromFile(it.file), it.name, remote = true) }
                 sharedStatus = if (result.pending > 0) "Queden fotos pendents de descarregar" else "Fotos compartides sincronitzades"
             } catch (_: Exception) {
-                sharedStatus = "No s'han pogut actualitzar les fotos compartides"
+                sharedStatus = "No s'han pogut actualitzar les fotos compartides; les descarregades es conserven"
             }
             delay(PHOTO_RESCAN_DELAY_MS)
         }
@@ -156,27 +158,29 @@ fun PhotosScreen() {
                 OutlinedButton(onClick = { refreshRequest++ }, enabled = folder != null) {
                     Text("Actualitzar fotos")
                 }
-                OutlinedButton(onClick = { showSharedSetup = !showSharedSetup }) { Text("Fotos del mòbil") }
+                OutlinedButton(onClick = { draftUrl = sharedUrl; draftKey = sharedKey; showSharedSetup = !showSharedSetup }) { Text("Fotos del mòbil") }
                 OutlinedButton(onClick = { chooser.launch(null) }) {
                     Text(if (folder == null) "Triar carpeta" else "Canviar carpeta")
                 }
             }
         }
         if (showSharedSetup) {
-            OutlinedTextField(value = sharedUrl, onValueChange = { sharedUrl = it },
+            OutlinedTextField(value = draftUrl, onValueChange = { draftUrl = it },
                 label = { Text("URL del servei (/exec)") },
                 singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = sharedKey, onValueChange = { sharedKey = it },
+            OutlinedTextField(value = draftKey, onValueChange = { draftKey = it },
                 label = { Text("Clau de lectura privada") },
                 visualTransformation = PasswordVisualTransformation(),
                 singleLine = true, modifier = Modifier.fillMaxWidth())
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(onClick = {
-                    prefs.edit().putString("shared_url", sharedUrl.trim())
-                        .putString("shared_key", sharedKey.trim()).apply()
+                    sharedUrl = draftUrl.trim()
+                    sharedKey = draftKey.trim()
+                    prefs.edit().putString("shared_url", sharedUrl)
+                        .putString("shared_key", sharedKey).apply()
                     refreshRequest++
                     showSharedSetup = false
-                }, enabled = sharedUrl.isNotBlank() && sharedKey.length >= 32) { Text("Desar i sincronitzar") }
+                }, enabled = draftUrl.isNotBlank() && draftKey.length >= 32) { Text("Desar i sincronitzar") }
                 TextButton(onClick = {
                     prefs.edit().remove("shared_url").remove("shared_key").apply()
                     sharedUrl = ""; sharedKey = ""; sharedPhotos = emptyList()
