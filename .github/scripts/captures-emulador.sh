@@ -190,3 +190,34 @@ fi
 adb shell input tap $color_coords
 sleep 3
 capture "17-selector-color-calendari.png"
+
+# Canvia el color de «Rai» per «Taronja» i comprova que queda guardat al mateix ID.
+adb shell uiautomator dump /sdcard/marc-palette.xml >/dev/null
+adb pull /sdcard/marc-palette.xml /tmp/marc-palette.xml >/dev/null
+orange_coords=$(python3 - <<'PY'
+import re
+import xml.etree.ElementTree as ET
+root = ET.parse("/tmp/marc-palette.xml").getroot()
+for node in root.iter("node"):
+    if node.attrib.get("text") == "Taronja":
+        x1, y1, x2, y2 = map(int, re.findall(r"\d+", node.attrib["bounds"]))
+        print((x1+x2)//2, (y1+y2)//2)
+        break
+PY
+)
+if [ -z "$orange_coords" ]; then
+  echo "No s'ha trobat el color Taronja" >&2
+  exit 1
+fi
+adb shell input tap $orange_coords
+sleep 4
+adb shell run-as com.lito.planify.dashboard cat shared_prefs/dashboard.xml > /tmp/marc-colors-after.xml
+grep -q '#E09132' /tmp/marc-colors-after.xml
+grep -q '#3977CB' /tmp/marc-colors-after.xml
+capture "18-color-calendari-actualitzat.png"
+
+# Després de reiniciar, el canvi ha de persistir i la llegenda l'ha de reflectir.
+adb shell am force-stop com.lito.planify.dashboard
+adb shell am start -W -n com.lito.planify.dashboard/.MainActivity
+sleep 10
+capture "19-color-persistent-portada.png"
