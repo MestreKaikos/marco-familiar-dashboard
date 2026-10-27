@@ -34,7 +34,7 @@ class FamilySync internal constructor(context: Context) {
         .getSharedPreferences("marc_family_sync", Context.MODE_PRIVATE)
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
         .followRedirects(true)
         .build()
     private val mutex = Mutex()
@@ -217,14 +217,25 @@ class FamilySync internal constructor(context: Context) {
         return result
     }
 
-    private suspend fun call(endpoint: String, token: String, operations: List<JSONObject>): JSONObject =
+    /** Fotos privades: reutilitza el servei i la clau ja configurats, sense URL pública de Drive. */
+    suspend fun photoAction(action: String, payload: JSONObject = JSONObject()): JSONObject {
+        if (!connected) throw IllegalStateException("Connecta primer la sincronització familiar.")
+        require(action in setOf("photo_list", "photo_get")) { "Acció de fotografia no admesa al marc" }
+        return post(url, key, action, payload)
+    }
+
+    private suspend fun call(endpoint: String, token: String, operations: List<JSONObject>): JSONObject {
+        val ops = JSONArray()
+        operations.forEach { ops.put(it) }
+        return post(endpoint, token, "sync", JSONObject().put("ops", ops))
+    }
+
+    private suspend fun post(endpoint: String, token: String, action: String, payload: JSONObject): JSONObject =
         withContext(Dispatchers.IO) {
-            val ops = JSONArray()
-            operations.forEach { ops.put(it) }
             val requestBody = JSONObject()
                 .put("key", token)
-                .put("action", "sync")
-                .put("payload", JSONObject().put("ops", ops))
+                .put("action", action)
+                .put("payload", payload)
                 .toString().toRequestBody("application/json; charset=utf-8".toMediaType())
             val req = Request.Builder().url(endpoint).post(requestBody).build()
             client.newCall(req).execute().use { response ->
