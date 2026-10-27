@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
-<title>Marc Familiar · Compra i sopars</title>
+<title>Marc Familiar · Compra, sopars i fotos</title>
 <style>
 :root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#26231e;background:#f7f0e6}
 *{box-sizing:border-box}
@@ -40,6 +40,14 @@ button:focus-visible,input:focus-visible{outline:3px solid #7c9ef1}
 #auth{max-width:470px;margin:14vh auto}
 [hidden]{display:none!important}
 #syncTime{font-size:12px;color:#777}
+.photo-card{border:1px solid #f1ede7;border-radius:12px;padding:12px;margin:8px 0}
+.photo-card img{display:block;max-width:100%;max-height:340px;margin:10px auto;border-radius:10px;object-fit:contain}
+.photo-meta{flex:1;min-width:0;overflow-wrap:anywhere}
+#photoNotice{font-size:14px;min-height:20px}
+#photoNotice.error{color:#ac3434}
+#photoNotice.good{color:#298252}
+#photoInput{border:0;background:transparent;padding-left:0}
+#photoInput::file-selector-button{border:0;background:#e9dccb;border-radius:9px;padding:10px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -77,6 +85,19 @@ button:focus-visible,input:focus-visible{outline:3px solid #7c9ef1}
       </div>
       <div id="dinners"></div>
     </section>
+    <section class="panel">
+      <div class="row" style="justify-content:space-between;margin-bottom:12px">
+        <h2 style="margin:0">🖼️ Fotografies familiars</h2>
+        <span class="pill" id="photoCount">0 fotos</span>
+      </div>
+      <p>Envia fotos des del mòbil perquè apareguin al marc. Es redimensionen abans de pujar-les i es guarden al Drive privat familiar.</p>
+      <form id="uploadPhotos">
+        <input id="photoInput" type="file" accept="image/*" multiple aria-label="Seleccionar fotografies" />
+        <button id="photoUploadButton" class="primary" type="submit">Enviar fotografies</button>
+      </form>
+      <p id="photoNotice" aria-live="polite"></p>
+      <div id="photoItems"></div>
+    </section>
     <div class="row" style="justify-content:space-between">
       <span id="syncTime">Connectat · Sincronització automàtica</span>
       <button class="small" id="refresh">Actualitzar ara</button>
@@ -90,6 +111,8 @@ let key = "";
 try { key = sessionStorage.getItem("marc-sync-key") || ""; } catch (_) { /* Navegador que bloqueja emmagatzematge de tercers */ }
 let data = {groceries:[], dinners:{}};
 let busy = false;
+let photoBusy = false;
+let photos = [];
 const $ = id => document.getElementById(id);
 function message(text,error) {
   $('message').textContent=text||'';
@@ -120,12 +143,14 @@ function call(ops, onDone) {
     .apiAction(key,'sync',{ops:ops||[]});
 }
 function showLogin(){
+  photos=[];renderPhotos();
   key='';try { sessionStorage.removeItem('marc-sync-key'); } catch (_) {}
   $('auth').hidden=false;$('application').hidden=true;$('disconnect').hidden=true;
 }
 function showApp(){
   $('auth').hidden=true;$('application').hidden=false;$('disconnect').hidden=false;
   call([]);
+  refreshPhotos();
 }
 function makeText(tag,text,cls){
   const e=document.createElement(tag);e.textContent=text;if(cls)e.className=cls;return e;
@@ -170,6 +195,118 @@ function render(){
     outer.appendChild(row);days.appendChild(outer);
   }
 }
+// Peticions separades de les de compra: una càrrega de fotos no bloqueja els sopars.
+function photoCall(action,payload) {
+  return new Promise((resolve,reject)=>{
+    google.script.run
+      .withSuccessHandler(result=>{
+        if(!result||!result.ok)reject(new Error(result&&result.error||'No es pot accedir a les fotografies'));
+        else resolve(result);
+      })
+      .withFailureHandler(err=>reject(new Error(err&&err.message||'Error de connexió')))
+      .apiAction(key,action,payload||{});
+  });
+}
+function photoStatus(text,error){
+  $('photoNotice').textContent=text||'';
+  $('photoNotice').className=error?'error':'good';
+}
+function renderPhotos(){
+  $('photoCount').textContent=photos.length+(photos.length===1?' foto':' fotos');
+  const area=$('photoItems');area.replaceChildren();
+  if(!photos.length){area.appendChild(makeText('p','Encara no hi ha fotos compartides.'));return;}
+  photos.forEach(photo=>{
+    const outer=makeText('div','','photo-card');
+    const line=makeText('div','','row');
+    const meta=makeText('div',photo.name||'Fotografia','photo-meta');
+    line.appendChild(meta);
+    const view=makeText('button','Veure','small');
+    view.type='button';
+    view.addEventListener('click',async ()=>{
+      const current=outer.querySelector('img');
+      if(current){current.remove();view.textContent='Veure';return;}
+      view.disabled=true;
+      try{
+        const response=await photoCall('photo_get',{id:photo.id});
+        const img=document.createElement('img');
+        img.alt=photo.name||'Fotografia familiar';
+        img.src='data:image/jpeg;base64,'+response.photo.base64;
+        outer.appendChild(img);view.textContent='Amagar';
+      }catch(err){photoStatus(err.message,true);}
+      finally{view.disabled=false;}
+    });
+    const remove=makeText('button','Eliminar','small ghost');
+    remove.type='button';
+    remove.addEventListener('click',async ()=>{
+      if(!confirm('Vols eliminar aquesta fotografia del Drive familiar?'))return;
+      remove.disabled=true;
+      try{
+        const response=await photoCall('photo_delete',{id:photo.id});
+        photos=response.photos||[];renderPhotos();
+        photoStatus('Fotografia eliminada.',false);
+      }catch(err){photoStatus(err.message,true);remove.disabled=false;}
+    });
+    line.append(view,remove);outer.appendChild(line);area.appendChild(outer);
+  });
+}
+async function refreshPhotos(){
+  if(!key||photoBusy)return;
+  try{
+    const response=await photoCall('photo_list',{});
+    photos=response.photos||[];renderPhotos();
+  }catch(err){photoStatus(err.message,true);}
+}
+// Canvas JPEG: no enviem originals de càmera, GPS/EXIF ni fitxers de 10 MB a Apps Script.
+async function compactJpeg(file) {
+  if(!file.type.startsWith('image/'))throw new Error('Selecciona una imatge.');
+  if(file.size>20000000)throw new Error('La foto original supera els 20 MB.');
+  const url=URL.createObjectURL(file);
+  const img=new Image();
+  try{
+    await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error('No es pot obrir la imatge.'));img.src=url;});
+    if(!img.naturalWidth||!img.naturalHeight)throw new Error('Imatge incorrecta.');
+    let maxSide=1600;
+    for(let attempt=0;attempt<7;attempt++){
+      const ratio=Math.min(1,maxSide/Math.max(img.naturalWidth,img.naturalHeight));
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.max(1,Math.round(img.naturalWidth*ratio));
+      canvas.height=Math.max(1,Math.round(img.naturalHeight*ratio));
+      const ctx=canvas.getContext('2d');
+      if(!ctx)throw new Error('El navegador no permet redimensionar.');
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      const jpeg=canvas.toDataURL('image/jpeg',attempt<3?0.75-attempt*0.12:0.52);
+      const encoded=jpeg.split(',')[1]||'';
+      canvas.width=canvas.height=0;
+      if(encoded.startsWith('/9j/')&&encoded.length<=1460000)return encoded;
+      maxSide=Math.round(maxSide*0.78);
+    }
+    throw new Error('No s’ha pogut comprimir prou aquesta fotografia.');
+  }finally{URL.revokeObjectURL(url);}
+}
+$('uploadPhotos').addEventListener('submit',async e=>{
+  e.preventDefault();
+  if(photoBusy||!key)return;
+  const files=Array.from($('photoInput').files||[]);
+  if(!files.length){photoStatus('Selecciona almenys una fotografia.',true);return;}
+  if(files.length>5){photoStatus('Envia com a màxim cinc fotografies alhora.',true);return;}
+  photoBusy=true;$('photoUploadButton').disabled=true;
+  let count=0;
+  try{
+    for(const file of files){
+      photoStatus('Preparant i enviant '+(count+1)+' de '+files.length+'...',false);
+      const base64=await compactJpeg(file);
+      const response=await photoCall('photo_upload',{
+        id:newId(),name:file.name.slice(0,75),base64:base64
+      });
+      photos=response.photos||photos;
+      count++;renderPhotos();
+    }
+    $('photoInput').value='';
+    photoStatus(count+(count===1?' fotografia enviada.':' fotografies enviades.'),false);
+  }catch(err){
+    photoStatus(count+' enviades. Error: '+err.message,true);
+  }finally{photoBusy=false;$('photoUploadButton').disabled=false;}
+});
 $('login').addEventListener('submit',e=>{
   e.preventDefault();
   const value=$('secret').value.trim();
@@ -183,9 +320,10 @@ $('addProduct').addEventListener('submit',e=>{
   if(!name)return;
   call([{type:'grocery_set',id:newId(),name:name.slice(0,80),bought:false}],()=>$('productName').value='');
 });
-$('refresh').addEventListener('click',()=>call([]));
+$('refresh').addEventListener('click',()=>{call([]);refreshPhotos();});
 if(key)showApp();
 setInterval(()=>{if(key&&!document.hidden)call([])},45000);
+setInterval(()=>{if(key&&!document.hidden)refreshPhotos()},120000);
 })();
 </script>
 </body>
