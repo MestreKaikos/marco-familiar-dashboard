@@ -19,7 +19,27 @@ data class Schedule(
 )
 
 /** L'enllaç iCal de Google és privat: no incloure'l mai en captures ni al repositori. */
-data class PersonalCalendar(val id: String, val name: String, val url: String)
+data class PersonalCalendar(
+    val id: String,
+    val name: String,
+    val url: String,
+    /** Color estable per calendari. Nullable per llegir les preferències de versions anteriors. */
+    val color: String? = null
+)
+
+/** Paleta de contrast per als calendaris familiars, sense fer servir colors aleatoris. */
+object CalendarColors {
+    val choices = listOf("#3977CB", "#B965AF", "#36A070", "#E09132", "#BF5960",
+        "#7955B3", "#167F9F", "#8F7043")
+    fun valid(color: String?): Boolean = color != null &&
+        Regex("^#[0-9A-Fa-f]{6}$").matches(color)
+    fun fallback(index: Int): String = choices[index % choices.size]
+    fun normalize(feeds: List<PersonalCalendar>): List<PersonalCalendar> =
+        feeds.mapIndexed { index, calendar ->
+            calendar.copy(color = if (valid(calendar.color)) calendar.color!!.uppercase(java.util.Locale.ROOT)
+                else fallback(index))
+        }
+}
 
 /** Sesión y ajustes del dispositivo (SharedPreferences). Los datos descargados van en DiskCache. */
 class Store(context: Context) {
@@ -47,9 +67,9 @@ class Store(context: Context) {
     var calendarFeeds: List<PersonalCalendar>
         get() = runCatching {
             gson.fromJson(prefs.getString("calendar_feeds", "[]"), Array<PersonalCalendar>::class.java)
-                ?.filter { it.name.isNotBlank() && it.url.isNotBlank() }?.take(5)?.toList().orEmpty()
+                ?.filter { it.name.isNotBlank() && it.url.isNotBlank() }?.take(5)?.toList()?.let(CalendarColors::normalize).orEmpty()
         }.getOrDefault(emptyList())
-        set(value) = prefs.edit { putString("calendar_feeds", gson.toJson(value.take(5))) }
+        set(value) = prefs.edit { putString("calendar_feeds", gson.toJson(CalendarColors.normalize(value.take(5)))) }
 
     var location: Location?
         get() = read<Location>("location") ?: DEFAULT_LOCATION
