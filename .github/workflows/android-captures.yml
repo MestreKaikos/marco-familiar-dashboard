@@ -64,11 +64,12 @@ jobs:
           disable-animations: true
           script: bash .github/scripts/captures-colors.sh
       - name: Ofereix les captures per descarregar
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: captures-reals-marc-familiar
-          path: captures/*.png
-          if-no-files-found: error
+          path: captures/*
+          if-no-files-found: warn
           retention-days: 14
       - name: Publica les captures al repositori per poder-les veure sense instal·lar l'app
         if: github.event_name == 'pull_request'
