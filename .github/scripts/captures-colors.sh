@@ -33,7 +33,11 @@ with open("/tmp/marc-calendar-colors.xml", "w", encoding="utf-8") as f:
     f.write('<string name="calendar_feeds">' + data + '</string>\n</map>\n')
 PY
 adb shell run-as com.lito.planify.dashboard mkdir -p /data/user/0/com.lito.planify.dashboard/shared_prefs
-adb shell -T run-as com.lito.planify.dashboard sh -c 'cat > /data/user/0/com.lito.planify.dashboard/shared_prefs/dashboard.xml' < /tmp/marc-calendar-colors.xml
+# Copiem primer a una ruta temporal llegible i després al directori privat
+# amb cp sota run-as (evita la redirecció de l'intèrpret del sistema).
+adb push /tmp/marc-calendar-colors.xml /data/local/tmp/marc-calendar-colors.xml >/dev/null
+adb shell run-as com.lito.planify.dashboard cp /data/local/tmp/marc-calendar-colors.xml /data/user/0/com.lito.planify.dashboard/shared_prefs/dashboard.xml
+adb shell rm /data/local/tmp/marc-calendar-colors.xml
 adb shell am start -W -n com.lito.planify.dashboard/.MainActivity
 sleep 12
 capture "14-llegenda-colors-avui.png"
