@@ -51,6 +51,11 @@ android {
             signingConfig = signingConfigs.getByName("debug") // Instalación local por ADB, como la app
         }
         debug {
+            // APK de proves independent: no sobreescriu ni entra en conflicte
+            // amb el Marc Familiar existent, possiblement signat amb una altra clau.
+            applicationIdSuffix = ".test"
+            versionNameSuffix = "-proves"
+            resValue("string", "app_name", "Marc Familiar · Proves")
             buildConfigField("String", "BASE_URL", "\"$debugBaseUrl\"")
             manifestPlaceholders["cleartext"] = cleartext(debugBaseUrl)
         }
