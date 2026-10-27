@@ -89,12 +89,14 @@ class FamilyPhotoCache(context: Context) {
             }
 
             var downloaded = 0
+            var attempted = 0
             var firstError: String? = null
             // Màxim 12 fotografies noves a cada comprovació per no saturar un Android d'1 GB RAM.
             for (photo in remote) {
                 val file = cachedFile(photo.id)
                 if (file.isFile && file.length() in 6L..1_100_000L) continue
-                if (downloaded >= 12) break
+                if (attempted >= 12) break
+                attempted++
                 try {
                     val result = sync.photoAction("photo_get", JSONObject().put("id", photo.id))
                     val encoded = result.getJSONObject("photo").getString("base64")
