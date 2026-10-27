@@ -2,6 +2,7 @@ package com.lito.planify.dashboard.ui
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.util.Size
@@ -29,21 +30,31 @@ import com.lito.planify.dashboard.ui.theme.Palette
 import com.lito.planify.dashboard.ui.theme.Type
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 private data class LocalPhoto(val uri: Uri, val name: String)
+private data class GalleryPhoto(val name: String, val uri: Uri? = null, val file: File? = null) {
+    val key: String get() = uri?.toString() ?: file?.absolutePath.orEmpty()
+}
 private const val SLIDESHOW_DELAY_MS = 20_000L
 
-/** Galeria local per al XORO (Android 10, 1 GB RAM). Només llegeix la carpeta escollida. */
+/**
+ * Diapositives de fotos locals + fotografies compartides de Drive, desades en
+ * memòria cau privada. L'APK només descodifica una foto alhora (XORO: 1 GB RAM).
+ */
 @Composable
-fun PhotosScreen() {
+fun PhotosScreen(sync: FamilySync) {
     val context = LocalContext.current
     val prefs = remember(context) { context.getSharedPreferences("marc_fotos", Context.MODE_PRIVATE) }
+    val shared = rememberFamilyPhotoCache()
+    val scope = rememberCoroutineScope()
     var folder by remember { mutableStateOf(prefs.getString("carpeta", null)) }
-    var photos by remember { mutableStateOf<List<LocalPhoto>>(emptyList()) }
+    var localPhotos by remember { mutableStateOf<List<LocalPhoto>>(emptyList()) }
     var index by remember { mutableIntStateOf(0) }
     var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
-    var loading by remember { mutableStateOf(false) }
+    var loadingLocal by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
     val chooser = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -60,32 +71,55 @@ fun PhotosScreen() {
     }
 
     LaunchedEffect(folder) {
-        photos = emptyList()
+        localPhotos = emptyList()
         bitmap = null
         if (folder == null) return@LaunchedEffect
-        loading = true
+        loadingLocal = true
         try {
-            photos = withContext(Dispatchers.IO) { listLocalPhotos(context, Uri.parse(folder)) }
+            localPhotos = withContext(Dispatchers.IO) { listLocalPhotos(context, Uri.parse(folder)) }
             index = 0
             error = null
         } catch (_: Exception) {
-            error = "No es poden llegir les fotos. Torna a triar la carpeta."
-        } finally { loading = false }
+            error = "No es poden llegir les fotos locals. Torna a triar la carpeta."
+        } finally { loadingLocal = false }
+    }
+
+    // La connexió familiar es fa des d'Opcions; aquesta pantalla només consulta fotos.
+    LaunchedEffect(sync.connected) {
+        shared.refresh(sync)
+        while (sync.connected) {
+            delay(90_000)
+            shared.refresh(sync)
+        }
+    }
+
+    val photos = localPhotos.map { GalleryPhoto(it.name, uri = it.uri) } +
+        shared.photos.map { GalleryPhoto(it.name, file = it.file) }
+
+    LaunchedEffect(photos.size) {
+        if (photos.isEmpty()) index = 0
+        else if (index >= photos.size) index = photos.lastIndex
     }
 
     val photo = photos.getOrNull(index)
-    LaunchedEffect(photo?.uri) {
+    LaunchedEffect(photo?.key) {
         bitmap = null
         if (photo != null) {
             try {
                 bitmap = withContext(Dispatchers.IO) {
-                    context.contentResolver.loadThumbnail(photo.uri, Size(1600, 1000), null).asImageBitmap()
+                    when {
+                        photo.uri != null -> context.contentResolver
+                            .loadThumbnail(photo.uri, Size(1600, 1000), null).asImageBitmap()
+                        photo.file != null -> decodeSizedPhoto(photo.file).asImageBitmap()
+                        else -> throw IllegalStateException("No es pot llegir la foto")
+                    }
                 }
                 error = null
             } catch (_: Exception) { error = "No s'ha pogut obrir aquesta fotografia." }
         }
     }
-    LaunchedEffect(photos) {
+
+    LaunchedEffect(photos.size) {
         if (photos.size > 1) {
             while (true) {
                 delay(SLIDESHOW_DELAY_MS)
@@ -95,22 +129,35 @@ fun PhotosScreen() {
     }
 
     Column(Modifier.fillMaxSize().padding(24.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween) {
             Text("Fotografies", style = Type.Title)
-            OutlinedButton(onClick = { chooser.launch(null) }) {
-                Text(if (folder == null) "Triar carpeta" else "Canviar carpeta")
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedButton(onClick = { scope.launch { shared.refresh(sync) } },
+                    enabled = sync.connected && !shared.refreshing) {
+                    Text(if (shared.refreshing) "Actualitzant..." else "Actualitzar fotos")
+                }
+                OutlinedButton(onClick = { chooser.launch(null) }) {
+                    Text(if (folder == null) "Triar carpeta local" else "Canviar carpeta local")
+                }
             }
         }
+        Text(
+            "${localPhotos.size} locals · ${shared.photos.size} compartides" +
+                if (sync.connected) " · Les fotos noves s'afegeixen automàticament." else
+                    " · Connecta la sincronització familiar a Opcions per rebre fotos.",
+            style = Type.Tiny, color = Palette.InkMuted
+        )
         Spacer(Modifier.height(14.dp))
-        Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(20.dp)).background(Color.Black),
-            contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(20.dp))
+            .background(Color.Black), contentAlignment = Alignment.Center) {
             when {
-                loading -> CircularProgressIndicator()
+                loadingLocal && photos.isEmpty() -> CircularProgressIndicator()
                 photo == null -> Column(horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(24.dp)) {
-                    Text(if (folder == null) "Encara no hi ha fotografies" else "La carpeta no conté fotografies",
-                        style = Type.Large, color = Color.White)
-                    Text("Tria una carpeta d'imatges. Les fotos es queden al marc.", style = Type.Small, color = Color.LightGray)
+                    Text("Encara no hi ha fotografies", style = Type.Large, color = Color.White)
+                    Text("Envia fotos des de la web del mòbil o tria una carpeta del marc.",
+                        style = Type.Small, color = Color.LightGray)
                 }
                 bitmap != null -> Image(bitmap = bitmap!!, contentDescription = photo.name,
                     modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
@@ -118,26 +165,39 @@ fun PhotosScreen() {
                 else -> CircularProgressIndicator()
             }
         }
-        if (error != null) {
+        if (error != null || shared.message != null) {
             Spacer(Modifier.height(8.dp))
-            Text(error.orEmpty(), style = Type.Small, color = Palette.Accent)
+            Text(error ?: shared.message.orEmpty(), style = Type.Tiny, color = Palette.InkMuted)
         }
         if (photos.isNotEmpty()) {
             Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                OutlinedButton(onClick = { index = (index - 1 + photos.size) % photos.size }, enabled = photos.size > 1) {
-                    Text("Anterior")
-                }
-                Column(Modifier.weight(1f).padding(horizontal = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween) {
+                OutlinedButton(onClick = { index = (index - 1 + photos.size) % photos.size },
+                    enabled = photos.size > 1) { Text("Anterior") }
+                Column(Modifier.weight(1f).padding(horizontal = 20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally) {
                     Text((index + 1).toString() + " / " + photos.size, style = Type.Small)
-                    Text(photo?.name.orEmpty(), style = Type.Tiny, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(photo?.name.orEmpty(), style = Type.Tiny, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis)
                 }
-                OutlinedButton(onClick = { index = (index + 1) % photos.size }, enabled = photos.size > 1) {
-                    Text("Següent")
-                }
+                OutlinedButton(onClick = { index = (index + 1) % photos.size },
+                    enabled = photos.size > 1) { Text("Següent") }
             }
         }
     }
+}
+
+/** Descodifica JPEG de Drive a mida de pantalla, evitant consumir massa memòria. */
+private fun decodeSizedPhoto(file: File): android.graphics.Bitmap {
+    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(file.absolutePath, options)
+    if (options.outWidth <= 0 || options.outHeight <= 0) throw IllegalStateException("JPEG no vàlid")
+    var sample = 1
+    while (options.outWidth / sample > 1600 || options.outHeight / sample > 1000) sample *= 2
+    val sized = BitmapFactory.Options().apply { inSampleSize = sample }
+    return BitmapFactory.decodeFile(file.absolutePath, sized)
+        ?: throw IllegalStateException("No es pot descodificar la fotografia")
 }
 
 private fun listLocalPhotos(context: Context, treeUri: Uri): List<LocalPhoto> {
