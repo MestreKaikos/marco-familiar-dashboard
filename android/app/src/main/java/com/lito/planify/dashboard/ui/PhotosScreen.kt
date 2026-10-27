@@ -33,6 +33,7 @@ import kotlinx.coroutines.withContext
 
 private data class LocalPhoto(val uri: Uri, val name: String)
 private const val SLIDESHOW_DELAY_MS = 20_000L
+private const val PHOTO_RESCAN_DELAY_MS = 60_000L
 
 /** Galeria local per al XORO (Android 10, 1 GB RAM). Només llegeix la carpeta escollida. */
 @Composable
@@ -44,6 +45,7 @@ fun PhotosScreen() {
     var index by remember { mutableIntStateOf(0) }
     var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var loading by remember { mutableStateOf(false) }
+    var refreshRequest by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
 
     val chooser = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -59,18 +61,35 @@ fun PhotosScreen() {
         }
     }
 
-    LaunchedEffect(folder) {
-        photos = emptyList()
-        bitmap = null
-        if (folder == null) return@LaunchedEffect
-        loading = true
-        try {
-            photos = withContext(Dispatchers.IO) { listLocalPhotos(context, Uri.parse(folder)) }
-            index = 0
-            error = null
-        } catch (_: Exception) {
-            error = "No es poden llegir les fotos. Torna a triar la carpeta."
-        } finally { loading = false }
+    // La carpeta pot rebre imatges noves mentre la presentació és oberta.
+    // Reescaneja periòdicament sense carregar totes les fotos en memòria.
+    LaunchedEffect(folder, refreshRequest) {
+        if (folder == null) {
+            photos = emptyList()
+            bitmap = null
+            return@LaunchedEffect
+        }
+        var firstScan = true
+        while (true) {
+            if (firstScan && photos.isEmpty()) loading = true
+            try {
+                val updated = withContext(Dispatchers.IO) { listLocalPhotos(context, Uri.parse(folder)) }
+                val currentUri = photos.getOrNull(index)?.uri
+                if (updated != photos) {
+                    photos = updated
+                    index = currentUri?.let { uri -> updated.indexOfFirst { it.uri == uri } }
+                        ?.takeIf { it >= 0 } ?: 0
+                }
+                error = null
+            } catch (_: Exception) {
+                // Un error de lectura temporal no ha d'esborrar les fotos ja disponibles.
+                error = "No s'ha pogut actualitzar la carpeta de fotografies."
+            } finally {
+                loading = false
+                firstScan = false
+            }
+            delay(PHOTO_RESCAN_DELAY_MS)
+        }
     }
 
     val photo = photos.getOrNull(index)
@@ -97,8 +116,13 @@ fun PhotosScreen() {
     Column(Modifier.fillMaxSize().padding(24.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("Fotografies", style = Type.Title)
-            OutlinedButton(onClick = { chooser.launch(null) }) {
-                Text(if (folder == null) "Triar carpeta" else "Canviar carpeta")
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(onClick = { refreshRequest++ }, enabled = folder != null) {
+                    Text("Actualitzar fotos")
+                }
+                OutlinedButton(onClick = { chooser.launch(null) }) {
+                    Text(if (folder == null) "Triar carpeta" else "Canviar carpeta")
+                }
             }
         }
         Spacer(Modifier.height(14.dp))
