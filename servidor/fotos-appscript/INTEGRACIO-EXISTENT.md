@@ -23,6 +23,9 @@ if (request.action === "photos_list" || request.action === "photos_get") {
 **No modifiquis** \`apiAction\`, \`authenticated_\`, \`setup_\`, \`doGet\`, ni \`KEY_HASH\`.
 
 ## 3. Mobile.html
+**Opció recomanada:** substitueix el contingut del fitxer Mobile.html per [Mobile-complet.html](Mobile-complet.html), que conserva la compra i els sopars i integra les fotos. Desa abans una còpia de l'HTML actual.
+
+**Alternativa manual:**
 Afegeix la secció HTML del fitxer [MobileFotos-fragment.html](MobileFotos-fragment.html) dins de \`#application\`. Mou el JavaScript final del fragment **a l'interior de l'IIFE existent**, just abans de \`})();\`; si el deixes com un segon script no veurà les variables \`key\` ni \`$\`.
 
 ## 4. Drive i secrets
