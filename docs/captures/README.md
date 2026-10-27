@@ -50,6 +50,10 @@ No contenen esdeveniments reals ni enllaços iCal privats.
 
 ![Selector de vuit colors per calendari](17-selector-color-calendari.png)
 
+![Color canviat a «Taronja» sense alterar el de «Família»](18-color-calendari-actualitzat.png)
+
+![El color es conserva després de reiniciar l'aplicació](19-color-persistent-portada.png)
+
 [Guia de colors de Google Calendar](../COLORS-CALENDARIS.md).
 
 ## Meteorologia i Google Calendar
