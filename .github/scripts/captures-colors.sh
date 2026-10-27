@@ -46,8 +46,14 @@ sleep 3
 capture "15-llegenda-colors-calendari.png"
 adb shell input tap 1850 718
 sleep 3
+capture "diagnostic-opcions.png"
+adb shell dumpsys activity activities | grep -E "ResumedActivity|mResumedActivity" | tail -n 4 || true
+adb shell logcat -d -s AndroidRuntime:E | tail -n 90 || true
 adb shell uiautomator dump /sdcard/marc-colors-options.xml >/dev/null
 adb pull /sdcard/marc-colors-options.xml /tmp/marc-colors-options.xml >/dev/null
+cp /tmp/marc-colors-options.xml captures/diagnostic-ui.xml
+head -c 1500 /tmp/marc-colors-options.xml || true
+echo
 calendar_coords=$(python3 - <<'PY'
 import re
 import xml.etree.ElementTree as ET
