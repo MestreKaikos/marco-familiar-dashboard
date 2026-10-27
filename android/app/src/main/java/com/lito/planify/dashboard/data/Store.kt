@@ -56,9 +56,7 @@ class Store(context: Context) {
                 ?.filter { it.name.isNotBlank() && it.url.isNotBlank() }?.take(5)?.toList().orEmpty()
             // Migració sense perdre URL ni nom. Els colors anteriors es mantenen amb
             // l'ordre que tenien abans i es desen definitivament a cada ID.
-            val migrated = saved.mapIndexed { i, cal ->
-                cal.copy(color = CalendarColors.normalize(cal.color) ?: CalendarColors.legacy(i))
-            }
+            val migrated = CalendarColors.migrate(saved)
             if (migrated != saved) prefs.edit { putString("calendar_feeds", gson.toJson(migrated)) }
             migrated
         }.getOrDefault(emptyList())
