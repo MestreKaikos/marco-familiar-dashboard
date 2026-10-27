@@ -55,7 +55,6 @@ android {
             // amb el Marc Familiar existent, possiblement signat amb una altra clau.
             applicationIdSuffix = ".test"
             versionNameSuffix = "-proves"
-            resValue("string", "app_name", "Marc Familiar · Proves")
             buildConfigField("String", "BASE_URL", "\"$debugBaseUrl\"")
             manifestPlaceholders["cleartext"] = cleartext(debugBaseUrl)
         }
