@@ -22,6 +22,7 @@ class FakeDriveFile {
   constructor(blob) { this.id = `f-${++driveSequence}`; this.blob = blob; this.trashed = false; driveFiles.set(this.id, this); }
   getId() { return this.id; }
   getBlob() { if(this.trashed) throw new Error("File deleted"); return this.blob; }
+  getSize() { return this.blob.getSize(); }
   setTrashed(value) { this.trashed = value; }
 }
 
