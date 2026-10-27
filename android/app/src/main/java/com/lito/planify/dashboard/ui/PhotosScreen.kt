@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Button
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -167,6 +168,7 @@ fun PhotosScreen() {
                 singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(value = sharedKey, onValueChange = { sharedKey = it },
                 label = { Text("Clau de lectura privada") },
+                visualTransformation = PasswordVisualTransformation(),
                 singleLine = true, modifier = Modifier.fillMaxWidth())
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(onClick = {
@@ -190,9 +192,9 @@ fun PhotosScreen() {
                 loading -> CircularProgressIndicator()
                 photo == null -> Column(horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(24.dp)) {
-                    Text(if (folder == null) "Encara no hi ha fotografies" else "La carpeta no conté fotografies",
+                    Text(if (folder == null && sharedUrl.isBlank()) "Encara no hi ha fotografies" else "Encara no hi ha fotos disponibles",
                         style = Type.Large, color = Color.White)
-                    Text("Tria una carpeta d'imatges. Les fotos es queden al marc.", style = Type.Small, color = Color.LightGray)
+                    Text("Pots triar una carpeta local o configurar les fotos compartides.", style = Type.Small, color = Color.LightGray)
                 }
                 bitmap != null -> Image(bitmap = bitmap!!, contentDescription = photo.name,
                     modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
