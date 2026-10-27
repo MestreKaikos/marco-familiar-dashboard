@@ -230,7 +230,7 @@ function photoGet_(payload) {
   if (!row) throw new Error("La fotografia ja no existeix");
   const file = DriveApp.getFileById(String(row[2]));
   const blob = file.getBlob();
-  if (blob.getContentType() !== "image/jpeg" || blob.getSize() > PHOTO_MAX_BYTES) {
+  if (blob.getContentType() !== "image/jpeg" || file.getSize() > PHOTO_MAX_BYTES) {
     throw new Error("Format de fotografia no admès");
   }
   return { id: id, name: String(row[1]), base64: Utilities.base64Encode(blob.getBytes()) };
