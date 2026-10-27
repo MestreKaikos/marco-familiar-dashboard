@@ -187,7 +187,7 @@ fun DashboardApp(
                     when (page) {
                         // La portada familiar funciona sense credencials; el backend antic és opcional.
                         Page.Today -> if (state.ics || state.token == null) FamilyTodayScreen(state, dinners, family, onOpen = { page = it }) else TodayScreen(state, lastTouch)
-                        Page.Photos -> PhotosScreen()
+                        Page.Photos -> PhotosScreen(sync)
                         // Con los calendarios de la familia, semanas en vertical como la portada; con Planify, la de Lito
                         Page.Calendar -> if (state.ics || state.token == null) FamilyCalendarScreen(state, dinners) else CalendarScreen(state, onLoadWeek)
                         Page.Weather -> WeatherScreen(state)
