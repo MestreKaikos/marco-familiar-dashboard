@@ -14,6 +14,9 @@ const COMPRA = "Compra";
 const SOPARS = "Sopars";
 const MAX_PRODUCTS = 200;
 const MAX_DINNERS = 366;
+const FOTOS = "Fotos";
+const MAX_PHOTOS = 120;
+const PHOTO_MAX_BYTES = 1100000; // JPEG redimensionat al mòbil, no fitxer original de càmera.
 
 /** Executa-la una sola vegada des de l'editor d'Apps Script; no des del mòbil. */
 function setup_() {
@@ -153,10 +156,124 @@ function perform_(ops) {
   });
 }
 
+/**
+ * Les fotos es guarden en una carpeta PRIVADA de Drive. El full Fotos
+ * només manté l'índex: cap URL pública ni enllaç de Drive es filtra als clients.
+ * Qualsevol operació requereix la mateixa clau que la compra i els sopars.
+ */
+function photoTab_() {
+  const tab = sheet_(FOTOS, ["id", "nom", "fitxer_drive", "pujat_el"]);
+  tab.getRange("A:D").setNumberFormat("@");
+  return tab;
+}
+
+function photoRows_() {
+  return rows_(photoTab_(), 4).filter(function (row) {
+    return /^[a-zA-Z0-9_-]{1,80}$/.test(String(row[0])) && row[2];
+  });
+}
+
+function photoSummary_(r) {
+  return { id: String(r[0]), name: String(r[1]), createdAt: String(r[3]) };
+}
+
+function photoList_() {
+  return photoRows_()
+    .map(photoSummary_)
+    .sort(function (a, b) { return b.createdAt.localeCompare(a.createdAt); })
+    .slice(0, MAX_PHOTOS);
+}
+
+function photoFolder_() {
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty("PHOTO_FOLDER_ID");
+  if (id) return DriveApp.getFolderById(id);
+  const folder = DriveApp.createFolder("Marc Familiar - Fotografies privades");
+  props.setProperty("PHOTO_FOLDER_ID", folder.getId());
+  return folder;
+}
+
+/** Identificador aportat pel navegador, per evitar duplicats en reintents. */
+function photoUpload_(payload) {
+  const id = validateId_(payload && payload.id);
+  const previous = photoRows_().find(function (r) { return String(r[0]) === id; });
+  if (previous) return photoSummary_(previous);
+
+  const tab = photoTab_();
+  if (photoRows_().length >= MAX_PHOTOS) throw new Error("Límit de 120 fotografies. Elimina'n alguna abans.");
+  const name = safeText_(payload && payload.name, 75) || "Fotografia familiar";
+  const base64 = payload && payload.base64;
+  if (typeof base64 !== "string" || base64.length > 1480000 ||
+      !/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) throw new Error("Fotografia incorrecta o massa gran");
+  const bytes = Utilities.base64Decode(base64);
+  if (bytes.length < 4 || bytes.length > PHOTO_MAX_BYTES ||
+      (bytes[0] & 255) !== 255 || (bytes[1] & 255) !== 216 ||
+      (bytes[bytes.length - 2] & 255) !== 255 ||
+      (bytes[bytes.length - 1] & 255) !== 217) {
+    throw new Error("Cal una fotografia JPEG vàlida de fins a 1,1 MB");
+  }
+  const file = photoFolder_().createFile(Utilities.newBlob(bytes, "image/jpeg", id + ".jpg"));
+  const createdAt = new Date().toISOString();
+  try {
+    tab.appendRow([id, name, file.getId(), createdAt]);
+    SpreadsheetApp.flush();
+  } catch (ex) {
+    file.setTrashed(true);
+    throw ex;
+  }
+  return { id: id, name: name, createdAt: createdAt };
+}
+
+function photoGet_(payload) {
+  const id = validateId_(payload && payload.id);
+  const row = photoRows_().find(function (r) { return String(r[0]) === id; });
+  if (!row) throw new Error("La fotografia ja no existeix");
+  const file = DriveApp.getFileById(String(row[2]));
+  const blob = file.getBlob();
+  if (blob.getContentType() !== "image/jpeg" || blob.getSize() > PHOTO_MAX_BYTES) {
+    throw new Error("Format de fotografia no admès");
+  }
+  return { id: id, name: String(row[1]), base64: Utilities.base64Encode(blob.getBytes()) };
+}
+
+function photoDelete_(payload) {
+  const id = validateId_(payload && payload.id);
+  const tab = photoTab_();
+  const rows = rows_(tab, 4);
+  const index = rows.findIndex(function (r) { return String(r[0]) === id; });
+  if (index < 0) return;
+  // No permet esborrar cap fitxer de Drive que no estigui referenciat a Fotos.
+  const fileId = String(rows[index][2]);
+  try { DriveApp.getFileById(fileId).setTrashed(true); } catch (ex) {
+    Logger.log("Una foto ja no era al Drive: " + id);
+  }
+  tab.deleteRow(index + 2);
+}
+
+function photoAction_(action, payload) {
+  if (action === "photo_list") return { ok: true, photos: photoList_() };
+  if (action === "photo_get") return { ok: true, photo: photoGet_(payload) };
+  if (action !== "photo_upload" && action !== "photo_delete") {
+    return { ok: false, error: "Acció no permesa" };
+  }
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(20000);
+    const uploaded = action === "photo_upload" ? photoUpload_(payload) : (photoDelete_(payload), null);
+    SpreadsheetApp.flush();
+    return { ok: true, photo: uploaded, photos: photoList_() };
+  } finally {
+    if (lock.hasLock()) lock.releaseLock();
+  }
+}
+
 /** Únic punt d'entrada per al panell mòbil i per a les peticions Android. */
 function apiAction(key, action, payload) {
   if (!authenticated_(key)) return { ok: false, error: "Clau de sincronització incorrecta" };
-  if (action !== "sync") return { ok: false, error: "Acció no permesa" };
+  if (action !== "sync") {
+    try { return photoAction_(action, payload || {}); }
+    catch (ex) { return { ok: false, error: String(ex.message || "Error de fotografies").slice(0, 160) }; }
+  }
   const ops = (payload && payload.ops) || [];
   const lock = LockService.getScriptLock();
   try {
@@ -176,8 +293,9 @@ function doPost(e) {
   let response;
   try {
     const raw = e && e.postData && e.postData.contents;
-    if (!raw || raw.length > 60000) throw new Error("Petició buida o massa gran");
+    if (!raw || raw.length > 1600000) throw new Error("Petició buida o massa gran");
     const request = JSON.parse(raw);
+    if (request.action !== "photo_upload" && raw.length > 60000) throw new Error("Petició massa gran");
     response = apiAction(request.key, request.action, request.payload || {});
   } catch (ex) {
     response = { ok: false, error: String(ex.message || "Petició incorrecta").slice(0, 160) };
@@ -188,6 +306,6 @@ function doPost(e) {
 /** Interfície adaptada al mòbil; sense accedir a dades fins a validar la clau. */
 function doGet() {
   return HtmlService.createHtmlOutputFromFile("Mobile")
-    .setTitle("Marc Familiar · Compra i sopars")
+    .setTitle("Marc Familiar · Compra, sopars i fotos")
     .addMetaTag("viewport", "width=device-width, initial-scale=1");
 }
