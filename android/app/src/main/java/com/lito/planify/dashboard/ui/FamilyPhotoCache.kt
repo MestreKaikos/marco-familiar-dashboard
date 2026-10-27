@@ -49,7 +49,7 @@ class FamilyPhotoCache(context: Context) {
             val id = item.optString("id")
             if (!validId.matches(id)) return@mapNotNull null
             val file = cachedFile(id)
-            if (file.isFile && file.length() in 6..1_100_000)
+            if (file.isFile && file.length() in 6L..1_100_000L)
                 SharedCachedPhoto(id, item.optString("name").take(75), file)
             else null
         }.take(120)
@@ -93,7 +93,7 @@ class FamilyPhotoCache(context: Context) {
             // Màxim 12 fotografies noves a cada comprovació per no saturar un Android d'1 GB RAM.
             for (photo in remote) {
                 val file = cachedFile(photo.id)
-                if (file.isFile && file.length() in 6..1_100_000) continue
+                if (file.isFile && file.length() in 6L..1_100_000L) continue
                 if (downloaded >= 12) break
                 try {
                     val result = sync.photoAction("photo_get", JSONObject().put("id", photo.id))
@@ -125,7 +125,7 @@ class FamilyPhotoCache(context: Context) {
             val valid = withContext(Dispatchers.IO) {
                 remote.mapNotNull { item ->
                     val file = cachedFile(item.id)
-                    if (file.isFile && file.length() in 6..1_100_000)
+                    if (file.isFile && file.length() in 6L..1_100_000L)
                         SharedCachedPhoto(item.id, item.name, file)
                     else null
                 }
