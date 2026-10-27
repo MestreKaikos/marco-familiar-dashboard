@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "android/**"
+      - ".github/scripts/captures-colors.sh"
       - ".github/scripts/captures-emulador.sh"
       - ".github/workflows/android-captures.yml"
   workflow_dispatch:
@@ -61,7 +62,7 @@ jobs:
           disk-size: 6G
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none -camera-front none -no-snapshot
           disable-animations: true
-          script: bash .github/scripts/captures-emulador.sh
+          script: bash .github/scripts/captures-colors.sh
       - name: Ofereix les captures per descarregar
         uses: actions/upload-artifact@v4
         with:
