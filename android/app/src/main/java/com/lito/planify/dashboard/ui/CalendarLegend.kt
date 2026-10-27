@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -51,7 +52,8 @@ fun CalendarLegend(calendars: List<PersonalCalendar>, modifier: Modifier = Modif
                     calendar.name,
                     style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 19.sp),
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 225.dp)
                 )
             }
         }
