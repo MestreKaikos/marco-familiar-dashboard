@@ -99,3 +99,31 @@ function getPhoto(key,id) {
   if(!belongs || !Object.prototype.hasOwnProperty.call(MIME,file.getMimeType()) || file.getSize()>MAX_BYTES) throw new Error('Foto no disponible.');
   return {mime:file.getMimeType(),base64:Utilities.base64Encode(file.getBlob().getBytes())};
 }
+
+
+/**
+ * API per al marc: POST JSON {"action":"list","key":"..."} o
+ * {"action":"get","key":"...","id":"..."}.
+ * No s'admet GET per no posar credencials a URLs, caches i historials.
+ * El client ha de seguir la redirecció estàndard de ContentService.
+ */
+function doPost(e) {
+  try {
+    if(!e || !e.postData || !e.postData.contents || e.postData.contents.length>10000) {
+      throw new Error('Sol·licitud invàlida.');
+    }
+    const request=JSON.parse(e.postData.contents);
+    let data;
+    if(request.action==='list') data=listPhotos(request.key);
+    else if(request.action==='get') data=getPhoto(request.key,request.id);
+    else throw new Error('Operació no permesa.');
+    return json_({ok:true,data:data});
+  } catch(err) {
+    // No retornar mai la clau ni detalls interns d'errors de Drive.
+    return json_({ok:false,error:'No s’ha pogut completar la petició.'});
+  }
+}
+function json_(value) {
+  return ContentService.createTextOutput(JSON.stringify(value))
+    .setMimeType(ContentService.MimeType.JSON);
+}
