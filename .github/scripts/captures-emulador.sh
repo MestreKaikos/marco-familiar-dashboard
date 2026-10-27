@@ -140,8 +140,8 @@ with open("/tmp/marc-calendar-colors.xml", "w", encoding="utf-8") as f:
     f.write('<?xml version="1.0" encoding="utf-8" standalone="yes" ?>\n<map>\n')
     f.write('<string name="calendar_feeds">' + data + '</string>\n</map>\n')
 PY
-adb shell run-as com.lito.planify.dashboard mkdir -p shared_prefs
-adb shell -T run-as com.lito.planify.dashboard sh -c 'cat > shared_prefs/dashboard.xml' < /tmp/marc-calendar-colors.xml
+adb shell run-as com.lito.planify.dashboard mkdir -p /data/user/0/com.lito.planify.dashboard/shared_prefs
+adb shell -T run-as com.lito.planify.dashboard sh -c 'cat > /data/user/0/com.lito.planify.dashboard/shared_prefs/dashboard.xml' < /tmp/marc-calendar-colors.xml
 adb shell am start -W -n com.lito.planify.dashboard/.MainActivity
 sleep 12
 capture "14-llegenda-colors-avui.png"
@@ -211,7 +211,7 @@ if [ -z "$orange_coords" ]; then
 fi
 adb shell input tap $orange_coords
 sleep 4
-adb shell run-as com.lito.planify.dashboard cat shared_prefs/dashboard.xml > /tmp/marc-colors-after.xml
+adb shell run-as com.lito.planify.dashboard cat /data/user/0/com.lito.planify.dashboard/shared_prefs/dashboard.xml > /tmp/marc-colors-after.xml
 grep -q '#E09132' /tmp/marc-colors-after.xml
 grep -q '#3977CB' /tmp/marc-colors-after.xml
 capture "18-color-calendari-actualitzat.png"
