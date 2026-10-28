@@ -17,6 +17,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
@@ -29,7 +30,7 @@ private object RaiApi {
         .readTimeout(45,TimeUnit.SECONDS).followRedirects(true).build()
     suspend fun call(url:String,key:String,action:String,payload:JSONObject=JSONObject()):JSONObject =
         withContext(Dispatchers.IO) {
-            val u=okhttp3.HttpUrl.Companion.toHttpUrlOrNull(url.trim())
+            val u=url.trim().toHttpUrlOrNull()
                 ?: error("URL incorrecta")
             require(u.isHttps && u.host=="script.google.com" && u.encodedPath.endsWith("/exec")) { "Cal l'URL /exec d'Apps Script" }
             require(key.matches(Regex("[a-fA-F0-9]{64}"))) { "Clau familiar incorrecta" }
