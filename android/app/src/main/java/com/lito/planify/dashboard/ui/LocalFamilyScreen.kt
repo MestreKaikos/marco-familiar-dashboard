@@ -166,7 +166,7 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
                                 Column(Modifier.weight(1f)) {
                                     Text(task.title, style = Type.Small.copy(fontWeight = FontWeight.SemiBold), maxLines = 2)
                                     Text(
-                                        "${task.owner} · ${if (task.daily) "Cada dia" else "Una vegada"}${if (task.owner == "Rai") " · +${task.stars} ⭐" else ""}",
+                                        "${task.owner} · ${when (task.frequency) { "daily" -> "Cada dia"; "weekly", "weekdays" -> "Dies: ${task.days}"; "slots" -> "Per franges"; else -> "Una vegada" }}${if (task.owner == "Rai") " · +${task.stars} ⭐" else ""}",
                                         style = Type.Tiny.copy(color = Palette.InkSoft), modifier = Modifier.padding(top = 3.dp)
                                     )
                                 }
@@ -182,6 +182,8 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
                                         Button(onClick = { protect("Validar feina d'en Rai") { store.approveChore(task.id, today) } }) { Text("Validar") }
                                         TextButton(onClick = { protect("Rebutjar feina") { store.rejectChore(task.id, today) } }) { Text("Rebutjar") }
                                     }
+                                    "not_due" -> Text("No toca avui", style = Type.Small.copy(color = Palette.InkMuted))
+                                    "slots" -> Text("Gestiona les franges des del mòbil", style = Type.Tiny.copy(color = Palette.InkMuted))
                                     else -> Text("✓ Feta ${if (task.daily) "avui" else ""}", style = Type.Small.copy(color = Palette.Online, fontWeight = FontWeight.SemiBold))
                                 }
                             }
@@ -204,10 +206,16 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
                         .padding(14.dp)
                 ) {
                     Text("⏳ Premi demanat: ${requested.title}", style = Type.Small.copy(fontWeight = FontWeight.SemiBold))
-                    Text("Cal l'autorització d'un adult.", style = Type.Tiny.copy(color = Palette.InkSoft))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 8.dp)) {
-                        Button(onClick = { protect("Aprovar el premi") { store.decideReward(true) } }) { Text("Aprovar") }
-                        OutlinedButton(onClick = { protect("Denegar el premi") { store.decideReward(false) } }) { Text("Denegar") }
+                    Text(
+                        if (tasksShared) "Cal aprovar o denegar aquest premi des de la pàgina mòbil amb el PIN familiar."
+                        else "Cal l'autorització d'un adult.",
+                        style = Type.Tiny.copy(color = Palette.InkSoft)
+                    )
+                    if (!tasksShared) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 8.dp)) {
+                            Button(onClick = { protect("Aprovar el premi") { store.decideReward(true) } }) { Text("Aprovar") }
+                            OutlinedButton(onClick = { protect("Denegar el premi") { store.decideReward(false) } }) { Text("Denegar") }
+                        }
                     }
                 }
                 Spacer(Modifier.height(10.dp))
@@ -237,7 +245,8 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
                                 if (store.pendingRewardId == prize.id) {
                                     Text("Demanat ⏳", style = Type.Tiny.copy(color = Palette.Warm))
                                 } else if (store.stars >= prize.cost && store.pendingRewardId == null) {
-                                    OutlinedButton(onClick = { store.requestReward(prize.id) }) { Text("Demanar") }
+                                    OutlinedButton(onClick = { store.requestReward(prize.id) },
+                                        enabled = !store.cloudManaged || connected) { Text("Demanar") }
                                 } else {
                                     Text(
                                         if (store.pendingRewardId != null) "Hi ha un premi pendent" else "Falten ${(prize.cost - store.stars).coerceAtLeast(0)} ⭐",
@@ -260,7 +269,7 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
         }
     }
     if (addChore) {
-        ChoreCreator(onDismiss = { addChore = false }) { title, owner, daily, stars ->
+        ChoreCreator(cloud = tasksShared, onDismiss = { addChore = false }) { title, owner, daily, stars ->
             protect("Afegir feina") { store.addChore(title, owner, daily, stars) }
             addChore = false
         }
@@ -310,7 +319,7 @@ private fun TextEntryDialog(
 }
 
 @Composable
-private fun ChoreCreator(onDismiss: () -> Unit, onSave: (String, String, Boolean, Int) -> Unit) {
+private fun ChoreCreator(cloud: Boolean, onDismiss: () -> Unit, onSave: (String, String, Boolean, Int) -> Unit) {
     var title by remember { mutableStateOf("") }
     var owner by remember { mutableStateOf("Rai") }
     var daily by remember { mutableStateOf(true) }
@@ -327,7 +336,7 @@ private fun ChoreCreator(onDismiss: () -> Unit, onSave: (String, String, Boolean
                 )
                 Text("Qui la farà?", style = Type.Small)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    listOf("Rai", "Família").forEach { option ->
+                    (if (cloud) listOf("Rai") else listOf("Rai", "Família")).forEach { option ->
                         FilterChip(selected = owner == option, onClick = { owner = option },
                             label = { Text(option) })
                     }
