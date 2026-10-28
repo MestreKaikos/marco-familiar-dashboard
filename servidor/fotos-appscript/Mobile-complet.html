@@ -56,6 +56,8 @@ button.ghost{background:transparent;color:#74695c}button:focus-visible,input:foc
 <div id="raiTaskList"></div>
 <h2 style="margin-top:18px">🎁 Recompenses</h2>
 <div id="raiRewardList"></div>
+<h2 style="margin-top:18px">🔐 Peticions pendents</h2>
+<div id="raiPendingRewards"></div>
 <form id="raiAddTask" class="row" style="margin-top:16px">
 <input id="raiTaskTitle" maxlength="100" placeholder="Nova tasca..." required aria-label="Nova tasca">
 <input id="raiTaskPoints" type="number" min="1" max="100" value="5" style="max-width:85px" required aria-label="Punts">
@@ -224,6 +226,24 @@ function renderRai(){
   line.appendChild(button);rewards.appendChild(line);
  });
  if(!data.rewards.some(r=>r.active))rewards.appendChild(makeText('p','Encara no hi ha recompenses.'));
+ const pendingList=$('raiPendingRewards');pendingList.replaceChildren();
+ const pending=(data.requests||[]).filter(r=>r.status==='pendent');
+ if(!pending.length)pendingList.appendChild(makeText('p','Cap recompensa pendent.'));
+ pending.forEach(req=>{
+   const reward=data.rewards.find(r=>r.id===req.rewardId);
+   const line=makeText('div','','item');
+   line.appendChild(makeText('span',(reward?reward.title:'Recompensa')+' · '+req.cost+' punts','name'));
+   const accept=makeText('button','Aprovar','small');
+   const reject=makeText('button','Rebutjar','small ghost');
+   const decide=approve=>{
+     const pin=prompt('PIN de l’adult per '+(approve?'aprovar':'rebutjar')+' la petició:');
+     if(pin!==null)raiAction('rewards_decide',{id:req.id,approve,pin});
+   };
+   accept.type='button';reject.type='button';
+   accept.addEventListener('click',()=>decide(true));
+   reject.addEventListener('click',()=>decide(false));
+   line.append(accept,reject);pendingList.appendChild(line);
+ });
 }
 $('raiAddTask').addEventListener('submit',event=>{
  event.preventDefault();
