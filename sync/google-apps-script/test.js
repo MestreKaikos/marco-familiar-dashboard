@@ -11,6 +11,7 @@ const tabs = new Map();
 let locked = false;
 const driveFiles = new Map();
 const driveFolders = new Map();
+function iterator(items) { let i=0; return {hasNext:()=>i<items.length, next:()=>items[i++]}; }
 let driveSequence = 0;
 class FakeBlob {
   constructor(bytes, type) { this.bytes = Buffer.from(bytes); this.type = type; }
@@ -19,10 +20,16 @@ class FakeBlob {
   getBytes() { return Array.from(this.bytes); }
 }
 class FakeDriveFile {
-  constructor(blob) { this.id = `f-${++driveSequence}`; this.blob = blob; this.trashed = false; driveFiles.set(this.id, this); }
+  constructor(blob,name) {
+    this.id = `f-${++driveSequence}`; this.blob = blob; this.trashed = false;
+    this.name=name||this.id+".jpg"; driveFiles.set(this.id, this);
+  }
   getId() { return this.id; }
   getBlob() { if(this.trashed) throw new Error("File deleted"); return this.blob; }
   getSize() { return this.blob.getSize(); }
+  getName() { return this.name; }
+  getMimeType() { return this.blob.getContentType(); }
+  getDateCreated() { return new Date("2026-10-28T09:00:00Z"); }
   setTrashed(value) { this.trashed = value; }
 }
 
@@ -80,11 +87,18 @@ const context = vm.createContext({
     newBlob: (bytes, type) => new FakeBlob(bytes, type)
   },
   DriveApp: {
-    createFolder: () => {
-      const folder = {id:`d-${++driveSequence}`, createFile: blob => new FakeDriveFile(blob)};
+    createFolder: name => {
+      const files=[];
+      const folder = {
+        id:`d-${++driveSequence}`, name,
+        getId() { return this.id; },
+        createFile(blob) { const file=new FakeDriveFile(blob,blob.name); files.push(file); return file; },
+        getFiles() { return iterator(files.filter(f=>!f.trashed)); }
+      };
       driveFolders.set(folder.id, folder);
-      return {...folder, getId: () => folder.id};
+      return folder;
     },
+    getFoldersByName: name => iterator(Array.from(driveFolders.values()).filter(f=>f.name===name)),
     getFolderById: id => { const folder=driveFolders.get(id); if(!folder)throw new Error("Folder missing"); return folder; },
     getFileById: id => { const file=driveFiles.get(id); if(!file||file.trashed)throw new Error("File missing"); return file; }
   },
@@ -141,25 +155,62 @@ assert.ok(tabs.get("Compra").rows.some(row => row[1] === "'=SUM(1,2)"), "Una fó
 assert.equal(context.apiAction(secret, "sync", {ops:[{type:"unknown"}]}).ok, false);
 assert.equal(locked, false, "El bloqueig sempre s'allibera després d'un error");
 
+// Migració no destructiva del full familiar que ja existia.
+tabs.get("Tasques").appendRow(["old_task","Treure en Llamp",5,true,"única","Rai"]);
+tabs.get("TasquesFetes").appendRow(["2026-10-28","old_task","Rai",5,"única"]);
+tabs.get("Recompenses").appendRow(["old_reward","Triar pel·lícula",10,true]);
+const existingFamily=context.apiAction(secret,"sync",{ops:[]}).data;
+assert.equal(existingFamily.tasks.find(t=>t.id==="old_task").title,"Treure en Llamp");
+assert.equal(existingFamily.stars,5,"L'esforç existent no es perd");
+assert.equal(existingFamily.rewards.length,1);
+let result=context.apiAction(secret,"sync",{ops:[
+  {type:"task_set",id:"daily_task",title:"Posar la taula",stars:3,daily:true,owner:"Rai"}
+]});
+assert.equal(result.ok,true,result.error);
+result=context.apiAction(secret,"sync",{ops:[{type:"task_complete",id:"daily_task",date:"2026-10-28"}]});
+assert.equal(result.data.stars,8);
+result=context.apiAction(secret,"sync",{ops:[{type:"task_complete",id:"daily_task",date:"2026-10-28"}]});
+assert.equal(result.data.stars,8,"Repetir la mateixa feina i data no duplica punts");
+result=context.apiAction(secret,"sync",{ops:[{type:"task_complete",id:"daily_task",date:"2026-10-29"}]});
+assert.equal(result.data.stars,11,"Una tasca diària pot repetir-se l'endemà");
+const redeem={type:"reward_redeem",id:"old_reward",mutationId:"redemption_1"};
+result=context.apiAction(secret,"sync",{ops:[redeem]});
+assert.equal(result.data.stars,1,"Descompta punts del full, sense perdre completades");
+result=context.apiAction(secret,"sync",{ops:[redeem]});
+assert.equal(result.data.stars,1,"Un reintent d'un premi no descompta dues vegades");
+assert.equal(context.apiAction(secret,"sync",{ops:[{type:"reward_redeem",id:"old_reward",mutationId:"redemption_2"}]}).ok,false);
+const deleted=context.apiAction(secret,"sync",{ops:[{type:"task_delete",id:"old_task"}]});
+assert.ok(!deleted.data.tasks.some(t=>t.id==="old_task"));
+assert.ok(tabs.get("TasquesFetes").rows.some(r=>r[1]==="old_task"),"El registre històric es manté");
+
+
 // Fotografies: autenticació, Drive privat, càrrega idempotent, descàrrega i baixa.
 assert.equal(context.apiAction('0'.repeat(64),'photo_list',{}).ok,false);
 assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,0);
+// Ja existia una carpeta de Drive amb PNG: indexem sense moure ni esborrar fitxers.
+const existingFolder=context.DriveApp.createFolder("Marc Familiar · Fotos compartides");
+const png=Buffer.from([137,80,78,71,13,10,26,10,1,2,3]);
+const existingPng=existingFolder.createFile(new FakeBlob(png,"image/png"));
+existingPng.name="Rai_car.png";
+context.prepararFotosFamiliars();
+assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,1);
+assert.equal(context.apiAction(secret,'photo_get',{id:existingPng.getId()}).photo.mimeType,"image/png");
 const jpeg=Buffer.from([255,216,1,2,3,255,217]).toString('base64');
 const addPhoto=context.apiAction(secret,'photo_upload',{id:'photo_1',name:'Platja.jpg',base64:jpeg});
 assert.equal(addPhoto.ok,true,addPhoto.error);
-assert.equal(addPhoto.photos.length,1);
+assert.equal(addPhoto.photos.length,2);
 assert.equal(addPhoto.photos[0].name,'Platja.jpg');
 assert.equal(addPhoto.photos[0].base64,undefined,'No enviem base64 a la llista');
 assert.ok(store.get('PHOTO_FOLDER_ID'),'La carpeta privada és al Drive');
 assert.equal(context.apiAction(secret,'photo_get',{id:'photo_1'}).photo.base64,jpeg);
-assert.equal(context.apiAction(secret,'photo_upload',{id:'photo_1',name:'Platja.jpg',base64:jpeg}).photos.length,1);
+assert.equal(context.apiAction(secret,'photo_upload',{id:'photo_1',name:'Platja.jpg',base64:jpeg}).photos.length,2);
 assert.equal(context.apiAction(secret,'photo_get',{id:'../../x'}).ok,false);
 assert.equal(context.apiAction(secret,'photo_upload',{id:'photo_2',name:'Engany',base64:'AAAAAA=='}).ok,false);
 assert.equal(context.apiAction(secret,'photo_get',{id:'photo_2'}).ok,false);
 const invalidRequest=context.doPost({postData:{contents:JSON.stringify({key:secret,action:'photo_upload',payload:{id:'photo_3',base64:'AAA'}})}});
 assert.equal(JSON.parse(invalidRequest.text).ok,false);
 assert.equal(context.apiAction(secret,'photo_delete',{id:'photo_1'}).ok,true);
-assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,0);
+assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,1);
 assert.equal(context.apiAction(secret,'photo_get',{id:'photo_1'}).ok,false);
 assert.equal(locked,false);
 
@@ -167,4 +218,4 @@ const http = context.doPost({postData:{contents:JSON.stringify({key:secret,actio
 assert.equal(JSON.parse(http.text).ok, true);
 const page = context.doGet();
 assert.equal(page.name, "Mobile");
-console.log("OK · autenticació, compra, sopars, fotos privades de Drive, idempotència, bloqueig i API POST.");
+console.log("OK · una sola clau, compra, sopars, tasques, punts idempotents, premis i JPG/PNG de Drive.");
