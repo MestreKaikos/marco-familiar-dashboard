@@ -147,7 +147,7 @@ function setDinner_(tab, op) {
 function familySheets_() {
   if (typeof familyTaskSheet_ !== "function" ||
       typeof familyTasksSnapshot_ !== "function" ||
-      typeof taskSchedule_ !== "function") {
+      typeof familyPositive_ !== "function") {
     throw new Error("Cal conservar Tasques.gs del projecte familiar");
   }
   return {
@@ -199,9 +199,9 @@ function taskSet_(op) {
   const id = validateId_(op.id), title = safeText_(op.title,100);
   if (!title) throw new Error("Tasca sense títol");
   const points = familyPositive_(op.stars,100);
-  const schedule = taskSchedule_({
-    frequency: op.daily === true ? "daily" : "once"
-  });
+  const schedule = {
+    frequency: op.daily === true ? "daily" : "once", days: "", slots: "única"
+  };
   const rows = rows_(tabs.tasks,7);
   const idx = rows.findIndex(r => String(r[0]) === id);
   if (idx < 0) {
@@ -209,11 +209,12 @@ function taskSet_(op) {
     tabs.tasks.appendRow([id,title,points,true,schedule.frequency,schedule.days,schedule.slots]);
   } else {
     // No perdre dies i franges de feines creades abans des del mòbil.
-    const was = rows[idx], preserve = taskSchedule_({
+    const was = rows[idx];
+    const preserve = {
       frequency: String(was[4] || "daily"),
       days: String(was[5] || ""),
-      slots: String(was[6] || "matí,vespre")
-    });
+      slots: String(was[6] || "única")
+    };
     tabs.tasks.getRange(idx+2,1,1,7).setValues([[
       id,title,points,true,preserve.frequency,preserve.days,preserve.slots
     ]]);
