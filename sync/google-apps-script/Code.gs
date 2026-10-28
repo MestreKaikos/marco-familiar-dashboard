@@ -326,6 +326,18 @@ function photoFolder_() {
  * l'editor per autoritzar l'accés a Drive. No canvia la clau familiar.
  * La carpeta i el full Fotos continuen sent privats.
  */
+/** Opcional: si un desplegament antic guardava un altre PHOTO_FOLDER_ID,
+ * aquesta funció canvia només la carpeta de NOUS enviaments a la que ja existeix.
+ * Els registres de fotos anteriors continuen referenciant els seus IDs de Drive.
+ */
+function vincularCarpetaFotosExistents() {
+  const matches = DriveApp.getFoldersByName("Marc Familiar · Fotos compartides");
+  if (!matches.hasNext()) throw new Error("No s'ha trobat la carpeta familiar existent");
+  const folder = matches.next();
+  PropertiesService.getScriptProperties().setProperty("PHOTO_FOLDER_ID", folder.getId());
+  Logger.log("Carpeta existent vinculada. Torna a executar prepararFotosFamiliars.");
+}
+
 function prepararFotosFamiliars() {
   const folder = photoFolder_(), tab = photoTab_();
   const known = new Set(photoRows_().map(r => String(r[2])));
