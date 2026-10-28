@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +35,7 @@ import com.lito.planify.dashboard.data.Event
 import com.lito.planify.dashboard.ui.theme.Palette
 import com.lito.planify.dashboard.ui.theme.Type
 import java.time.DayOfWeek
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.TextStyle
@@ -51,8 +53,11 @@ private const val WEEK_DAYS = 7
  * - abajo, tres resúmenes que llevan a su pestaña: tareas de los niños, compra, y luz y coche.
  */
 @Composable
-fun FamilyTodayScreen(state: UiState, dinners: DinnerPlan, family: LocalFamilyStore, onOpen: (Page) -> Unit) {
+internal fun FamilyTodayScreen(state: UiState, dinners: DinnerPlan, cloud: FamilyCloudStore, onOpen: (Page) -> Unit) {
     var editingDinner by remember { mutableStateOf<LocalDate?>(null) }
+    val scope = rememberCoroutineScope()
+    val connected = cloud.connected
+    fun meal(day:LocalDate):String? = if(connected) cloud.data?.dinners?.get(day.toString()) else dinners[day]
     val now = state.now
     val today = now.toLocalDate()
     val events = state.content?.events.orEmpty()
@@ -78,24 +83,28 @@ fun FamilyTodayScreen(state: UiState, dinners: DinnerPlan, family: LocalFamilySt
                     day, today, now,
                     events.filter { it.at.toLocalDate() == day },
                     shifts.filter { it.at.toLocalDate() == day },
-                    dinners[day],
+                    meal(day),
                     Modifier.weight(1f).fillMaxHeight(),
                     onDinnerClick = { editingDinner = day }
                 )
             }
         }
         Row(Modifier.fillMaxWidth().weight(0.22f), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            LocalShoppingTile(family, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Tasks) }
-            LocalRaiTile(family, today, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Tasks) }
-            DinnerTile(dinners, today, Modifier.weight(1.25f).fillMaxHeight()) { editingDinner = today }
+            CloudShoppingTile(cloud, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Tasks) }
+            CloudRaiTile(cloud, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Tasks) }
+            CloudDinnerTile(meal(today), Modifier.weight(1.25f).fillMaxHeight()) { editingDinner = today }
         }
     }
     editingDinner?.let { day ->
         DinnerEditor(
             date = day,
-            initial = dinners[day],
+            initial = meal(day),
             onDismiss = { editingDinner = null },
-            onSave = { meal -> dinners.save(day, meal); editingDinner = null }
+            onSave = { value ->
+                if (connected) scope.launch { cloud.dinnerSet(day.toString(), value) }
+                else dinners.save(day, value)
+                editingDinner = null
+            }
         )
     }
 }
@@ -238,6 +247,53 @@ private fun Tile(title: String, emoji: String, tint: Color, modifier: Modifier, 
             Text(title.uppercase(Spanish), style = Type.Label.copy(color = tint, fontSize = 18.sp), modifier = Modifier.padding(start = 10.dp))
         }
         content()
+    }
+}
+
+/** Resums del mateix Google Sheets que utilitza la web familiar i l'apartat Família. */
+@Composable
+private fun CloudShoppingTile(cloud:FamilyCloudStore, modifier:Modifier,onClick:()->Unit) {
+    val items=cloud.data?.groceries.orEmpty().filterNot { it.bought }
+    Tile("Llista de la compra","🛒",Palette.Online,modifier,onClick) {
+        Text(
+            if(!cloud.connected)"Connexió pendent"
+            else if(cloud.data==null)"Carregant la compra…"
+            else if(items.isEmpty())"No falta res per comprar"
+            else "${items.size} productes pendents",
+            style=Type.Body.copy(fontWeight=FontWeight.SemiBold),
+            modifier=Modifier.padding(top=8.dp),maxLines=1
+        )
+        Text(
+            if(items.isEmpty())"Toca per consultar la llista" else items.take(3).joinToString(" · "){it.name},
+            style=Type.Tiny.copy(color=Palette.InkMuted),maxLines=2,
+            overflow=TextOverflow.Ellipsis,modifier=Modifier.padding(top=6.dp)
+        )
+    }
+}
+@Composable
+private fun CloudRaiTile(cloud:FamilyCloudStore,modifier:Modifier,onClick:()->Unit) {
+    val snap=cloud.tasks
+    Tile("Feines d'en Rai","⭐",Palette.Warm,modifier,onClick) {
+        Text(
+            if(snap==null)"Tasques per sincronitzar"
+            else "⭐ ${snap.points} punts · ${snap.chores.count{!it.done}} pendents",
+            style=Type.Body.copy(fontWeight=FontWeight.SemiBold),
+            maxLines=2,modifier=Modifier.padding(top=8.dp)
+        )
+        Text("Tasques i recompenses compartides",style=Type.Tiny.copy(color=Palette.InkMuted),
+            modifier=Modifier.padding(top=6.dp))
+    }
+}
+@Composable
+private fun CloudDinnerTile(dinner:String?, modifier:Modifier,onClick:()->Unit) {
+    Tile("Què sopem avui?","🍽️",Palette.Warm,modifier,onClick) {
+        Text(
+            dinner ?: "Toca per decidir el sopar",
+            style=Type.Body.copy(fontWeight=FontWeight.SemiBold),
+            maxLines=2,overflow=TextOverflow.Ellipsis,modifier=Modifier.padding(top=8.dp)
+        )
+        Text("Sopar familiar compartit",style=Type.Tiny.copy(color=Palette.InkMuted),
+            modifier=Modifier.padding(top=6.dp))
     }
 }
 
