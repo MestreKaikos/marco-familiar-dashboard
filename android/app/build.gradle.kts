@@ -53,8 +53,8 @@ android {
         debug {
             // APK de proves independent: no sobreescriu ni entra en conflicte
             // amb el Marc Familiar existent, possiblement signat amb una altra clau.
-            applicationIdSuffix = ".test"
-            versionNameSuffix = "-proves"
+            applicationIdSuffix = ".testqr"
+            versionNameSuffix = "-qr-proves"
             buildConfigField("String", "BASE_URL", "\"$debugBaseUrl\"")
             manifestPlaceholders["cleartext"] = cleartext(debugBaseUrl)
         }
