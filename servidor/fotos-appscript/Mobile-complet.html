@@ -43,11 +43,11 @@ button.ghost{background:transparent;color:#74695c}button:focus-visible,input:foc
 <div class="row" style="justify-content:space-between;align-items:start"><div><h2>🍽️ Què sopem?</h2><p style="margin:-8px 0 12px">Planifica els pròxims set dies.</p></div><span class="pill">7 dies</span></div>
 <div id="dinners"></div></section>
 <section class="panel">
-<h2>📸 Fotografies</h2><p>Tria una imatge del mòbil per enviar-la al Marc Familiar. Formats JPG, PNG o WebP, màxim 5 MB.</p>
+<h2>📸 Fotografies</h2><p>Selecciona una o diverses fotografies. JPG, PNG o WebP, màxim 5 MB cadascuna.</p>
 <form id="uploadPhoto">
-<input id="photoFile" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Fotografia" required>
+<input id="photoFile" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Fotografies" multiple required>
 <img id="photoPreview" alt="Vista prèvia de la fotografia">
-<button class="primary" id="sendPhoto" type="submit" style="margin-top:12px">Enviar fotografia</button>
+<button class="primary" id="sendPhoto" type="submit" style="margin-top:12px">Enviar fotografies</button>
 </form><p id="photoStatus" role="status" aria-live="polite"></p>
 </section>
 <div class="row" style="justify-content:space-between"><span id="syncTime">Connectat · Sincronització automàtica</span><button class="small" id="refresh">Actualitzar ara</button></div>
@@ -116,34 +116,57 @@ $('addProduct').addEventListener('submit',e=>{e.preventDefault();const name=$('p
 $('refresh').addEventListener('click',()=>call([]));
 let previewUrl='';
 $('photoFile').addEventListener('change',()=>{
- if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl='';}
- const f=$('photoFile').files[0];$('photoPreview').style.display=f?'block':'none';
- if(f){previewUrl=URL.createObjectURL(f);$('photoPreview').src=previewUrl;}
+  if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl='';}
+  const files=Array.from($('photoFile').files);
+  const preview=$('photoPreview');
+  preview.style.display=files.length?'block':'none';
+  if(files.length){previewUrl=URL.createObjectURL(files[0]);preview.src=previewUrl;}
+  $('photoStatus').textContent=files.length
+    ? files.length+' '+(files.length===1?'fotografia seleccionada':'fotografies seleccionades')
+    : '';
 });
-$('uploadPhoto').addEventListener('submit',function(event){
- event.preventDefault();
- const file=$('photoFile').files[0],status=$('photoStatus'),button=$('sendPhoto');
- if(photoBusy)return;
- if(!key||!file){status.textContent='Inicia sessió i tria una foto.';return;}
- if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>5*1024*1024){
-   status.textContent='Format invàlid o fitxer superior a 5 MB.';status.className='error';return;}
- photoBusy=true;button.disabled=true;status.textContent='Enviant fotografia…';status.className='';
- const reader=new FileReader();
- reader.onerror=()=>{photoBusy=false;button.disabled=false;status.textContent='No s’ha pogut llegir la fotografia.';status.className='error';};
- reader.onload=()=>{
-   const base64=String(reader.result).split(',')[1];
-   google.script.run.withSuccessHandler(res=>{
-     photoBusy=false;button.disabled=false;
-     if(res&&res.ok){
-       $('photoFile').value='';$('photoPreview').style.display='none';
-       if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl='';}
-       status.textContent='Fotografia enviada correctament!';status.className='good';
-     }else{status.textContent=res&&res.error||'No s’ha pogut enviar.';status.className='error';}
-   }).withFailureHandler(err=>{
-     photoBusy=false;button.disabled=false;status.textContent=err&&err.message||'Error de connexió';status.className='error';
-   }).uploadFamilyPhoto(key,{name:file.name,mime:file.type,base64});
- };
- reader.readAsDataURL(file);
+$('uploadPhoto').addEventListener('submit',async event=>{
+  event.preventDefault();
+  if(photoBusy)return;
+  const files=Array.from($('photoFile').files),status=$('photoStatus'),button=$('sendPhoto');
+  if(!key||!files.length){status.textContent='Inicia sessió i selecciona fotos.';return;}
+  if(files.length>20){status.textContent='Selecciona un màxim de 20 fotos per tanda.';status.className='error';return;}
+  const valid=['image/jpeg','image/png','image/webp'];
+  if(files.some(f=>!valid.includes(f.type)||f.size>5*1024*1024||!f.size)){
+    status.textContent='Totes les fotos han de ser JPG, PNG o WebP de fins a 5 MB.';
+    status.className='error';return;
+  }
+  photoBusy=true;button.disabled=true;
+  let uploaded=0;
+  const readPhoto=file=>new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onerror=()=>reject(new Error('No s’ha pogut llegir '+file.name));
+    reader.onload=()=>resolve(String(reader.result).split(',')[1]);
+    reader.readAsDataURL(file);
+  });
+  const upload=(file,base64)=>new Promise((resolve,reject)=>{
+    google.script.run.withSuccessHandler(result=>{
+      if(result&&result.ok)resolve(result);
+      else reject(new Error(result&&result.error||'Error en pujar '+file.name));
+    }).withFailureHandler(err=>reject(new Error(err&&err.message||'Error de connexió')))
+      .uploadFamilyPhoto(key,{name:file.name,mime:file.type,base64});
+  });
+  try{
+    for(const file of files){
+      status.textContent='Enviant '+(uploaded+1)+' de '+files.length+'…';
+      status.className='';
+      await upload(file,await readPhoto(file));
+      uploaded++;
+    }
+    status.textContent=uploaded+' '+(uploaded===1?'fotografia enviada':'fotografies enviades')+' correctament!';
+    status.className='good';
+    $('photoFile').value='';$('photoPreview').style.display='none';
+    if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl='';}
+  }catch(err){
+    status.textContent=uploaded+' de '+files.length+' enviades. '+(err.message||'Error temporal')+
+      '. Pots tornar a seleccionar les que faltin.';
+    status.className='error';
+  }finally{photoBusy=false;button.disabled=false;}
 });
 if(key)showApp();
 setInterval(()=>{if(key&&!document.hidden)call([])},45000);
