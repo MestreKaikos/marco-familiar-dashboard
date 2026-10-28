@@ -1,32 +1,34 @@
-# Comparació amb el Code.gs real de producció · 28/10/2026
+# Compatibilitat amb el projecte real d'Apps Script · revisió 28/10/2026
 
-## Origen i advertència
-Aquest document compara la **còpia de `Code.gs` facilitada pel propietari** amb la branca d'integració. Encara **no hem llegit `Fotos.gs` ni el fitxer que defineix `familyTasksAction`, ni `Mobile.html` de producció**. No substituir ni desplegar els fitxers fins que s'hagi verificat la compatibilitat de tot el projecte.
+## Fitxers reals examinats
+- **`Code.gs`**: autentica compra i sopars mitjançant `KEY_HASH`, amb la ruta HTTP `sync`. Envia `family_tasks` a la funció externa `familyTasksAction` i `photos_list/photos_get` a `photoApiAction_`.
+- **`Fotos.gs`**: verificat a partir del codi facilitat pel propietari. Gestiona la carpeta configurada a `PHOTO_FOLDER_ID`, puja fotos des del mòbil amb `uploadFamilyPhoto` (clau familiar) i ofereix lectura al marc antic amb **`PHOTO_READ_KEY_HASH`**.
+- **Encara pendents d'examinar**: el fitxer que defineix `familyTasksAction`, el `Mobile.html` de producció i qualsevol altre `.gs` existent.
 
-## Punt d'entrada real
-El servei actual té tres vies de `doPost`:
-1. `request.action === "family_tasks"` → `familyTasksAction(request.key, payload.action, payload.data)`.
-2. `request.action === "photos_list"` o `"photos_get"` → `photoApiAction_(request.key, request.action, payload)`.
-3. La resta, incloent `sync` → `apiAction(request.key, request.action, payload)`.
+## Les dues claus llargues, identificades
+1. La **clau familiar** és una cadena de 64 caràcters validada contra el hash `KEY_HASH`. Serveix per a compres, sopars i `uploadFamilyPhoto`; també és l'única clau que necessita el **marc unificat nou**.
+2. La **clau de lectura de fotografies** és una altra cadena de 64 caràcters, validada contra `PHOTO_READ_KEY_HASH` per `photoReaderAuthenticated_`. Continua servint al marc antic amb les rutes `photos_list` i `photos_get`.
 
-L'`apiAction` antic valida `KEY_HASH`, retorna únicament `groceries` i `dinners`, i accepta `grocery_set`, `grocery_delete` i `dinner_set`. `doGet` serveix `Mobile.html`.
+**Totes dues es conserven en producció.** No canviar-les, imprimir-les, publicar-les ni executar `rotateSecret_`. El codi nou permet que el dispositiu actualitzat faci la lectura de fotos amb la clau familiar sense invalidar la clau de només lectura antiga.
 
-## Adaptació de la branca unificada
-- **Conservades a la nova implementació** les tres rutes HTTP existents; el codi comprova que les funcions antigues estiguin disponibles abans de delegar.
-- Les accions noves `photo_list`, `photo_get`, `photo_upload` i `photo_delete` són **diferents** de les accions antigues `photos_list` i `photos_get`. La compatibilitat HTTP no equival a compatibilitat de dades; les dues implementacions poden utilitzar carpetes, pestanyes, formats o claus diferents.
-- El nou `sync` exposa a més `tasks`, `taskDone`, `rewards`, `stars` i `pendingReward`. Aquest format és per a l'Android nou i el Mobile.html proposat.
-- L'original `Code.gs` **no demostra que hi hagi dues claus ni que totes les vies comparteixin clau**: la funció `familyTasksAction` i el fitxer `Fotos.gs` poden verificar secrets addicionals. Cal inspeccionar-los sense copiar valors secrets.
-- No tocar `KEY_HASH`, `rotateSecret_`, la implementació /exec ni la carpeta de Drive real fins que la integració estigui revisada.
+## Fotos i carpeta existent
+`Fotos.gs` defineix `photoFolder_()`; per tant, la versió unificada de `Code.gs` **ja no la redefineix**. Aquest conflicte era crític: el projecte real executa tots els fitxers `.gs` dins d'un espai global compartit.
 
-## Problemes que requereixen veure els altres fitxers
-1. **`Fotos.gs`**: noms de constants i funcions globals (possibles col·lisions), ID i formats de la carpeta real, autorització de fotos, pujada i llistat ja existents, convenció de `photos_get`, i gestió de les sis imatges.
-2. **Fitxer que conté `familyTasksAction`**: autorització de tasques, esquema complet de `Tasques`, `TasquesFetes`, `Recompenses`, `CanvisPunts` i `PeticionsPremis`; normes de repetició diària, saldo, peticions i aprovació de premis. **No s'ha de migrar ni recalcular punts sense validar aquest codi.**
-3. **`Mobile.html` de producció**: comprovar la pàgina de fotos, la de compres i les feines abans de reemplaçar cap interfície. Les accions poden fer servir `google.script.run` i no passar per `doPost`.
-4. Qualsevol altre `.gs`: escriptori Apps Script tracta els fitxers de codi del mateix projecte com un àmbit compartit; duplicar un `const` o una funció amb nom ja existent pot trencar la publicació.
+- `PHOTO_FOLDER_ID` continua apuntant a la carpeta de les **sis fotografies de prova**. No es crea una carpeta nova.
+- Les fotografies són fitxers de Drive, no registres d'una pestanya `Fotos`. No s'ha de crear ni indexar cap foto en un Sheets.
+- L'API antiga `photoApiAction_` accepta JPEG, PNG i WebP, fins a **5 MiB** i un màxim de 300 fitxers. La nova API respecta aquests formats i llegeix les fotos directament de la carpeta; la nova càrrega de navegador comprimeix JPEG fins a 1,1 MB.
+- L'Android unificat mostra com a màxim 120 fotos compartides per no omplir el dispositiu i desa les descarregades en memòria privada.
+- La nova API `photo_get` valida que l'ID sol·licitat és realment dins de la carpeta; no pot llegir fitxers arbitraris de Drive.
+- `prepararFotosFamiliars()` només consulta i compta les fotos compatibles: **no crea carpetes, no toca Sheets, no modifica les claus**.
 
-## Pla d'activació segura
-- Full `Marc Familiar - Dades`: existeix una còpia de seguretat creada en Google Drive el 28/10/2026.
-- Fer còpia de `Code.gs`, `Fotos.gs`, fitxer de tasques i `Mobile.html` en un lloc privat.
-- Validar que el nou servei, amb els fitxers llegats presents, no produeix col·lisions; idealment provar primer en una **còpia independent d'Apps Script vinculada a la còpia del Sheets**, amb una clau de prova, sense afectar dispositius existents.
-- Després publicar una **nova versió de la implementació existent** (mateixa URL /exec) i validar compres, sopars, fotos i punts amb els dispositius connectats.
-- Una única clau és l'objectiu de l'estat final, però una migració real de claus pot requerir comprovar la clau actual dels diferents serveis. **No suposar que ja s'ha unificat l'autenticació.**
+## Tasques: encara cal una revisió
+La ruta antiga `family_tasks` s'ha conservat, però **encara no sabem quines globals, validacions i convencions de punts utilitza `familyTasksAction`**. El projecte real té històric de tasques i recompenses; no n'hem de substituir el model sense comprovar el fitxer corresponent. La funció nova `readFamily_` ja llegeix els fulls existents, però cal assegurar-ne la concordança amb l'API antiga.
+
+## Condicions abans de publicar
+1. Desar còpies privades de `Code.gs`, `Fotos.gs`, `Mobile.html` i el fitxer de tasques. La còpia de seguretat del Sheets del 28/10/2026 ja existeix.
+2. Revisar les col·lisions de constants i funcions globals, i les convencions d'autenticació de tasques.
+3. Fer proves en una **còpia d'Apps Script i del Sheets** sense tocar producció.
+4. Si tot passa, publicar una nova versió de l'Apps Script existent i verificar la mateixa URL /exec i la mateixa clau familiar.
+5. Instal·lar l'APK unificat amb una signatura compatible, sense desinstal·lar l'app actual.
+
+**Estat:** l'API de fotos del repositori està adaptada al `Fotos.gs` conegut i passa proves simulades. Això **no equival encara a una prova real del desplegament d'Apps Script**.
