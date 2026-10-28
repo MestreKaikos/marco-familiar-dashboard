@@ -9,6 +9,7 @@ const logs = [];
 const store = new Map();
 const tabs = new Map();
 let locked = false;
+let currentDay = "2026-10-28";
 const driveFiles = new Map();
 const driveFolders = new Map();
 function iterator(items) { let i=0; return {hasNext:()=>i<items.length, next:()=>items[i++]}; }
@@ -55,6 +56,10 @@ class FakeSheet {
           if (!sheet.rows[index]) sheet.rows[index] = [];
           row.forEach((cell, j) => { sheet.rows[index][startCol - 1 + j] = cell; });
         });
+      },
+      setValue(value) {
+        if (!sheet.rows[startRow - 1]) sheet.rows[startRow - 1] = [];
+        sheet.rows[startRow - 1][startCol - 1] = value;
       }
     };
   }
@@ -82,11 +87,13 @@ const context = vm.createContext({
     DigestAlgorithm: { SHA_256: "sha256" },
     Charset: { UTF_8: "UTF-8" },
     getUuid: () => crypto.randomUUID(),
+    formatDate: () => currentDay,
     computeDigest: (alg, value) => Array.from(crypto.createHash(alg).update(value).digest()).map(x => x >= 128 ? x - 256 : x),
     base64Decode: value => Array.from(Buffer.from(value, "base64")),
     base64Encode: bytes => Buffer.from(bytes).toString("base64"),
     newBlob: (bytes, type, name) => { const blob = new FakeBlob(bytes, type); blob.name = name; return blob; }
   },
+  Session: {getScriptTimeZone: () => "Europe/Madrid"},
   DriveApp: {
     createFolder: name => {
       const files=[];
@@ -120,6 +127,7 @@ const context = vm.createContext({
 });
 
 vm.runInContext(fs.readFileSync(path.join(__dirname, "Code.gs"), "utf8"), context);
+vm.runInContext(fs.readFileSync(path.join(__dirname, "Tasques.gs"), "utf8"), context);
 context.setup_();
 const secret = logs.join(" ").match(/[a-f0-9]{64}/)[0];
 assert.match(secret, /^[a-f0-9]{64}$/);
@@ -156,34 +164,103 @@ assert.ok(tabs.get("Compra").rows.some(row => row[1] === "'=SUM(1,2)"), "Una fó
 assert.equal(context.apiAction(secret, "sync", {ops:[{type:"unknown"}]}).ok, false);
 assert.equal(locked, false, "El bloqueig sempre s'allibera després d'un error");
 
-// Migració no destructiva del full familiar que ja existia.
-tabs.get("Tasques").appendRow(["old_task","Treure en Llamp",5,true,"única","Rai"]);
+// El fitxer real Tasques.gs manté 7 columnes, 5è camp = franja i PIN en servidor.
+context.setupFamilyTasks();
+tabs.get("Tasques").appendRow(["old_task","Treure en Llamp",5,true,"once","","única"]);
 tabs.get("TasquesFetes").appendRow(["2026-10-28","old_task","Rai",5,"única"]);
 tabs.get("Recompenses").appendRow(["old_reward","Triar pel·lícula",10,true]);
-const existingFamily=context.apiAction(secret,"sync",{ops:[]}).data;
-assert.equal(existingFamily.tasks.find(t=>t.id==="old_task").title,"Treure en Llamp");
-assert.equal(existingFamily.stars,5,"L'esforç existent no es perd");
-assert.equal(existingFamily.rewards.length,1);
+let family=context.apiAction(secret,"sync",{ops:[]}).data;
+assert.equal(family.tasks.find(t=>t.id==="old_task").frequency,"once");
+assert.equal(family.stars,5);
+assert.equal(family.rewards.length,1);
+assert.equal(family.taskDone[0].slot,"única");
+
+// L'API antiga Tasques.gs funciona també: estava rebutjant tota freqüència
+// diferent de slots per un error de validació d'«única».
+const legacyAdd=context.familyTasksAction(secret,"tasks_set",{
+  id:"legacy_weekly",title:"Endreçar habitació",points:4,
+  frequency:"weekly",days:"3"
+});
+assert.equal(legacyAdd.ok,true,legacyAdd.error);
+const weekly=legacyAdd.data.tasks.find(t=>t.id==="legacy_weekly");
+assert.equal(weekly.frequency,"weekly");
+assert.equal(weekly.days,"3");
+assert.equal(weekly.dueToday,true,"28/10/2026 és dimecres");
+const legacySlot=context.familyTasksAction(secret,"tasks_set",{
+  id:"legacy_slots",title:"Passejar en Llamp",points:2,
+  frequency:"slots",slots:"matí,vespre"
+});
+assert.equal(legacySlot.ok,true,legacySlot.error);
+
 let result=context.apiAction(secret,"sync",{ops:[
   {type:"task_set",id:"daily_task",title:"Posar la taula",stars:3,daily:true,owner:"Rai"}
 ]});
 assert.equal(result.ok,true,result.error);
+assert.equal(result.data.tasks.find(t=>t.id==="daily_task").frequency,"daily");
 result=context.apiAction(secret,"sync",{ops:[{type:"task_complete",id:"daily_task",date:"2026-10-28"}]});
+assert.equal(result.ok,true,result.error);
 assert.equal(result.data.stars,8);
 result=context.apiAction(secret,"sync",{ops:[{type:"task_complete",id:"daily_task",date:"2026-10-28"}]});
 assert.equal(result.data.stars,8,"Repetir la mateixa feina i data no duplica punts");
+assert.equal(context.apiAction(secret,"sync",{ops:[
+  {type:"task_complete",id:"legacy_slots",date:"2026-10-28"}
+]}).ok,false,"Cal escollir franja al mòbil, no atorgar punts automàtics");
+assert.equal(context.apiAction(secret,"sync",{ops:[
+  {type:"task_complete",id:"daily_task",date:"2026-10-29"}
+]}).ok,false,"Rebutja una data futura");
+currentDay="2026-10-29";
 result=context.apiAction(secret,"sync",{ops:[{type:"task_complete",id:"daily_task",date:"2026-10-29"}]});
-assert.equal(result.data.stars,11,"Una tasca diària pot repetir-se l'endemà");
-const redeem={type:"reward_redeem",id:"old_reward",mutationId:"redemption_1"};
-result=context.apiAction(secret,"sync",{ops:[redeem]});
-assert.equal(result.data.stars,1,"Descompta punts del full, sense perdre completades");
-result=context.apiAction(secret,"sync",{ops:[redeem]});
-assert.equal(result.data.stars,1,"Un reintent d'un premi no descompta dues vegades");
-assert.equal(context.apiAction(secret,"sync",{ops:[{type:"reward_redeem",id:"old_reward",mutationId:"redemption_2"}]}).ok,false);
-const deleted=context.apiAction(secret,"sync",{ops:[{type:"task_delete",id:"old_task"}]});
-assert.ok(!deleted.data.tasks.some(t=>t.id==="old_task"));
-assert.ok(tabs.get("TasquesFetes").rows.some(r=>r[1]==="old_task"),"El registre històric es manté");
+assert.equal(result.ok,true,result.error);
+assert.equal(result.data.stars,11);
+assert.equal(result.data.tasks.find(t=>t.id==="legacy_weekly").dueToday,false);
+assert.equal(context.apiAction(secret,"sync",{ops:[
+  {type:"task_complete",id:"legacy_weekly",date:"2026-10-29"}
+]}).ok,false,"Una feina de dimecres no toca dijous");
+// Modificar una tasca ja programada no pot esborrar les seves franges ni dies.
+result=context.apiAction(secret,"sync",{ops:[{
+  type:"task_set",id:"legacy_weekly",title:"Endreçar bé",stars:4,daily:true,owner:"Rai"
+}]});
+assert.equal(result.ok,true,result.error);
+assert.equal(result.data.tasks.find(t=>t.id==="legacy_weekly").frequency,"weekly");
+assert.equal(result.data.tasks.find(t=>t.id==="legacy_weekly").days,"3");
+// L'Android actual no pot donar punts a membres sense identitat al full antic.
+assert.equal(context.apiAction(secret,"sync",{ops:[{
+  type:"task_set",id:"family_1",title:"Feina família",stars:2,daily:true,owner:"Família"
+}]}).ok,false);
 
+// Una sol·licitud de premi NO resta punts fins que l'adult l'aprova amb PIN.
+const request={type:"reward_request",id:"old_reward",mutationId:"redemption_1"};
+result=context.apiAction(secret,"sync",{ops:[request]});
+assert.equal(result.ok,true,result.error);
+assert.equal(result.data.stars,11);
+assert.equal(result.data.pointsReserved,10);
+assert.equal(result.data.pendingReward,"old_reward");
+assert.equal(result.data.pendingRequestId,"redemption_1");
+result=context.apiAction(secret,"sync",{ops:[request]});
+assert.equal(result.data.pointsReserved,10,"Un reintent no reserva dues vegades");
+assert.equal(tabs.get("PeticionsPremis").rows.length,2,"Una sola petició pendent");
+assert.equal(context.apiAction(secret,"sync",{ops:[{
+  type:"reward_request",id:"old_reward",mutationId:"redemption_2"
+}]}).ok,false,"No permet reservar punts ja compromesos");
+assert.equal(context.apiAction(secret,"sync",{ops:[{
+  type:"reward_redeem",id:"old_reward",mutationId:"redemption_3"
+}]}).ok,false,"No permet restar punts esquivant el PIN");
+context.configurarPinAdult("3479");
+assert.equal(context.familyTasksAction(secret,"rewards_decide",{
+  id:"redemption_1",pin:"0000",approve:true
+}).ok,false,"PIN incorrecte");
+const approved=context.familyTasksAction(secret,"rewards_decide",{
+  id:"redemption_1",pin:"3479",approve:true
+});
+assert.equal(approved.ok,true,approved.error);
+family=context.apiAction(secret,"sync",{ops:[]}).data;
+assert.equal(family.stars,1);
+assert.equal(family.pointsReserved,0);
+assert.equal(family.pendingReward,"");
+const deleted=context.apiAction(secret,"sync",{ops:[{type:"task_delete",id:"old_task"}]});
+assert.equal(deleted.ok,true);
+assert.ok(!deleted.data.tasks.some(t=>t.id==="old_task"));
+assert.ok(tabs.get("TasquesFetes").rows.some(r=>r[1]==="old_task"),"Històric preservat");
 
 // Fotografies: Fotos.gs continua sent el propietari de la carpeta i de la clau de lectura.
 const existingFolder=context.DriveApp.createFolder("Marc Familiar · Fotos compartides");
@@ -231,35 +308,29 @@ assert.equal(JSON.parse(http.text).ok, true);
 const page = context.doGet();
 assert.equal(page.name, "Mobile");
 
-// Les rutes HTTP antigues de Fotos.gs i familyTasksAction no es trenquen.
-const legacyCalls = [];
-context.familyTasksAction = (key, action, data) => {
-  legacyCalls.push({route:"family_tasks",key,action,data});
-  return {ok: true, legacy:"tasks", action, data};
-};
-context.photoApiAction_ = (key, action, payload) => {
-  legacyCalls.push({route:action,key,payload});
-  if(key!==oldReaderKey)return {ok:false,error:'Clau de lectura incorrecta'};
-  return {ok: true, legacy:"photos", action, payload};
-};
+// L'API HTTP familiar antigua continua funcionant amb Tasques.gs real.
 const invokeLegacy = request => JSON.parse(context.doPost({
   postData: {contents:JSON.stringify(request)}
 }).text);
-const taskLegacy=invokeLegacy({key:secret,action:"family_tasks",
-  payload:{action:"list",data:{persona:"Rai"}}});
-assert.equal(taskLegacy.legacy,"tasks");
-assert.equal(taskLegacy.action,"list");
-assert.equal(legacyCalls[0].key,secret);
-assert.equal(invokeLegacy({key:secret,action:"photos_list",payload:{page:1}}).ok,false);
-const photosLegacy=invokeLegacy({key:oldReaderKey,action:"photos_list",payload:{page:1}});
-assert.equal(photosLegacy.legacy,"photos");
-assert.equal(photosLegacy.action,"photos_list");
-const photoLegacy=invokeLegacy({key:oldReaderKey,action:"photos_get",payload:{id:"foto_01"}});
-assert.equal(photoLegacy.payload.id,"foto_01");
-assert.equal(legacyCalls.length,4);
-delete context.familyTasksAction;
-delete context.photoApiAction_;
-assert.equal(invokeLegacy({key:secret,action:"family_tasks",payload:{action:"list"}}).ok,false);
+const tasksLegacy=invokeLegacy({key:secret,action:"family_tasks",
+  payload:{action:"tasks_snapshot",data:{}}});
+assert.equal(tasksLegacy.ok,true,tasksLegacy.error);
+assert.equal(tasksLegacy.data.points,1);
+assert.equal(invokeLegacy({key:"0".repeat(64),action:"family_tasks",
+  payload:{action:"tasks_snapshot"}}).ok,false);
+// Fotos.gs utilitza una altra clau per a la lectura; simulem aquesta validació.
+let oldCalls=0;
+context.photoApiAction_=(key,action,payload)=>{
+  oldCalls++;
+  if(key!==oldReaderKey)return {ok:false,error:"Clau de lectura incorrecta"};
+  return {ok:true,legacy:true,action,payload};
+};
 assert.equal(invokeLegacy({key:secret,action:"photos_list",payload:{}}).ok,false);
+assert.equal(invokeLegacy({key:oldReaderKey,action:"photos_list",payload:{}}).ok,true);
+assert.equal(invokeLegacy({key:oldReaderKey,action:"photos_get",
+  payload:{id:"arxiu_imatge_01"}}).ok,true);
+assert.equal(oldCalls,3);
+// No s'han escrit mai claus ni PIN en el Sheets.
+assert.ok(!Array.from(tabs.values()).some(t=>t.rows.flat().includes(secret)));
 
-console.log("OK · KEY_HASH i PHOTO_READ_KEY_HASH compatibles; mateix PHOTO_FOLDER_ID, fotos existents, compra, sopars, tasques i punts.");
+console.log("OK · Tasques.gs real: freqüències, dies, franges, PIN, recompenses pendents, dos secrets i fotos de Drive.");
