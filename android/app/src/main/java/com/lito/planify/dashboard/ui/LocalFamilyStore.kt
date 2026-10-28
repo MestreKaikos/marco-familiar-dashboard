@@ -40,11 +40,74 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
     val rewards = mutableStateListOf<LocalReward>()
     /** Només notificacions de la compra; les feines/premis continuen locals. */
     var onGroceryMutation: ((JSONObject) -> Unit)? = null
+    var onFamilyMutation: ((JSONObject) -> Unit)? = null
 
     /** Rep les compres del núvol sense tocar tasques, recompenses ni PIN dels adults. */
     fun replaceGroceries(items: List<LocalGrocery>) {
         groceries.clear()
         groceries.addAll(items)
+        persist()
+    }
+
+    /** El full de Google és la font de veritat quan el servei retorna tasques.
+     * Abans del primer canvi de font, es guarda una còpia de les feines locals.
+     * Les feines pendents d'aprovació en aquest dispositiu no es descarten.
+     */
+    fun replaceFamilyFromCloud(data: JSONObject) {
+        val remoteTasks = data.optJSONArray("tasks") ?: return
+        val remoteDone = data.optJSONArray("taskDone") ?: return
+        val remoteRewards = data.optJSONArray("rewards") ?: return
+        if (!data.has("stars")) return
+        if (!prefs.contains("family_before_cloud")) {
+            prefs.edit().putString("family_before_cloud", prefs.getString("data", "{}")).apply()
+        }
+        val pendingLocal = chores.filter { it.status == "pending" }.associateBy { it.id }
+        val doneByTask = mutableMapOf<String, Pair<String, String>>()
+        for (j in 0 until remoteDone.length()) {
+            val d = remoteDone.optJSONObject(j) ?: continue
+            val id = d.optString("taskId")
+            val date = d.optString("date")
+            if (id.isBlank() || date.isBlank()) continue
+            if (doneByTask[id]?.first.orEmpty() < date) {
+                doneByTask[id] = date to d.optString("owner", "Rai")
+            }
+        }
+        val newChores = mutableListOf<LocalChore>()
+        for (i in 0 until remoteTasks.length()) {
+            val item = remoteTasks.optJSONObject(i) ?: continue
+            val id = item.optString("id")
+            val title = item.optString("title")
+            if (id.isBlank() || title.isBlank()) continue
+            val owner = if (item.optString("owner") == "Família") "Família" else "Rai"
+            val completed = doneByTask[id]?.takeIf { it.second == owner }?.first
+            val localPending = pendingLocal[id]?.takeIf { completed == null }
+            newChores.add(LocalChore(
+                id = id, title = title.take(100), owner = owner,
+                stars = item.optInt("stars", 1).coerceIn(1, 5),
+                daily = item.optBoolean("daily"),
+                date = completed ?: localPending?.date.orEmpty(),
+                status = when {
+                    completed != null -> "approved"
+                    localPending != null -> "pending"
+                    else -> "todo"
+                }
+            ))
+        }
+        val newRewards = mutableListOf<LocalReward>()
+        for (i in 0 until remoteRewards.length()) {
+            val reward = remoteRewards.optJSONObject(i) ?: continue
+            if (reward.optString("id").isNotBlank() && reward.optString("title").isNotBlank()) {
+                newRewards.add(LocalReward(reward.getString("id"),reward.getString("title").take(100),
+                    reward.optInt("cost", 1).coerceIn(1, 999)))
+            }
+        }
+        chores.clear()
+        chores.addAll(newChores)
+        rewards.clear()
+        rewards.addAll(newRewards)
+        stars = data.optInt("stars",0).coerceAtLeast(0)
+        val remotePending = data.optString("pendingReward").takeIf { it.isNotBlank() }
+        pendingRewardId = remotePending ?: pendingRewardId?.takeIf { id -> rewards.any { it.id == id } }
         persist()
     }
 
@@ -173,14 +236,20 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
     fun addChore(raw: String, owner: String, daily: Boolean, points: Int) {
         val title = raw.trim().take(100)
         if (title.isBlank()) return
-        chores.add(LocalChore(newId(), title, if (owner == "Rai") "Rai" else "Família", points.coerceIn(1, 5), daily))
+        val chore = LocalChore(newId(), title, if (owner == "Rai") "Rai" else "Família", points.coerceIn(1, 5), daily)
+        chores.add(chore)
         persist()
+        onFamilyMutation?.invoke(JSONObject().put("type", "task_set").put("id", chore.id)
+            .put("title", chore.title).put("stars", chore.stars)
+            .put("owner", chore.owner).put("daily", chore.daily))
     }
 
     fun removeChore(id: String) {
         // Els punts ja validats es mantenen com un registre de l'esforç realitzat.
-        chores.removeAll { it.id == id }
-        persist()
+        if (chores.removeAll { it.id == id }) {
+            persist()
+            onFamilyMutation?.invoke(JSONObject().put("type", "task_delete").put("id", id))
+        }
     }
 
     fun status(chore: LocalChore, today: LocalDate): String =
@@ -196,6 +265,10 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
             status = if (task.owner == "Rai") "pending" else "approved"
         )
         persist()
+        if (task.owner != "Rai") {
+            onFamilyMutation?.invoke(JSONObject().put("type","task_complete").put("id",id)
+                .put("date",today.toString()))
+        }
     }
 
     /** L'aprovació només acredita una vegada la mateixa tasca i data. */
@@ -207,6 +280,8 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
         chores[i] = task.copy(status = "approved")
         stars += task.stars
         persist()
+        onFamilyMutation?.invoke(JSONObject().put("type","task_complete").put("id",id)
+            .put("date",today.toString()))
     }
 
     fun rejectChore(id: String, today: LocalDate) {
@@ -220,14 +295,19 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
     fun addReward(raw: String, points: Int) {
         val title = raw.trim().take(100)
         if (title.isBlank()) return
-        rewards.add(LocalReward(newId(), title, points.coerceIn(1, 999)))
+        val reward = LocalReward(newId(), title, points.coerceIn(1, 999))
+        rewards.add(reward)
         persist()
+        onFamilyMutation?.invoke(JSONObject().put("type","reward_set").put("id",reward.id)
+            .put("title",reward.title).put("cost",reward.cost))
     }
 
     fun removeReward(id: String) {
-        rewards.removeAll { it.id == id }
-        if (pendingRewardId == id) pendingRewardId = null
-        persist()
+        if (rewards.removeAll { it.id == id }) {
+            if (pendingRewardId == id) pendingRewardId = null
+            persist()
+            onFamilyMutation?.invoke(JSONObject().put("type","reward_delete").put("id",id))
+        }
     }
 
     fun requestReward(id: String) {
@@ -240,7 +320,10 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
     fun decideReward(approved: Boolean) {
         val id = pendingRewardId ?: return
         val reward = rewards.firstOrNull { it.id == id }
-        if (approved && reward != null && stars >= reward.cost) stars -= reward.cost
+        if (approved && reward != null && stars >= reward.cost) {
+            stars -= reward.cost
+            onFamilyMutation?.invoke(JSONObject().put("type","reward_redeem").put("id",reward.id))
+        }
         pendingRewardId = null
         persist()
     }
