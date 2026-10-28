@@ -1,4 +1,6 @@
-# Sincronització familiar · Compra i sopars
+# Sincronització familiar · Compra i sopars (fase inicial)
+
+**Nota:** Aquesta guia descriu la fase inicial. Per a la versió que integra tasques, punts, recompenses i fotos amb una sola connexió, consulta [Marc Familiar unificat](MARC-FAMILIAR-UNIFICAT.md).
 
 **Estat:** implementació experimental. L'app Android continua funcionant sense Internet i, fins que es configura el núvol, totes les dades romanen locals. **No connecteu dades personals fins a haver verificat les proves del PR.**
 
