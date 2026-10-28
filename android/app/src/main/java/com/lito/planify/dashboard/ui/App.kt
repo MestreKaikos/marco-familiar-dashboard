@@ -4,6 +4,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -215,23 +218,27 @@ fun DashboardApp(
 
 @Composable
 private fun Rail(current: Page, state: UiState, onSelect: (Page) -> Unit, onSync: () -> Unit, onSleep: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .width(136.dp)
-            .fillMaxHeight()
-            .background(Palette.Rail)
-            .padding(vertical = 48.dp)
-    ) {
-        // Todos los botones juntos arriba y el reloj abajo del todo
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Page.entries.filter { it != Page.Settings && it.available(state) }.forEach { page -> RailItem(page.shortLabel, page.icon, page == current) { onSelect(page) } }
-            SyncItem(state.syncing, onSync)
-            RailItem(Page.Settings.shortLabel, Page.Settings.icon, current == Page.Settings) { onSelect(Page.Settings) }
-            RailItem("Dormir", Icons.Outlined.Bedtime, false, onClick = onSleep)
+    BoxWithConstraints(Modifier.width(136.dp).fillMaxHeight()) {
+        val compact = maxHeight < 850.dp
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Palette.Rail)
+                .then(if (compact) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                .padding(vertical = if (compact) 12.dp else 48.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 12.dp)) {
+                Page.entries.filter { it != Page.Settings && it.available(state) }.forEach { page ->
+                    RailItem(page.shortLabel, page.icon, page == current) { onSelect(page) }
+                }
+                SyncItem(state.syncing, onSync)
+                RailItem(Page.Settings.shortLabel, Page.Settings.icon, current == Page.Settings) { onSelect(Page.Settings) }
+                RailItem("Dormir", Icons.Outlined.Bedtime, false, onClick = onSleep)
+            }
+            if (compact) Spacer(Modifier.height(18.dp)) else Spacer(Modifier.weight(1f))
+            RailClock(state)
         }
-        Spacer(Modifier.weight(1f))
-        RailClock(state)
     }
 }
 
