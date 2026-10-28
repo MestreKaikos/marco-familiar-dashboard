@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.MultiFormatWriter
 import com.google.zxing.common.BitMatrix
@@ -91,7 +92,7 @@ internal class RaiLocalPairing(private val context:Context,private val onPaired:
         val url=fields["url"].orEmpty().trim()
         val key=fields["key"].orEmpty().trim()
         val good=runCatching {
-            val u=okhttp3.HttpUrl.Companion.toHttpUrlOrNull(url)
+            val u=url.toHttpUrlOrNull()
             u!=null&&u.isHttps&&u.host=="script.google.com"&&u.encodedPath.endsWith("/exec")&&
                 key.matches(Regex("[a-fA-F0-9]{64}"))
         }.getOrDefault(false)
@@ -99,7 +100,7 @@ internal class RaiLocalPairing(private val context:Context,private val onPaired:
         context.getSharedPreferences("marc_rai_sync",Context.MODE_PRIVATE).edit()
             .putString("url",url).putString("key",key).apply()
         respond(socket,200,"<html lang='ca'><meta name='viewport' content='width=device-width'><body><h2>Marc vinculat!</h2><p>Ja pots tornar a la pantalla del marc.</p></body></html>")
-        onPaired(url,key)
+        android.os.Handler(android.os.Looper.getMainLooper()).post { onPaired(url,key) }
         close()
     }
     override fun close() { if(live.getAndSet(false)) runCatching {server.close()} }
