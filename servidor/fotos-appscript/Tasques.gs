@@ -42,7 +42,7 @@ function taskOccursToday_(task,date) {
   if(task.frequency==='once') return !task.everDone;
   if(task.frequency==='daily'||task.frequency==='slots')return true;
   const day=(new Date(date+'T12:00:00Z').getUTCDay()+6)%7+1;
-  return task.days.split(',').includes(String(day));
+  return String(task.days||'').split(',').includes(String(day));
 }
 function familyTaskId_(id) {
   if(typeof id!=='string'||!/^[a-zA-Z0-9_-]{1,80}$/.test(id))throw Error('ID invàlid');
@@ -54,10 +54,11 @@ function familyPositive_(n,max){
   return n;
 }
 function familyTasksSnapshot_(){
-  const tasks=rows_(familyTaskSheet_(TASKS_TAB_,['id','titol','punts','activa']),4)
-    .filter(r=>r[0]&&r[1]).map(r=>({id:String(r[0]),title:String(r[1]),points:Number(r[2])||0,active:r[3]===true}));
-  const done=rows_(familyTaskSheet_(TASK_DONE_TAB_,['data','tascaId','persona','punts']),4)
-    .filter(r=>r[0]&&r[1]).map(r=>({date:String(r[0]),taskId:String(r[1]),kid:String(r[2]),points:Number(r[3])||0}));
+  const tasks=rows_(familyTaskSheet_(TASKS_TAB_,['id','titol','punts','activa','frequencia','dies','franges']),7)
+    .filter(r=>r[0]&&r[1]).map(r=>({id:String(r[0]),title:String(r[1]),points:Number(r[2])||0,
+      active:r[3]===true,frequency:String(r[4]||'daily'),days:String(r[5]||''),slots:String(r[6]||'única')}));
+  const done=rows_(familyTaskSheet_(TASK_DONE_TAB_,['data','tascaId','persona','punts','franja']),5)
+    .filter(r=>r[0]&&r[1]).map(r=>({date:String(r[0]),taskId:String(r[1]),kid:String(r[2]),points:Number(r[3])||0,slot:String(r[4]||'única')}));
   tasks.forEach(t=>{ t.everDone=done.some(d=>d.taskId===t.id); t.dueToday=t.active&&taskOccursToday_(t,taskDate_()); });
   const rewards=rows_(familyTaskSheet_(REWARDS_TAB_,['id','recompensa','cost','activa']),4)
     .filter(r=>r[0]&&r[1]).map(r=>({id:String(r[0]),title:String(r[1]),cost:Number(r[2])||0,active:r[3]===true}));
@@ -92,12 +93,14 @@ function familyTasksAction(key,action,payload){
     }else if(action==='tasks_done'){
       const id=familyTaskId_(payload.id),snapshot=familyTasksSnapshot_();
       const task=snapshot.tasks.find(t=>t.id===id&&t.active);
-      if(!task)throw Error('Tasca no disponible');
-      if(!snapshot.done.some(d=>d.taskId===id&&d.date===date&&d.kid==='Rai'))
-        familyTaskSheet_(TASK_DONE_TAB_,['data','tascaId','persona','punts']).appendRow([date,id,'Rai',task.points]);
+      if(!task||!task.dueToday)throw Error('Aquesta tasca no toca avui');
+      const slot=String(payload.slot||'única');
+      if(!task.slots.split(',').includes(slot))throw Error('Franja no vàlida');
+      if(!snapshot.done.some(d=>d.taskId===id&&d.date===date&&d.kid==='Rai'&&d.slot===slot))
+        familyTaskSheet_(TASK_DONE_TAB_,['data','tascaId','persona','punts','franja']).appendRow([date,id,'Rai',task.points,slot]);
     }else if(action==='tasks_undo'){
-      const id=familyTaskId_(payload.id),tab=familyTaskSheet_(TASK_DONE_TAB_,['data','tascaId','persona','punts']);
-      const rows=rows_(tab,4),idx=rows.findIndex(r=>r[0]===date&&r[1]===id&&r[2]==='Rai');
+      const id=familyTaskId_(payload.id),slot=String(payload.slot||'única'),tab=familyTaskSheet_(TASK_DONE_TAB_,['data','tascaId','persona','punts','franja']);
+      const rows=rows_(tab,5),idx=rows.findIndex(r=>r[0]===date&&r[1]===id&&r[2]==='Rai'&&String(r[4]||'única')===slot);
       if(idx>=0)tab.deleteRow(idx+2);
     }else if(action==='rewards_set'){
       const id=familyTaskId_(payload.id),title=safeText_(payload.title,100),cost=familyPositive_(payload.cost,10000);
