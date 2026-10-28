@@ -166,7 +166,7 @@ fun DashboardApp(
                         Page.Energy -> EnergyScreen(state)
                         // Prueba: Casa y Energía juntas (EnergyScreen y HomeScreen siguen por si se separan)
                         Page.Home -> HomeEnergyScreen(state, home)
-                        Page.Tasks -> LocalFamilyScreen(family, state.now.toLocalDate())
+                        Page.Tasks -> RaiFamilyScreen()
                         Page.Settings -> SettingsScreen(state, actions, settings)
                     }
                 }
