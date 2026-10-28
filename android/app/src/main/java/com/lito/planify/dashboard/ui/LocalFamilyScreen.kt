@@ -47,9 +47,9 @@ import com.lito.planify.dashboard.ui.theme.Palette
 import com.lito.planify.dashboard.ui.theme.Type
 import java.time.LocalDate
 
-/** Una sola pantalla amb tres columnes: compra, feines i recompenses. Tot és local. */
+/** Una pantalla: compra, feines i recompenses. Dades del núvol si el servei és nou. */
 @Composable
-fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Boolean = false, pending: Int = 0) {
+fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Boolean = false, pending: Int = 0, tasksShared: Boolean = false) {
     var groceryName by rememberSaveable { mutableStateOf("") }
     var editGrocery by remember { mutableStateOf<LocalGrocery?>(null) }
     var addChore by remember { mutableStateOf(false) }
@@ -136,6 +136,13 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
             }
             Spacer(Modifier.height(12.dp))
             Text("En Rai pot marcar una feina feta; un adult la valida abans de sumar estrelles.", style = Type.Tiny.copy(color = Palette.InkSoft))
+            Text(
+                if (tasksShared) "✓ Tasques i punts compartits amb Google Sheets" else
+                    if (connected) "Feines locals · cal actualitzar Apps Script per sincronitzar-les" else
+                        "Feines locals · connecta la sincronització a Opcions",
+                style = Type.Tiny.copy(color = if (tasksShared) Palette.Online else Palette.InkMuted),
+                modifier = Modifier.padding(top = 8.dp)
+            )
             Spacer(Modifier.height(14.dp))
             if (store.chores.isEmpty()) {
                 Text("Encara no hi ha feines. Pots crear-ne per a en Rai o per a tota la família.", style = Type.Small.copy(color = Palette.InkSoft), modifier = Modifier.padding(top = 16.dp))
@@ -242,7 +249,7 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
                     }
                 }
             }
-            Text("Punts validats pels adults · premis configurables", style = Type.Tiny.copy(color = Palette.InkMuted), modifier = Modifier.padding(top = 12.dp))
+            Text(if (tasksShared) "Saldo i premis del Google Sheets" else "Punts i premis locals", style = Type.Tiny.copy(color = Palette.InkMuted), modifier = Modifier.padding(top = 12.dp))
         }
     }
 
