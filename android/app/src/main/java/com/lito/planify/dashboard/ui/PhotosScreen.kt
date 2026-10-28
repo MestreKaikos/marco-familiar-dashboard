@@ -54,6 +54,7 @@ fun PhotosScreen() {
     var draftKey by remember { mutableStateOf(sharedKey) }
     var showSharedSetup by remember { mutableStateOf(false) }
     var sharedStatus by remember { mutableStateOf("") }
+    var refreshRequest by remember { mutableIntStateOf(0) }
     // Les credencials poden arribar des del QR mentre Fotos és en segon pla.
     LaunchedEffect(Unit) {
         while (true) {
@@ -83,7 +84,6 @@ fun PhotosScreen() {
     var currentPhotoUri by remember { mutableStateOf<Uri?>(null) }
     var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var loading by remember { mutableStateOf(false) }
-    var refreshRequest by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
 
     val chooser = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
