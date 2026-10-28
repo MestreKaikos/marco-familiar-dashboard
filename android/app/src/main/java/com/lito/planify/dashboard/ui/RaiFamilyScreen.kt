@@ -86,10 +86,8 @@ fun RaiFamilyScreen() {
     val prefs=remember(context){context.getSharedPreferences("marc_rai_sync",Context.MODE_PRIVATE)}
     var url by remember { mutableStateOf(prefs.getString("url","").orEmpty()) }
     var key by remember { mutableStateOf(prefs.getString("key","").orEmpty()) }
-    var edit by remember { mutableStateOf(url.isBlank()||key.isBlank()) }
-    var showQr by remember { mutableStateOf(url.isBlank()||key.isBlank()) }
-    var draftUrl by remember { mutableStateOf(url) }
-    var draftKey by remember { mutableStateOf(key) }
+    var showQr by remember { mutableStateOf(false) }
+    var showDirect by remember { mutableStateOf(false) }
     var snapshot by remember { mutableStateOf<RaiSnapshot?>(null) }
     var error by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
@@ -122,29 +120,30 @@ fun RaiFamilyScreen() {
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
             Text("⭐ Tasques d'en Rai",style=com.lito.planify.dashboard.ui.theme.Type.Title)
             OutlinedButton(onClick={showQr=!showQr}){Text(if(showQr)"Tancar QR" else "Connectar amb QR")}
-            OutlinedButton(onClick={edit=!edit}){Text("Manual")}
+            OutlinedButton(onClick={showDirect=true}){Text("Configurar")}
             OutlinedButton(onClick={seq++}){Text("Actualitzar")}
         }
         if(showQr) {
             RaiPairingView { newUrl,newKey ->
-                url=newUrl;key=newKey;draftUrl=newUrl;draftKey=newKey
-                showQr=false;edit=false;seq++
+                url=newUrl;key=newKey
+                showQr=false;seq++
             }
         }
-        if(edit && !showQr) {
-            OutlinedTextField(draftUrl,{draftUrl=it},label={Text("URL Apps Script /exec")},modifier=Modifier.fillMaxWidth())
-            OutlinedTextField(draftKey,{draftKey=it},label={Text("Clau familiar")},visualTransformation=PasswordVisualTransformation(),modifier=Modifier.fillMaxWidth())
-            Button(onClick={
-                url=draftUrl.trim();key=draftKey.trim()
-                prefs.edit().putString("url",url).putString("key",key).apply()
-                edit=false;seq++
-            }){Text("Desar connexió")}
+        if(showDirect) {
+            RaiDirectSetup(
+                onDismiss = { showDirect = false },
+                onSaved = { newUrl,newKey ->
+                    url = newUrl; key = newKey
+                    showQr = false; showDirect = false
+                    error = ""; seq++
+                }
+            )
         }
         if(error.isNotBlank())Text(error,color=androidx.compose.ui.graphics.Color.Red)
         if(busy)LinearProgressIndicator(Modifier.fillMaxWidth())
         val current=snapshot
         if(current==null) {
-            Text("Configura la connexió familiar per veure les tasques compartides.")
+            Text("Prem Configurar per connectar la família des d’aquest mateix mòbil, o Connectar amb QR per vincular un altre dispositiu.")
         } else {
             Text("⭐ ${current.points} punts",style=com.lito.planify.dashboard.ui.theme.Type.Large)
             Row(Modifier.fillMaxSize(),horizontalArrangement=Arrangement.spacedBy(20.dp)) {
