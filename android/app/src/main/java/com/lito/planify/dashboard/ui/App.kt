@@ -4,6 +4,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,6 +43,7 @@ import androidx.compose.runtime.mutableStateOf
 import com.lito.planify.dashboard.data.Event
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import androidx.compose.runtime.setValue
@@ -113,6 +117,8 @@ fun DashboardApp(
     home: HomeCallbacks = HomeCallbacks()
 ) {
     var page by remember { mutableStateOf(Page.Today) }
+    // Manté els camps editats en tornar a una pestanya, sense crear una segona còpia de les dades.
+    val pageState = rememberSaveableStateHolder()
     // Sopars compartits entre la portada i el calendari, desats només al dispositiu.
     val dinners = rememberDinnerPlan()
     val family = rememberLocalFamilyStore()
@@ -184,6 +190,7 @@ fun DashboardApp(
             // La barra lateral a la derecha, con el nombre bajo cada icono
             Row(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f).fillMaxHeight()) {
+                    pageState.SaveableStateProvider(page.name) {
                     when (page) {
                         // La portada familiar funciona sense credencials; el backend antic és opcional.
                         Page.Today -> if (state.ics || state.token == null) FamilyTodayScreen(state, dinners, family, onOpen = { page = it }) else TodayScreen(state, lastTouch)
@@ -194,8 +201,9 @@ fun DashboardApp(
                         Page.Energy -> EnergyScreen(state)
                         // Prueba: Casa y Energía juntas (EnergyScreen y HomeScreen siguen por si se separan)
                         Page.Home -> HomeEnergyScreen(state, home)
-                        Page.Tasks -> LocalFamilyScreen(family, state.now.toLocalDate())
+                        Page.Tasks -> LocalFamilyScreen(family, state.now.toLocalDate(), sync.connected, sync.pendingCount)
                         Page.Settings -> SettingsScreen(state, actions, settings, sync, dinners, family)
+                    }
                     }
                 }
                 Rail(page, state, onSelect = { page = it }, onSync = {
@@ -210,23 +218,27 @@ fun DashboardApp(
 
 @Composable
 private fun Rail(current: Page, state: UiState, onSelect: (Page) -> Unit, onSync: () -> Unit, onSleep: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .width(136.dp)
-            .fillMaxHeight()
-            .background(Palette.Rail)
-            .padding(vertical = 48.dp)
-    ) {
-        // Todos los botones juntos arriba y el reloj abajo del todo
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Page.entries.filter { it != Page.Settings && it.available(state) }.forEach { page -> RailItem(page.shortLabel, page.icon, page == current) { onSelect(page) } }
-            SyncItem(state.syncing, onSync)
-            RailItem(Page.Settings.shortLabel, Page.Settings.icon, current == Page.Settings) { onSelect(Page.Settings) }
-            RailItem("Dormir", Icons.Outlined.Bedtime, false, onClick = onSleep)
+    BoxWithConstraints(Modifier.width(136.dp).fillMaxHeight()) {
+        val compact = maxHeight < 850.dp
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Palette.Rail)
+                .then(if (compact) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                .padding(vertical = if (compact) 12.dp else 48.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 12.dp)) {
+                Page.entries.filter { it != Page.Settings && it.available(state) }.forEach { page ->
+                    RailItem(page.shortLabel, page.icon, page == current) { onSelect(page) }
+                }
+                SyncItem(state.syncing, onSync)
+                RailItem(Page.Settings.shortLabel, Page.Settings.icon, current == Page.Settings) { onSelect(Page.Settings) }
+                RailItem("Dormir", Icons.Outlined.Bedtime, false, onClick = onSleep)
+            }
+            if (compact) Spacer(Modifier.height(18.dp)) else Spacer(Modifier.weight(1f))
+            RailClock(state)
         }
-        Spacer(Modifier.weight(1f))
-        RailClock(state)
     }
 }
 
