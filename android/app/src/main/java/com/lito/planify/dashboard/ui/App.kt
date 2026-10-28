@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Checklist
+import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Settings
@@ -38,6 +39,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import com.lito.planify.dashboard.data.Event
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalContext
+import android.content.Context
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
@@ -60,13 +64,14 @@ import java.time.LocalDate
 import kotlinx.coroutines.delay
 
 enum class Page(val label: String, val icon: ImageVector) {
-    Today("Hoy", Icons.Outlined.Today),
-    Calendar("Calendario", Icons.Outlined.CalendarMonth),
-    Weather("Tiempo", Icons.Outlined.Thermostat),
-    Energy("Energía", Icons.Outlined.Bolt),
-    Home("Casa y energía", Icons.Outlined.Home),
-    Tasks("Tareas", Icons.Outlined.Checklist),
-    Settings("Ajustes", Icons.Outlined.Settings)
+    Today("Avui", Icons.Outlined.Today),
+    Photos("Fotos", Icons.Outlined.PhotoLibrary),
+    Calendar("Calendari", Icons.Outlined.CalendarMonth),
+    Weather("El temps", Icons.Outlined.Thermostat),
+    Energy("Energia", Icons.Outlined.Bolt),
+    Home("Casa i energia", Icons.Outlined.Home),
+    Tasks("Família", Icons.Outlined.Checklist),
+    Settings("Opcions", Icons.Outlined.Settings)
 }
 
 /** Nombre corto bajo el icono de la barra lateral. */
@@ -100,7 +105,6 @@ private val RAIL_CLOCK_OVERLAP = (-30).dp
 fun DashboardApp(
     state: UiState,
     actions: DashboardActions,
-    onLogin: (String, String) -> Unit,
     onLoadWeek: (LocalDate) -> Unit,
     onSync: () -> Unit,
     settings: SettingsCallbacks,
@@ -108,14 +112,35 @@ fun DashboardApp(
     chores: ChoreCallbacks,
     home: HomeCallbacks = HomeCallbacks()
 ) {
-    var page by remember { mutableStateOf(Page.Today) }
+    val deviceContext = LocalContext.current
+    var page by rememberSaveable {
+        val editing = deviceContext.getSharedPreferences("marc_setup_draft", Context.MODE_PRIVATE)
+            .getBoolean("in_progress", false)
+        mutableStateOf(if (editing) Page.Settings else Page.Today)
+    }
+    var familySetupActive by remember {
+        mutableStateOf(
+            deviceContext.getSharedPreferences("marc_setup_draft", Context.MODE_PRIVATE)
+                .getBoolean("in_progress", false)
+        )
+    }
+    // Un sol magatzem compartit de Google Sheets per a Avui, Família i Opcions.
+    // No es recrea en canviar de pestanya.
+    val cloud = remember(deviceContext) { FamilyCloudStore(deviceContext) }
+    LaunchedEffect(cloud) {
+        while (true) {
+            cloud.refresh()
+            delay(60_000L)
+        }
+    }
+    val dinners = rememberDinnerPlan()
     var lastTouch by remember { mutableLongStateOf(0L) }
     /** Cita abierta en el aviso ([EventOverlay]); se cierra sola al volver a Hoy por inactividad. */
     var shownEvent by remember { mutableStateOf<Event?>(null) }
 
-    // Tras 2 minutos sin tocar se vuelve a Hoy.
-    LaunchedEffect(page, lastTouch) {
-        if (page == Page.Today) return@LaunchedEffect
+    // Després de dos minuts sense tocar, tornem a Avui, excepte durant la presentació de fotos.
+    LaunchedEffect(page, lastTouch, familySetupActive) {
+        if (page == Page.Today || page == Page.Photos || (page == Page.Settings && familySetupActive)) return@LaunchedEffect
         delay(IDLE_MILLIS)
         page = Page.Today
     }
@@ -141,11 +166,7 @@ fun DashboardApp(
                 }
             }
     ) {
-        if (state.token == null) {
-            LoginScreen(state, onLogin, actions.openWifi)
-            return@Box
-        }
-        if (state.night) {
+        if (state.night && page != Page.Photos && !(page == Page.Tasks && familySetupActive)) {
             NightScreen(state, onWake = {
                 page = Page.Today
                 onPeek()
@@ -157,16 +178,17 @@ fun DashboardApp(
             Row(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f).fillMaxHeight()) {
                     when (page) {
-                        // Con los calendarios de la familia, la portada nueva (por persona); con Planify, la de Lito
-                        Page.Today -> if (state.ics) FamilyTodayScreen(state, onOpen = { page = it }) else TodayScreen(state, lastTouch)
+                        // La portada familiar funciona sense credencials; el backend antic és opcional.
+                        Page.Today -> if (cloud.connected || state.ics || state.token == null) FamilyTodayScreen(state, dinners, cloud, onOpen = { page = it }) else TodayScreen(state, lastTouch)
+                        Page.Photos -> PhotosScreen()
                         // Con los calendarios de la familia, semanas en vertical como la portada; con Planify, la de Lito
-                        Page.Calendar -> if (state.ics) FamilyCalendarScreen(state) else CalendarScreen(state, onLoadWeek)
+                        Page.Calendar -> if (state.ics || state.token == null) FamilyCalendarScreen(state, dinners) else CalendarScreen(state, onLoadWeek)
                         Page.Weather -> WeatherScreen(state)
                         Page.Energy -> EnergyScreen(state)
                         // Prueba: Casa y Energía juntas (EnergyScreen y HomeScreen siguen por si se separan)
                         Page.Home -> HomeEnergyScreen(state, home)
-                        Page.Tasks -> TasksScreen(state, chores)
-                        Page.Settings -> SettingsScreen(state, actions, settings)
+                        Page.Tasks -> RaiFamilyScreen(cloud)
+                        Page.Settings -> SettingsScreen(state, actions, settings, cloud, onEditing = { familySetupActive = it })
                     }
                 }
                 Rail(page, state, onSelect = { page = it }, onSync = onSync, onSleep = actions.sleep)
@@ -258,7 +280,7 @@ private fun RailClock(state: UiState) {
             RollingText(minute, style.copy(color = Palette.InkSoft))
         }
         if (!state.online || !state.connected) {
-            Text("Sin conexión", style = Type.Tiny.copy(color = Palette.Accent), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
+            Text("Sense connexió", style = Type.Tiny.copy(color = Palette.Accent), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }

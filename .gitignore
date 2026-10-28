@@ -21,3 +21,7 @@ servidor/config/familia.json
 servidor/config/*.properties
 *.Shifter
 *.pdf
+
+# Clau privada de signatura Android (MAI versionar)
+*.jks
+*.keystore

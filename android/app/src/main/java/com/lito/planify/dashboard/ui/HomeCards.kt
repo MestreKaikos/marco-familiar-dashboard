@@ -93,7 +93,7 @@ internal fun CompactCard(
 }
 
 /**
- * Hoy en casa: el turno de hoy y de mañana (con el color de Shifter) y el menú del cole de hoy o, si hoy no
+ * Avui a casa: el turno de hoy y de mañana (con el color de Shifter) y el menú del cole de hoy o, si hoy no
  * hay cole, el del siguiente día que lo tenga.
  */
 @Composable
@@ -103,7 +103,7 @@ fun HouseCard(state: UiState, modifier: Modifier) {
     val menu = state.content?.menu.orEmpty()
     val shopping = state.shopping?.shopping()
     CompactCard(
-        "Hoy en casa", Icons.Outlined.Home, Palette.Warm, modifier,
+        "Avui a casa", Icons.Outlined.Home, Palette.Warm, modifier,
         trailing = {
             // Lo que queda en la lista de la compra (Bring!) y las tareas de los niños sin hacer; todo, en la pestaña de tareas
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -130,7 +130,7 @@ fun HouseCard(state: UiState, modifier: Modifier) {
             Row {
                 Text((todayShift ?: tomorrowShift)?.calendar_name?.uppercase(Spanish) ?: "TURNO", style = Type.Tiny.copy(color = Palette.InkMuted, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp), modifier = Modifier.width(96.dp).padding(top = 6.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (todayShift != null) ShiftPill(todayShift) else Text("Sin turno", style = Type.Small.copy(color = Palette.InkMuted))
+                    if (todayShift != null) ShiftPill(todayShift) else Text("Sense torn", style = Type.Small.copy(color = Palette.InkMuted))
                     if (tomorrowShift != null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Dot(parseColor(tomorrowShift.calendar_color), 12)
@@ -153,7 +153,7 @@ fun HouseCard(state: UiState, modifier: Modifier) {
                 Text("MENÚ", style = Type.Tiny.copy(color = Palette.InkMuted, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp), modifier = Modifier.width(96.dp).padding(top = 4.dp))
                 Column {
                     when {
-                        nextMenu == null -> Text("Sin menú cargado", style = Type.Small.copy(color = Palette.InkMuted))
+                        nextMenu == null -> Text("No hi ha menú carregat", style = Type.Small.copy(color = Palette.InkMuted))
                         else -> {
                             if (todayMenu == null) {
                                 Text(relativeDay(nextMenu.at.toLocalDate(), today).uppercase(Spanish), style = Type.Tiny.copy(color = Palette.InkSoft, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp))
@@ -206,7 +206,7 @@ fun EnergyCard(energy: Energy?, car: CarStatus?, now: LocalDateTime, modifier: M
     val min = day.minOfOrNull { it.eur_kwh } ?: 0.0
     val max = day.maxOfOrNull { it.eur_kwh } ?: 0.0
     CompactCard(
-        if (car?.bateria != null) "Luz y coche" else "Luz", Icons.Outlined.Bolt, Amber, modifier,
+        if (car?.bateria != null) "Llum i cotxe" else "Luz", Icons.Outlined.Bolt, Amber, modifier,
         trailing = {
             if (current != null) {
                 val color = priceColor(current.eur_kwh, min, max)
@@ -222,7 +222,7 @@ fun EnergyCard(energy: Energy?, car: CarStatus?, now: LocalDateTime, modifier: M
             car?.bateria?.let { BatteryGauge(it, car, Modifier.width(170.dp).fillMaxHeight().padding(end = 22.dp)) }
             Column(Modifier.weight(1f).fillMaxHeight()) {
                 if (day.isEmpty()) {
-                    Text("Sin precios todavía", style = Type.Small.copy(color = Palette.InkMuted))
+                    Text("Encara no hi ha preus", style = Type.Small.copy(color = Palette.InkMuted))
                 } else {
                     PriceBars(day, now, min, max, Modifier.fillMaxWidth().weight(1f).padding(bottom = 8.dp))
                     Text(cheapestLabel(energy!!.prices, now, today), style = Type.Tiny.copy(color = Palette.InkSoft), maxLines = 1, overflow = TextOverflow.Ellipsis)

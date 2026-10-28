@@ -41,6 +41,19 @@ android {
         buildConfigField("String", "DASHBOARD_CONFIG", "\"$dashboardConfig\"")
     }
 
+    val signedKeystore = rootProject.file("marc-familiar-signing.jks")
+    val signedPassword = System.getenv("MARC_SIGNING_PASSWORD")
+    val signedAlias = System.getenv("MARC_SIGNING_ALIAS")
+    val signedKeyPassword = System.getenv("MARC_SIGNING_KEY_PASSWORD")
+    if (signedKeystore.isFile && !signedPassword.isNullOrBlank() &&
+        !signedAlias.isNullOrBlank() && !signedKeyPassword.isNullOrBlank()) {
+        signingConfigs.create("marcFamiliar") {
+            storeFile = signedKeystore
+            storePassword = signedPassword
+            keyAlias = signedAlias
+            keyPassword = signedKeyPassword
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -51,8 +64,13 @@ android {
             signingConfig = signingConfigs.getByName("debug") // Instalación local por ADB, como la app
         }
         debug {
+            // APK de proves independent: no sobreescriu ni entra en conflicte
+            // amb el Marc Familiar existent, possiblement signat amb una altra clau.
+            applicationIdSuffix = ".testqr"
+            versionNameSuffix = "-qr-proves"
             buildConfigField("String", "BASE_URL", "\"$debugBaseUrl\"")
             manifestPlaceholders["cleartext"] = cleartext(debugBaseUrl)
+            signingConfigs.findByName("marcFamiliar")?.let { signingConfig = it }
         }
     }
     compileOptions {
@@ -95,6 +113,7 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation("com.airbnb.android:lottie:6.7.1")
+    implementation("com.google.zxing:core:3.5.3")
 
     implementation("com.squareup.retrofit2:retrofit:3.0.0")
     implementation("com.squareup.retrofit2:converter-gson:3.0.0")
