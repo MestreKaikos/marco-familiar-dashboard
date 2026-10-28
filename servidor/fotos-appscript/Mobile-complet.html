@@ -2,7 +2,7 @@
 <html lang="ca">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light"><title>Marc Familiar · Casa</title>
+<meta name="color-scheme" content="light"><meta name="theme-color" content="#f7f0e6"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><title>Marc Familiar · Casa</title>
 <style>
 :root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#26231e;background:#f7f0e6}
 *{box-sizing:border-box}body{margin:0;min-height:100vh}main{max-width:700px;margin:auto;padding:22px 16px 64px}
@@ -23,6 +23,13 @@ button.ghost{background:transparent;color:#74695c}button:focus-visible,input:foc
 .pill{font-size:12px;background:#faebd3;padding:5px 10px;border-radius:99px;color:#98600e}
 #auth{max-width:470px;margin:14vh auto}#syncTime{font-size:12px;color:#777}
 #photoPreview{display:none;width:100%;max-height:270px;object-fit:contain;border-radius:12px;margin:12px 0}
+.app-nav{position:sticky;bottom:0;z-index:20;background:#fffefaed;backdrop-filter:blur(18px);padding:10px 8px max(10px,env(safe-area-inset-bottom));margin:10px -16px -64px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;border-top:1px solid #eadfce}
+.app-nav button{display:flex;flex-direction:column;gap:5px;align-items:center;justify-content:center;background:transparent;border-radius:14px;font-size:12px;padding:10px 2px;color:#776e62}
+.app-nav button span{font-size:21px}.app-nav button.active{color:#1f2c25;background:#e1eadf}
+#application .panel{animation:appear .16s ease-out}@keyframes appear{from{opacity:.6;transform:translateY(5px)}}
+select{font:inherit;background:#fffcf9;border:1px solid #e4d6c2;color:#26231e}
+#application{padding-bottom:80px}#application>.panel[data-tab]{display:none}#application>.panel[data-tab].active{display:block}
+@media(max-width:430px){main{padding-top:10px}header{padding-bottom:10px}.app-nav{position:fixed;bottom:0;left:0;right:0;margin:0}.panel{border-radius:18px}}
 [hidden]{display:none!important}
 @media(max-width:430px){.row{flex-wrap:wrap}.row input{min-width:180px}.panel{padding:16px}}
 </style></head><body>
@@ -35,14 +42,14 @@ button.ghost{background:transparent;color:#74695c}button:focus-visible,input:foc
 <p><small>Es recordarà només durant la sessió del navegador.</small></p></div>
 <div id="application" hidden>
 <p id="message" aria-live="polite"></p>
-<section class="panel">
+<section class="panel" data-tab="compra">
 <div class="row" style="justify-content:space-between;margin-bottom:14px"><h2 style="margin:0">🛒 Llista de la compra</h2><span class="pill" id="pendingCount">0 pendents</span></div>
 <form id="addProduct" class="row"><input id="productName" required maxlength="80" placeholder="Afegir producte..." aria-label="Nou producte"><button class="primary" type="submit">Afegir</button></form>
 <div id="items" style="margin-top:14px"></div></section>
-<section class="panel">
+<section class="panel" data-tab="sopars">
 <div class="row" style="justify-content:space-between;align-items:start"><div><h2>🍽️ Què sopem?</h2><p style="margin:-8px 0 12px">Planifica els pròxims set dies.</p></div><span class="pill">7 dies</span></div>
 <div id="dinners"></div></section>
-<section class="panel">
+<section class="panel" data-tab="fotos">
 <h2>📸 Fotografies</h2><p>Selecciona una o diverses fotografies. JPG, PNG o WebP, màxim 5 MB cadascuna.</p>
 <form id="uploadPhoto">
 <input id="photoFile" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Fotografies" multiple required>
@@ -50,7 +57,7 @@ button.ghost{background:transparent;color:#74695c}button:focus-visible,input:foc
 <button class="primary" id="sendPhoto" type="submit" style="margin-top:12px">Enviar fotografies</button>
 </form><p id="photoStatus" role="status" aria-live="polite"></p>
 </section>
-<section class="panel" id="raiTasks">
+<section class="panel" id="raiTasks" data-tab="rai">
 <h2>⭐ Tasques i recompenses d'en Rai</h2>
 <p id="raiPoints">Carregant punts…</p>
 <div id="raiTaskList"></div>
@@ -74,6 +81,12 @@ button.ghost{background:transparent;color:#74695c}button:focus-visible,input:foc
 <button type="submit">Afegir</button></form>
 <p id="raiTaskStatus" aria-live="polite"></p>
 </section>
+<nav class="app-nav" aria-label="Seccions de Marc Familiar">
+<button type="button" data-open="compra"><span>🛒</span>Compra</button>
+<button type="button" data-open="sopars"><span>🍽️</span>Sopars</button>
+<button type="button" data-open="fotos"><span>📸</span>Fotos</button>
+<button type="button" data-open="rai"><span>⭐</span>Rai</button>
+</nav>
 <div class="row" style="justify-content:space-between"><span id="syncTime">Connectat · Sincronització automàtica</span><button class="small" id="refresh">Actualitzar ara</button></div>
 </div></main>
 <script>
@@ -83,6 +96,18 @@ let key='';
 try{key=sessionStorage.getItem('marc-sync-key')||'';}catch(_){}
 let data={groceries:[],dinners:{}},busy=false,photoBusy=false;
 const $=id=>document.getElementById(id);
+function openTab(name){
+ if(!['compra','sopars','fotos','rai'].includes(name))name='compra';
+ document.querySelectorAll('[data-tab]').forEach(el=>el.classList.toggle('active',el.dataset.tab===name));
+ document.querySelectorAll('[data-open]').forEach(el=>{
+  const active=el.dataset.open===name;
+  el.classList.toggle('active',active);el.setAttribute('aria-current',active?'page':'false');
+ });
+ try{sessionStorage.setItem('marc-active-tab',name)}catch(_){}
+ window.scrollTo({top:0,behavior:'instant'});
+}
+document.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',()=>openTab(b.dataset.open)));
+try{openTab(sessionStorage.getItem('marc-active-tab')||'compra')}catch(_){openTab('compra')}
 function message(text,error){$('message').textContent=text||'';$('message').className=error?'error':'good';}
 function makeText(tag,text,cls){const e=document.createElement(tag);e.textContent=text;if(cls)e.className=cls;return e;}
 function newId(){return self.crypto&&crypto.randomUUID?crypto.randomUUID():String(Date.now())+'-'+Math.random().toString(36).slice(2);}
