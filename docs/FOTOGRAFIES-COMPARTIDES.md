@@ -1,6 +1,6 @@
 # Marc Familiar · Fotografies compartides des dels mòbils
 
-**Fase experimental, separada de la sincronització de compra i sopars.** Aquesta versió afegeix una galeria de fotografies enviades des del telèfon. Les imatges es guarden en **una carpeta privada del Google Drive del propietari** i es descarreguen al marc per mostrar-les també sense Internet.
+**Fase experimental integrada a la branca [feature/marc-familiar-unificat](https://github.com/MestreKaikos/marco-familiar-dashboard/tree/feature/marc-familiar-unificat).** Aquesta versió afegeix una galeria de fotografies enviades des del telèfon. Les imatges es guarden en **una carpeta privada del Google Drive del propietari** i es descarreguen al marc per mostrar-les també sense Internet.
 
 ## Què farà cada persona?
 
@@ -19,10 +19,10 @@
 2. Al fitxer `Code.gs`, substitueix el codi per la versió actualitzada de [Code.gs](../sync/google-apps-script/Code.gs).
 3. Al fitxer `Mobile.html`, substitueix el codi per la versió actualitzada de [Mobile.html](../sync/google-apps-script/Mobile.html). Desa tots dos.
 4. Al selector de funcions d'Apps Script, executa **`prepararFotosFamiliars`** una sola vegada. Google demanarà **nous permisos per a Google Drive** perquè el codi pugui crear la carpeta de fotos, escriure-hi fitxers i llegir-los. Revisa aquests permisos: el servei s'executa amb el teu compte i els permisos de Drive poden ser amplis. No cal tornar a executar `setup_` ni girar la clau.
-5. Comprova a Drive que s'ha creat la carpeta **«Marc Familiar - Fotografies privades»**. No comparteixis públicament la carpeta ni el full.
+5. Comprova que s'ha aprofitat la carpeta privada existent **«Marc Familiar · Fotos compartides»** i s'han indexat els JPG/PNG de prova. Si ja existia una configuració `PHOTO_FOLDER_ID` que apuntava a una altra carpeta, executa abans **`vincularCarpetaFotosExistents`** i després torna a executar `prepararFotosFamiliars`. No comparteixis públicament la carpeta ni el full.
 6. A Apps Script, prem **Implementa → Gestiona les implementacions**, tria la implementació web que ja tens, **Edita** (llapis), a **Versió** tria **Nova versió** i prem **Implementa**. **És essencial publicar una versió nova:** desar el codi no actualitza automàticament l'URL `/exec`.
 7. Obre al mòbil **la mateixa URL /exec** que ja tenies. La nova secció «Fotografies familiars» apareixerà a sota de compra i sopars. Introdueix la mateixa clau familiar si te la demana.
-8. Envia una foto de prova i comprova que apareix al Drive, a la carpeta privada. Després instal·la la nova APK de la branca [feature/fotografies-compartides](https://github.com/MestreKaikos/marco-familiar-dashboard/tree/feature/fotografies-compartides) **sobre la versió anterior**, sense desinstal·lar.
+8. Envia una foto de prova i comprova que apareix al Drive, a la carpeta privada. Després instal·la l'APK validada de la branca [feature/marc-familiar-unificat](https://github.com/MestreKaikos/marco-familiar-dashboard/tree/feature/marc-familiar-unificat) **sobre la versió anterior**, sense desinstal·lar i comprovant-ne la signatura.
 9. Al Marc Familiar, entra a **Fotografies → Actualitzar fotos**. Hauria d'aparèixer la foto de prova. Comprova també que surt després de tancar i obrir l'app o en quedar-te sense Wi-Fi.
 
 ## Com funciona la seguretat?
@@ -47,4 +47,4 @@
 
 ## Validació automàtica
 
-La branca disposa de proves amb Drive simulat que verifiquen l'autenticació, la càrrega idempotent, la llista, la descàrrega, l'eliminació i els JPEG incorrectes, a més de la compilació Android i captures sense dades familiars. La prova real del Drive privat requereix la configuració manual descrita més amunt.
+La branca disposa de proves amb Drive simulat que verifiquen l'autenticació, la càrrega idempotent, la llista, la descàrrega, l'eliminació i els JPEG incorrectes, a més de la compilació Android i captures sense dades familiars. La prova real del Drive privat requereix la configuració manual descrita més amunt. Consulta també la [guia d'integració unificada](MARC-FAMILIAR-UNIFICAT.md).
