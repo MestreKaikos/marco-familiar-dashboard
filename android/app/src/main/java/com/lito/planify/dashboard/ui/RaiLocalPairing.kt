@@ -1,6 +1,8 @@
 package com.lito.planify.dashboard.ui
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import com.lito.planify.dashboard.data.Store
 import com.lito.planify.dashboard.data.PersonalCalendar
 import java.util.UUID
@@ -147,6 +149,9 @@ internal fun RaiPairingView(onPaired:(String,String)->Unit) {
         if(address!=null){
             val bitmap=remember(address){raiPairingQr(address!!)}
             Image(bitmap.asImageBitmap(),contentDescription="QR temporal per vincular el marc",modifier=Modifier.size(380.dp))
+            OutlinedButton(onClick={
+                context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(address!!)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }) { Text("Configurar des d’aquest mateix mòbil") }
         }else Text("Connecta el marc a la Wi-Fi per mostrar el QR.")
         Text("El QR no conté contrasenyes. Fes-lo servir només a la teva Wi-Fi privada.")
     }
