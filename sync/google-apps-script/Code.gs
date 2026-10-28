@@ -188,7 +188,7 @@ function readFamily_() {
 }
 function validateDate_(value) {
   const date = String(value || "");
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date) ||
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) ||
       isNaN(Date.parse(date+"T00:00:00Z"))) throw new Error("Data no vàlida");
   return date;
 }
@@ -311,7 +311,9 @@ function photoFolder_() {
   const props = PropertiesService.getScriptProperties();
   const id = props.getProperty("PHOTO_FOLDER_ID");
   if (id) return DriveApp.getFolderById(id);
-  const folder = DriveApp.createFolder("Marc Familiar - Fotografies privades");
+  const candidates = DriveApp.getFoldersByName("Marc Familiar · Fotos compartides");
+  const folder = candidates.hasNext() ? candidates.next() :
+    DriveApp.createFolder("Marc Familiar · Fotos compartides");
   props.setProperty("PHOTO_FOLDER_ID", folder.getId());
   return folder;
 }
@@ -322,9 +324,22 @@ function photoFolder_() {
  * La carpeta i el full Fotos continuen sent privats.
  */
 function prepararFotosFamiliars() {
-  photoFolder_();
-  photoTab_();
-  Logger.log("Fotografies familiars preparades. No cal canviar la clau.");
+  const folder = photoFolder_(), tab = photoTab_();
+  const known = new Set(photoRows_().map(r => String(r[2])));
+  const files = folder.getFiles();
+  let imported = 0;
+  let existingCount = known.size;
+  while (files.hasNext()) {
+    const file = files.next(), mime = file.getMimeType(), id = file.getId();
+    if (known.has(id) || !["image/jpeg","image/png"].includes(mime) ||
+        file.getSize() > PHOTO_MAX_BYTES || file.getSize() < 6) continue;
+    if (existingCount >= MAX_PHOTOS) break;
+    // Els fitxers existents no es mouen, no es converteixen ni es fan públics.
+    tab.appendRow([id, safeText_(file.getName(),75), id, file.getDateCreated().toISOString()]);
+    known.add(id); existingCount++; imported++;
+  }
+  SpreadsheetApp.flush();
+  Logger.log("Fotografies preparades. Indexades " + imported + " imatges existents. No cal canviar la clau.");
 }
 
 /** Identificador aportat pel navegador, per evitar duplicats en reintents. */
@@ -364,10 +379,12 @@ function photoGet_(payload) {
   if (!row) throw new Error("La fotografia ja no existeix");
   const file = DriveApp.getFileById(String(row[2]));
   const blob = file.getBlob();
-  if (blob.getContentType() !== "image/jpeg" || file.getSize() > PHOTO_MAX_BYTES) {
+  const mimeType = blob.getContentType();
+  if (!["image/jpeg","image/png"].includes(mimeType) || file.getSize() > PHOTO_MAX_BYTES) {
     throw new Error("Format de fotografia no admès");
   }
-  return { id: id, name: String(row[1]), base64: Utilities.base64Encode(blob.getBytes()) };
+  return { id: id, name: String(row[1]), mimeType: mimeType,
+    base64: Utilities.base64Encode(blob.getBytes()) };
 }
 
 function photoDelete_(payload) {
@@ -440,6 +457,6 @@ function doPost(e) {
 /** Interfície adaptada al mòbil; sense accedir a dades fins a validar la clau. */
 function doGet() {
   return HtmlService.createHtmlOutputFromFile("Mobile")
-    .setTitle("Marc Familiar · Compra, sopars i fotos")
+    .setTitle("Marc Familiar · Compra, sopars, tasques i fotos")
     .addMetaTag("viewport", "width=device-width, initial-scale=1");
 }
