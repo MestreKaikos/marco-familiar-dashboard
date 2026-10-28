@@ -26,7 +26,10 @@ data class LocalChore(
     val stars: Int = 1,
     val daily: Boolean = false,
     val date: String = "",
-    val status: String = "todo" // todo, pending, approved
+    val status: String = "todo", // todo, pending, approved
+    val frequency: String = if (daily) "daily" else "once",
+    val days: String = "",
+    val slots: String = "única"
 )
 data class LocalReward(val id: String, val title: String, val cost: Int)
 
@@ -38,6 +41,8 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
     val groceries = mutableStateListOf<LocalGrocery>()
     val chores = mutableStateListOf<LocalChore>()
     val rewards = mutableStateListOf<LocalReward>()
+    /** Una vegada migrades les tasques al Sheets no s'aproven premis localment. */
+    val cloudManaged: Boolean get() = prefs.contains("family_before_cloud")
     /** Només notificacions de la compra; les feines/premis continuen locals. */
     var onGroceryMutation: ((JSONObject) -> Unit)? = null
     var onFamilyMutation: ((JSONObject) -> Unit)? = null
@@ -83,8 +88,13 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
             val localPending = pendingLocal[id]?.takeIf { completed == null }
             newChores.add(LocalChore(
                 id = id, title = title.take(100), owner = owner,
-                stars = item.optInt("stars", 1).coerceIn(1, 5),
+                stars = item.optInt("stars", 1).coerceIn(1, 100),
                 daily = item.optBoolean("daily"),
+                frequency = item.optString("frequency").takeIf {
+                    it in listOf("daily", "once", "weekly", "weekdays", "slots")
+                } ?: if (item.optBoolean("daily")) "daily" else "once",
+                days = item.optString("days"),
+                slots = item.optString("slots", "única"),
                 date = completed ?: localPending?.date.orEmpty(),
                 status = when {
                     completed != null -> "approved"
@@ -149,7 +159,12 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
                             owner = if (item.optString("owner") == "Rai") "Rai" else "Família",
                             stars = item.optInt("stars", 1).coerceIn(1, 5),
                             daily = item.optBoolean("daily"), date = item.optString("date"),
-                            status = item.optString("status").takeIf { it in listOf("todo", "pending", "approved") } ?: "todo"
+                            status = item.optString("status").takeIf { it in listOf("todo", "pending", "approved") } ?: "todo",
+                            frequency = item.optString("frequency").takeIf {
+                                it in listOf("daily","once","weekly","weekdays","slots")
+                            } ?: if (item.optBoolean("daily")) "daily" else "once",
+                            days = item.optString("days"),
+                            slots = item.optString("slots","única")
                         )
                     )
                 }
@@ -176,7 +191,8 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
         root.put("chores", JSONArray().apply {
             chores.forEach { item ->
                 put(JSONObject().put("id", item.id).put("title", item.title).put("owner", item.owner)
-                    .put("stars", item.stars).put("daily", item.daily).put("date", item.date).put("status", item.status))
+                     .put("stars", item.stars).put("daily", item.daily).put("date", item.date).put("status", item.status)
+                    .put("frequency", item.frequency).put("days", item.days).put("slots", item.slots))
             }
         })
         root.put("rewards", JSONArray().apply {
@@ -252,8 +268,14 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
         }
     }
 
-    fun status(chore: LocalChore, today: LocalDate): String =
-        if (chore.daily && chore.status != "pending" && chore.date != today.toString()) "todo" else chore.status
+    fun status(chore: LocalChore, today: LocalDate): String {
+        val schedule = chore.frequency
+        val weekday = today.dayOfWeek.value.toString()
+        if ((schedule == "weekly" || schedule == "weekdays") &&
+            weekday !in chore.days.split(",")) return "not_due"
+        if (schedule == "slots") return "slots"
+        return if (schedule != "once" && chore.date != today.toString()) "todo" else chore.status
+    }
 
     fun requestDone(id: String, today: LocalDate) {
         val i = chores.indexOfFirst { it.id == id }
@@ -315,9 +337,15 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
         if (pendingRewardId != null || stars < reward.cost) return
         pendingRewardId = id
         persist()
+        if (cloudManaged) {
+            onFamilyMutation?.invoke(JSONObject().put("type","reward_request").put("id",id))
+        }
     }
 
     fun decideReward(approved: Boolean) {
+        // Amb Sheets, el PIN i la decisió són responsabilitat de Tasques.gs.
+        // No deduir punts localment o es podria saltar FAMILY_ADULT_PIN_HASH.
+        if (cloudManaged) return
         val id = pendingRewardId ?: return
         val reward = rewards.firstOrNull { it.id == id }
         if (approved && reward != null && stars >= reward.cost) {
