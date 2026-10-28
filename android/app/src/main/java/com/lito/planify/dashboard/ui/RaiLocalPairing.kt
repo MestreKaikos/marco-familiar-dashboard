@@ -30,10 +30,10 @@ internal class RaiLocalPairing(private val context:Context,private val onPaired:
     private val token=random.joinToString("") { "%02x".format(it) }
     private val live=AtomicBoolean(true)
     private val expiry=System.currentTimeMillis()+5*60_000L
-    private val server=ServerSocket(0)
+    private val server=ServerSocket(0).apply { soTimeout=1000 }
     private val worker=Thread {
         while(live.get()&&System.currentTimeMillis()<expiry){
-            try{server.accept().use(::handle)}catch(_:Exception){if(!live.get())break}
+            try{server.accept().use(::handle)}catch(_:java.net.SocketTimeoutException){}catch(_:Exception){if(!live.get())break}
         }
         close()
     }.apply { isDaemon=true;start() }
