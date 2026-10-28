@@ -149,7 +149,7 @@ function setDinner_(tab, op) {
 /** Fulls familiars existents: NO se n'esborra cap registre per activar aquesta fase. */
 function familySheets_() {
   return {
-    tasks: sheet_(TASQUES, ["id","titol","punts","activa","frequencia"]),
+    tasks: sheet_(TASQUES, ["id","titol","punts","activa","frequencia","persona"]),
     done: sheet_(TASQUES_FETES, ["data","tascaId","persona","punts","tipus"]),
     rewards: sheet_(RECOMPENSES, ["id","recompensa","cost","activa"]),
     changes: sheet_(CANVIS_PUNTS, ["id","data","persona","recompensaId","cost"]),
@@ -167,19 +167,20 @@ function active_(value) {
 }
 function readFamily_() {
   const tabs = familySheets_();
-  const tasks = rows_(tabs.tasks,5).filter(r => r[0] && r[1] && active_(r[3])).map(r => ({
+  const tasks = rows_(tabs.tasks,6).filter(r => r[0] && r[1] && active_(r[3])).map(r => ({
     id: String(r[0]), title: String(r[1]), stars: Math.max(1,Math.min(5,Number(r[2])||1)),
-    daily: String(r[4]).trim().toLowerCase() === "diària"
+    daily: String(r[4]).trim().toLowerCase() === "diària",
+    owner: String(r[5]) === "Família" ? "Família" : "Rai"
   }));
-  const done = rows_(tabs.done,5).filter(r => r[1] && r[2] === "Rai").map(r => ({
-    date: isoDay_(r[0]), taskId: String(r[1]), points: Number(r[3]) || 0
+  const done = rows_(tabs.done,5).filter(r => r[1] && ["Rai","Família"].includes(String(r[2]))).map(r => ({
+    date: isoDay_(r[0]), taskId: String(r[1]), owner: String(r[2]), points: Number(r[3]) || 0
   }));
   const rewards = rows_(tabs.rewards,4).filter(r => r[0] && r[1] && active_(r[3])).map(r => ({
     id: String(r[0]), title: String(r[1]), cost: Math.max(1,Number(r[2])||1)
   }));
   const spent = rows_(tabs.changes,5).filter(r => r[2] === "Rai")
     .reduce((sum,r) => sum + (Number(r[4]) || 0),0);
-  const stars = Math.max(0,done.reduce((sum,r) => sum + r.points,0) - spent);
+  const stars = Math.max(0,done.filter(r => r.owner === "Rai").reduce((sum,r) => sum + r.points,0) - spent);
   // Les peticions antigues es conserven; l'Android només mostra les pendents.
   const pending = rows_(tabs.requests,6).find(r => r[2] === "Rai" &&
     ["pending","pendent"].includes(String(r[5]).toLowerCase()));
@@ -198,31 +199,33 @@ function taskSet_(op) {
   if (!title) throw new Error("Tasca sense títol");
   const points = Math.max(1,Math.min(5,Number(op.stars)||1));
   const frequency = op.daily === true ? "diària" : "única";
-  const rows = rows_(tabs.tasks,5);
+  const owner = op.owner === "Família" ? "Família" : "Rai";
+  const rows = rows_(tabs.tasks,6);
   const idx = rows.findIndex(r => String(r[0]) === id);
   if (idx < 0) {
     if (rows.length >= 200) throw new Error("Límit de tasques");
-    tabs.tasks.appendRow([id,title,points,true,frequency]);
+    tabs.tasks.appendRow([id,title,points,true,frequency,owner]);
   } else {
-    tabs.tasks.getRange(idx+2,1,1,5).setValues([[id,title,points,true,frequency]]);
+    tabs.tasks.getRange(idx+2,1,1,6).setValues([[id,title,points,true,frequency,owner]]);
   }
 }
 function taskDelete_(op) {
   const tab = familySheets_().tasks;
-  const id = validateId_(op.id), rows = rows_(tab,5);
+  const id = validateId_(op.id), rows = rows_(tab,6);
   const idx = rows.findIndex(r => String(r[0]) === id);
   if (idx >= 0) tab.getRange(idx+2,4,1,1).setValues([[false]]);
 }
 function taskComplete_(op) {
   const tabs = familySheets_(), id = validateId_(op.id), date = validateDate_(op.date);
-  const task = rows_(tabs.tasks,5).find(r => String(r[0]) === id && active_(r[3]));
+  const task = rows_(tabs.tasks,6).find(r => String(r[0]) === id && active_(r[3]));
   if (!task) throw new Error("La tasca no existeix o està inactiva");
   const daily = String(task[4]).trim().toLowerCase() === "diària";
-  const existing = rows_(tabs.done,5).some(r => String(r[1]) === id && r[2] === "Rai" &&
+  const owner = String(task[5]) === "Família" ? "Família" : "Rai";
+  const existing = rows_(tabs.done,5).some(r => String(r[1]) === id && r[2] === owner &&
     (daily ? isoDay_(r[0]) === date : true));
   if (existing) return; // No acreditar dues vegades el mateix esforç.
   const points = Math.max(1,Math.min(5,Number(task[2])||1));
-  tabs.done.appendRow([date,id,"Rai",points,daily?"diària":"única"]);
+  tabs.done.appendRow([date,id,owner,owner === "Rai" ? points : 0,daily?"diària":"única"]);
 }
 function rewardSet_(op) {
   const tab = familySheets_().rewards, id = validateId_(op.id);
