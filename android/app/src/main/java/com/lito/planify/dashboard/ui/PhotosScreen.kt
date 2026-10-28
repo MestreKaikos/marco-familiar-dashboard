@@ -54,6 +54,21 @@ fun PhotosScreen() {
     var draftKey by remember { mutableStateOf(sharedKey) }
     var showSharedSetup by remember { mutableStateOf(false) }
     var sharedStatus by remember { mutableStateOf("") }
+    // Les credencials poden arribar des del QR mentre Fotos és en segon pla.
+    LaunchedEffect(Unit) {
+        while (true) {
+            val configuredUrl = prefs.getString("shared_url", "").orEmpty()
+            val configuredKey = prefs.getString("shared_key", "").orEmpty()
+            if (configuredUrl != sharedUrl || configuredKey != sharedKey) {
+                sharedUrl = configuredUrl
+                sharedKey = configuredKey
+                draftUrl = configuredUrl
+                draftKey = configuredKey
+                refreshRequest++
+            }
+            delay(3_000L)
+        }
+    }
     // Recupera les còpies ja descarregades fins i tot si no hi ha connexió en iniciar l'APK.
     LaunchedEffect(Unit) {
         sharedPhotos = withContext(Dispatchers.IO) {
