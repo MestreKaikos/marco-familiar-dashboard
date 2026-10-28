@@ -203,7 +203,7 @@ fun DashboardApp(
                         Page.Energy -> EnergyScreen(state)
                         // Prueba: Casa y Energía juntas (EnergyScreen y HomeScreen siguen por si se separan)
                         Page.Home -> HomeEnergyScreen(state, home)
-                        Page.Tasks -> LocalFamilyScreen(family, state.now.toLocalDate(), sync.connected, sync.pendingCount)
+                        Page.Tasks -> LocalFamilyScreen(family, state.now.toLocalDate(), sync.connected, sync.pendingCount, sync.cloudTasks >= 0)
                         Page.Settings -> SettingsScreen(state, actions, settings, sync, dinners, family)
                     }
                     }
