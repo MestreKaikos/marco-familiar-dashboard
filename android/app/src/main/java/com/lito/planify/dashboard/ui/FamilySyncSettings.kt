@@ -153,8 +153,11 @@ fun FamilySyncSettings(sync: FamilySync, dinners: DinnerPlan, family: LocalFamil
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                helpPanel(Modifier.fillMaxWidth())
+                OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) {
+                    Text("← Tornar a Opcions")
+                }
                 settingsPanel(Modifier.fillMaxWidth())
+                helpPanel(Modifier.fillMaxWidth())
             }
         } else {
             Row(
