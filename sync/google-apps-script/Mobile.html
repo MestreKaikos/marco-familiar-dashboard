@@ -90,7 +90,7 @@ button:focus-visible,input:focus-visible{outline:3px solid #7c9ef1}
         <h2 style="margin:0">⭐ Tasques i recompenses d'en Rai</h2>
         <span class="pill" id="starCount">0 punts</span>
       </div>
-      <p>La llista i el saldo són els mateixos que al marc. Les feines es validen amb el PIN al marc.</p>
+      <p>Els punts provenen del Sheets compartit. Les feines poden tenir dies i franges; els premis s'aproven amb el PIN adult del servei.</p>
       <div id="tasks"></div>
       <form id="addTask" class="row" style="margin-top:14px">
         <input id="taskTitle" required maxlength="100" placeholder="Nova feina d'en Rai" aria-label="Nom de la feina"/>
@@ -99,6 +99,18 @@ button:focus-visible,input:focus-visible{outline:3px solid #7c9ef1}
       </form>
       <h2 style="margin-top:22px">🎁 Recompenses</h2>
       <div id="rewards"></div>
+      <div id="rewardApproval" hidden style="border:1px solid #e4d6c2;border-radius:12px;padding:12px;margin:12px 0">
+        <p id="rewardPendingTitle" style="margin:0 0 8px">Premi pendent de l'adult</p>
+        <div class="row">
+          <input id="rewardApprovalPin" type="password" inputmode="numeric"
+            autocomplete="off" minlength="4" maxlength="8" placeholder="PIN adult del servei"
+            aria-label="PIN adult"/>
+        </div>
+        <div class="row" style="margin-top:9px">
+          <button type="button" id="rewardApprove" class="small primary">Aprovar premi</button>
+          <button type="button" id="rewardReject" class="small">Denegar premi</button>
+        </div>
+      </div>
       <form id="addReward" class="row" style="margin-top:14px">
         <input id="rewardTitle" required maxlength="100" placeholder="Nova recompensa" aria-label="Nom del premi"/>
         <input id="rewardPoints" type="number" min="1" max="999" value="10" aria-label="Cost en punts" style="max-width:85px"/>
@@ -224,9 +236,15 @@ function renderTasks(){
   if(!tasks.length)target.appendChild(makeText('p','Encara no hi ha feines actives.'));
   const today=new Date(), day=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
   tasks.forEach(task=>{
-    const completed=done.some(d=>d.taskId===task.id && d.owner===(task.owner||'Rai') && (!task.daily||d.date===day));
+    const completed=done.some(d=>d.taskId===task.id && d.owner===(task.owner||'Rai') && (task.frequency==='once'||d.date===day));
     const row=makeText('div','','item');
-    const info=makeText('span',(completed?'✓ ':'')+task.title+' · '+task.stars+' punts'+(task.daily?' · diària':''),'name'+(completed?' bought':''));
+    const schedule=task.frequency==='once'?' · una vegada':
+      task.frequency==='daily'?' · cada dia':
+      task.frequency==='slots'?' · per franges ('+(task.slots||'')+')':
+      ' · dies '+(task.days||'');
+    const due=task.dueToday===false?' · no toca avui':'';
+    const info=makeText('span',(completed?'✓ ':'')+task.title+' · '+task.stars+' punts'+schedule+due,
+      'name'+(completed?' bought':''));
     row.appendChild(info);
     const del=makeText('button','Treure','small ghost');del.type='button';
     del.addEventListener('click',()=>{
@@ -246,7 +264,39 @@ function renderTasks(){
     });
     row.appendChild(del);rewardArea.appendChild(row);
   });
+  const requestId=data.pendingRequestId||'';
+  $('rewardApproval').hidden=!requestId;
+  if(requestId){
+    const prize=rewards.find(p=>p.id===data.pendingReward);
+    $('rewardPendingTitle').textContent='⏳ Premi pendent: '+(prize?prize.title:'recompensa')+
+      '. El PIN adult és el que es va configurar a Apps Script.';
+  }
 }
+/** El PIN mai s'envia en una cua offline, no s'emmagatzema i no es valida al navegador. */
+function decidePendingReward(approve){
+  const requestId=data.pendingRequestId||'', pin=$('rewardApprovalPin').value;
+  if(!requestId||busy)return;
+  if(!/^[0-9]{4,8}$/.test(pin)){message('Introdueix el PIN adult de 4 a 8 xifres.',true);return;}
+  busy=true;
+  $('rewardApprove').disabled=true;$('rewardReject').disabled=true;
+  google.script.run.withSuccessHandler(result=>{
+    busy=false;
+    $('rewardApprove').disabled=false;$('rewardReject').disabled=false;
+    $('rewardApprovalPin').value='';
+    if(!result||!result.ok){
+      message((result&&result.error)||'No s’ha pogut validar el premi',true);
+      return;
+    }
+    call([]);
+  }).withFailureHandler(err=>{
+    busy=false;
+    $('rewardApprovalPin').value='';
+    $('rewardApprove').disabled=false;$('rewardReject').disabled=false;
+    message('Error en validar el premi: '+(err&&err.message||'Connexió'),true);
+  }).familyTasksAction(key,'rewards_decide',{id:requestId,pin:pin,approve:approve});
+}
+$('rewardApprove').addEventListener('click',()=>decidePendingReward(true));
+$('rewardReject').addEventListener('click',()=>decidePendingReward(false));
 $('addTask').addEventListener('submit',e=>{
   e.preventDefault();
   const title=$('taskTitle').value.trim(),stars=Number($('taskPoints').value);
