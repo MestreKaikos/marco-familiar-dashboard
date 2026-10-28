@@ -34,3 +34,12 @@ function inicialitzarPinAdult() {
 4. Rebutjar-la: saldo igual i petició tancada.
 5. Tornar-la a sol·licitar i aprovar-la amb PIN: saldo baixa 5.
 6. Revisar compra, sopars i pujada múltiple de fotos abans d'actualitzar el desplegament existent.
+
+## Recurrències (nova versió)
+- `daily`: cada dia, 1 execució/dia.
+- `weekdays`: només els dies triats (1=dilluns, 7=diumenge).
+- `weekly`: els dies seleccionats de cada setmana (normalment un dia).
+- `once`: una sola execució en total, que desapareix de la llista d'avui en completar-la.
+- `slots`: fins a quatre franges (matí, migdia, tarda, vespre), cadascuna atorga punts un cop al dia.
+
+Les tasques antigues sense freqüència es continuen interpretant com a diàries. Les taules existents de Sheets reben les columnes addicionals en escriure/consultar, sense eliminar files ni punts històrics. Per activar les novetats, cal actualitzar **Tasques.gs i Mobile.html** al projecte Apps Script, executar `setupFamilyTasks` de nou (és idempotent) i editar la **implementació existent** amb Versió nova. **La pantalla Android encara no representa aquest nou sistema de tasques**; aquesta fase és de web mòbil.
