@@ -117,7 +117,9 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
         rewards.addAll(newRewards)
         stars = data.optInt("stars",0).coerceAtLeast(0)
         val remotePending = data.optString("pendingReward").takeIf { it.isNotBlank() }
-        pendingRewardId = remotePending ?: pendingRewardId?.takeIf { id -> rewards.any { it.id == id } }
+        // Quan el servidor aprova o rebutja una petició ha de desaparèixer
+        // també de la pantalla Android. No es pot retenir una petició local obsoleta.
+        pendingRewardId = remotePending
         persist()
     }
 
