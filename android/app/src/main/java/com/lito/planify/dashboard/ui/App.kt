@@ -40,6 +40,7 @@ import androidx.compose.runtime.mutableStateOf
 import com.lito.planify.dashboard.data.Event
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import androidx.compose.runtime.setValue
@@ -113,6 +114,8 @@ fun DashboardApp(
     home: HomeCallbacks = HomeCallbacks()
 ) {
     var page by remember { mutableStateOf(Page.Today) }
+    // Manté els camps editats en tornar a una pestanya, sense crear una segona còpia de les dades.
+    val pageState = rememberSaveableStateHolder()
     // Sopars compartits entre la portada i el calendari, desats només al dispositiu.
     val dinners = rememberDinnerPlan()
     val family = rememberLocalFamilyStore()
@@ -184,6 +187,7 @@ fun DashboardApp(
             // La barra lateral a la derecha, con el nombre bajo cada icono
             Row(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f).fillMaxHeight()) {
+                    pageState.SaveableStateProvider(page.name) {
                     when (page) {
                         // La portada familiar funciona sense credencials; el backend antic és opcional.
                         Page.Today -> if (state.ics || state.token == null) FamilyTodayScreen(state, dinners, family, onOpen = { page = it }) else TodayScreen(state, lastTouch)
@@ -194,8 +198,9 @@ fun DashboardApp(
                         Page.Energy -> EnergyScreen(state)
                         // Prueba: Casa y Energía juntas (EnergyScreen y HomeScreen siguen por si se separan)
                         Page.Home -> HomeEnergyScreen(state, home)
-                        Page.Tasks -> LocalFamilyScreen(family, state.now.toLocalDate())
+                        Page.Tasks -> LocalFamilyScreen(family, state.now.toLocalDate(), sync.connected, sync.pendingCount)
                         Page.Settings -> SettingsScreen(state, actions, settings, sync, dinners, family)
+                    }
                     }
                 }
                 Rail(page, state, onSelect = { page = it }, onSync = {
