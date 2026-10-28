@@ -41,6 +41,19 @@ android {
         buildConfigField("String", "DASHBOARD_CONFIG", "\"$dashboardConfig\"")
     }
 
+    val signedKeystore = rootProject.file("marc-familiar-signing.jks")
+    val signedPassword = System.getenv("MARC_SIGNING_PASSWORD")
+    val signedAlias = System.getenv("MARC_SIGNING_ALIAS")
+    val signedKeyPassword = System.getenv("MARC_SIGNING_KEY_PASSWORD")
+    if (signedKeystore.isFile && !signedPassword.isNullOrBlank() &&
+        !signedAlias.isNullOrBlank() && !signedKeyPassword.isNullOrBlank()) {
+        signingConfigs.create("marcFamiliar") {
+            storeFile = signedKeystore
+            storePassword = signedPassword
+            keyAlias = signedAlias
+            keyPassword = signedKeyPassword
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -57,6 +70,7 @@ android {
             versionNameSuffix = "-qr-proves"
             buildConfigField("String", "BASE_URL", "\"$debugBaseUrl\"")
             manifestPlaceholders["cleartext"] = cleartext(debugBaseUrl)
+            signingConfigs.findByName("marcFamiliar")?.let { signingConfig = it }
         }
     }
     compileOptions {
