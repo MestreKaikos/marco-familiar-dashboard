@@ -20,7 +20,7 @@ data class SharedCachedPhoto(val id: String, val name: String, val file: File)
 
 /**
  * Les fotos del mòbil no es mostren des de Drive en obert: l'APK les consulta amb
- * la clau familiar i en desa JPEG reduïts a filesDir, visibles sense Internet.
+ * la clau familiar i en desa JPG o PNG reduïts a filesDir, visibles sense Internet.
  *
  * L'índex guardat conté només IDs/noms, mai la clau ni els IDs dels fitxers de Drive.
  */
@@ -102,12 +102,18 @@ class FamilyPhotoCache(context: Context) {
                     val encoded = result.getJSONObject("photo").getString("base64")
                     if (encoded.length > 1_480_000) throw IllegalStateException("Fotografia massa gran")
                     val bytes = Base64.decode(encoded, Base64.DEFAULT)
+                    val mime = result.getJSONObject("photo").optString("mimeType", "image/jpeg")
+                    val jpeg = bytes.size >= 4 &&
+                        (bytes[0].toInt() and 255) == 255 &&
+                        (bytes[1].toInt() and 255) == 216 &&
+                        (bytes[bytes.lastIndex - 1].toInt() and 255) == 255 &&
+                        (bytes[bytes.lastIndex].toInt() and 255) == 217
+                    val pngSignature = intArrayOf(137,80,78,71,13,10,26,10)
+                    val png = bytes.size >= 8 &&
+                        pngSignature.indices.all { i -> (bytes[i].toInt() and 255) == pngSignature[i] }
                     if (bytes.size !in 6..1_100_000 ||
-                        (bytes[0].toInt() and 255) != 255 ||
-                        (bytes[1].toInt() and 255) != 216 ||
-                        (bytes[bytes.lastIndex - 1].toInt() and 255) != 255 ||
-                        (bytes[bytes.lastIndex].toInt() and 255) != 217) {
-                        throw IllegalStateException("Fotografia JPEG incorrecta")
+                        !((mime == "image/jpeg" && jpeg) || (mime == "image/png" && png))) {
+                        throw IllegalStateException("Fotografia JPG o PNG incorrecta")
                     }
                     withContext(Dispatchers.IO) {
                         val temp = File(folder, photo.id + ".tmp")
