@@ -25,39 +25,12 @@ import com.lito.planify.dashboard.data.PersonalCalendar
 import com.lito.planify.dashboard.ui.theme.Palette
 import com.lito.planify.dashboard.ui.theme.Type
 
-/** La llegenda reutilitza exactament els colors de la configuració dels calendaris. */
-@Composable
-fun CalendarLegend(calendars: List<PersonalCalendar>) {
-    if (calendars.isEmpty()) return
-    Row(
-        Modifier.fillMaxWidth().background(Palette.Card, RoundedCornerShape(16.dp))
-            .padding(horizontal = 18.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(22.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        calendars.forEach { calendar ->
-            Row(
-                Modifier.weight(1f, fill = false),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    Modifier.size(15.dp).background(
-                        parseColor(calendar.color, Palette.Accent), CircleShape
-                    )
-                )
-                Text(calendar.name, style = Type.Tiny.copy(fontWeight = FontWeight.SemiBold),
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-        }
-    }
-}
-
 /** Paleta accessible al tacte: no requereix escriure codis hexadecimals. */
 @Composable
 fun CalendarColorPicker(current: String?, onSelect: (String) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-        CalendarColors.choices.forEach { hex ->
+        CalendarColors.options.forEach { swatch ->
+            val hex = swatch.hex
             val selected = hex.equals(current, ignoreCase = true)
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
