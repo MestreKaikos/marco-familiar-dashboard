@@ -9,6 +9,7 @@ const TASKS_TAB_='Tasques';
 const TASK_DONE_TAB_='TasquesFetes';
 const REWARDS_TAB_='Recompenses';
 const REWARD_CLAIMS_TAB_='CanvisPunts';
+const REWARD_REQUESTS_TAB_='PeticionsPremis';
 const MAX_FAMILY_TASKS_=100;
 const MAX_FAMILY_REWARDS_=50;
 
@@ -20,6 +21,7 @@ function setupFamilyTasks() {
   familyTaskSheet_(TASK_DONE_TAB_,['data','tascaId','persona','punts']);
   familyTaskSheet_(REWARDS_TAB_,['id','recompensa','cost','activa']);
   familyTaskSheet_(REWARD_CLAIMS_TAB_,['id','data','persona','recompensaId','cost']);
+  familyTaskSheet_(REWARD_REQUESTS_TAB_,['id','data','persona','recompensaId','cost','estat']);
   Logger.log('Tasques familiars preparades; no s’ha modificat la clau de sincronització.');
 }
 function taskDate_(){
@@ -43,9 +45,12 @@ function familyTasksSnapshot_(){
     .filter(r=>r[0]&&r[1]).map(r=>({id:String(r[0]),title:String(r[1]),cost:Number(r[2])||0,active:r[3]===true}));
   const claims=rows_(familyTaskSheet_(REWARD_CLAIMS_TAB_,['id','data','persona','recompensaId','cost']),5)
     .filter(r=>r[0]).map(r=>({id:String(r[0]),date:String(r[1]),kid:String(r[2]),rewardId:String(r[3]),cost:Number(r[4])||0}));
+  const requests=rows_(familyTaskSheet_(REWARD_REQUESTS_TAB_,['id','data','persona','recompensaId','cost','estat']),6)
+    .filter(r=>r[0]).map(r=>({id:String(r[0]),date:String(r[1]),kid:String(r[2]),
+      rewardId:String(r[3]),cost:Number(r[4])||0,status:String(r[5])}));
   const earned=done.filter(r=>r.kid==='Rai').reduce((s,r)=>s+r.points,0);
   const spent=claims.filter(r=>r.kid==='Rai').reduce((s,r)=>s+r.cost,0);
-  return {kid:'Rai',today:taskDate_(),tasks:tasks,done:done,rewards:rewards,claims:claims,points:earned-spent};
+  return {kid:'Rai',today:taskDate_(),tasks:tasks,done:done,rewards:rewards,claims:claims,requests:requests,points:earned-spent};
 }
 /** Només per ús amb la clau familiar existent; no habilita canvis sense autenticació. */
 function familyTasksAction(key,action,payload){
@@ -87,9 +92,29 @@ function familyTasksAction(key,action,payload){
       const reward=snapshot.rewards.find(r=>r.id===id&&r.active);
       if(!reward)throw Error('Recompensa no disponible');
       if(snapshot.points<reward.cost)throw Error('No hi ha prou punts');
+      const pending=snapshot.requests.filter(r=>r.status==='pendent'&&r.kid==='Rai')
+        .reduce((s,r)=>s+r.cost,0);
+      if(snapshot.points-pending<reward.cost)throw Error('Hi ha punts reservats per altres peticions');
       const token=Utilities.getUuid();
-      familyTaskSheet_(REWARD_CLAIMS_TAB_,['id','data','persona','recompensaId','cost'])
-        .appendRow([token,date,'Rai',id,reward.cost]);
+      familyTaskSheet_(REWARD_REQUESTS_TAB_,['id','data','persona','recompensaId','cost','estat'])
+        .appendRow([token,date,'Rai',id,reward.cost,'pendent']);
+    }else if(action==='rewards_decide'){
+      const pin=String(payload.pin||'');
+      const pinHash=PropertiesService.getScriptProperties().getProperty('FAMILY_ADULT_PIN_HASH');
+      if(!pinHash || !/^[0-9]{4,8}$/.test(pin) || digest_(pin)!==pinHash)
+        throw Error('PIN adult incorrecte');
+      const id=familyTaskId_(payload.id);
+      const tab=familyTaskSheet_(REWARD_REQUESTS_TAB_,['id','data','persona','recompensaId','cost','estat']);
+      const requests=rows_(tab,6),idx=requests.findIndex(r=>r[0]===id);
+      if(idx<0||requests[idx][5]!=='pendent')throw Error('Petició no disponible');
+      const entry=requests[idx],approve=payload.approve===true;
+      if(approve){
+        const snapshot=familyTasksSnapshot_();
+        if(snapshot.points<Number(entry[4]))throw Error('Ja no hi ha prou punts');
+        familyTaskSheet_(REWARD_CLAIMS_TAB_,['id','data','persona','recompensaId','cost'])
+          .appendRow([id,date,'Rai',entry[3],Number(entry[4])]);
+      }
+      tab.getRange(idx+2,6).setValue(approve?'aprovat':'rebutjat');
     }else if(action!=='tasks_snapshot'){
       throw Error('Acció no admesa');
     }
@@ -97,4 +122,14 @@ function familyTasksAction(key,action,payload){
     return {ok:true,data:familyTasksSnapshot_()};
   }catch(ex){return {ok:false,error:String(ex.message||'Error de tasques').slice(0,160)};}
   finally{if(lock.hasLock())lock.releaseLock();}
+}
+
+/** Executar manualment UNA vegada amb un PIN temporal només des de l'editor Apps Script.
+ * Canvia el valor d'aquesta funció temporal per un PIN nou, executa-la i elimina-la.
+ * No publiquis el PIN en el repositori ni al full.
+ */
+function configurarPinAdult(pin) {
+  if(typeof pin!=='string'||!/^[0-9]{4,8}$/.test(pin))throw Error('PIN de 4 a 8 xifres');
+  PropertiesService.getScriptProperties().setProperty('FAMILY_ADULT_PIN_HASH',digest_(pin));
+  Logger.log('PIN adult configurat. No es mostra ni es desa en clar.');
 }
