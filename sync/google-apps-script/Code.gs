@@ -11,11 +11,6 @@
 
 const COMPRA = "Compra";
 const SOPARS = "Sopars";
-const TASQUES = "Tasques";
-const TASQUES_FETES = "TasquesFetes";
-const RECOMPENSES = "Recompenses";
-const CANVIS_PUNTS = "CanvisPunts";
-const PETICIONS_PREMIS = "PeticionsPremis";
 const MAX_PRODUCTS = 200;
 const MAX_DINNERS = 366;
 const MAX_PHOTOS = 300; // Mateix límit que Fotos.gs.
@@ -148,11 +143,11 @@ function setDinner_(tab, op) {
 /** Fulls familiars existents: NO se n'esborra cap registre per activar aquesta fase. */
 function familySheets_() {
   return {
-    tasks: sheet_(TASQUES, ["id","titol","punts","activa","frequencia","persona"]),
-    done: sheet_(TASQUES_FETES, ["data","tascaId","persona","punts","tipus"]),
-    rewards: sheet_(RECOMPENSES, ["id","recompensa","cost","activa"]),
-    changes: sheet_(CANVIS_PUNTS, ["id","data","persona","recompensaId","cost"]),
-    requests: sheet_(PETICIONS_PREMIS, ["id","data","persona","recompensaId","cost","estat"])
+    tasks: sheet_("Tasques", ["id","titol","punts","activa","frequencia","persona"]),
+    done: sheet_("TasquesFetes", ["data","tascaId","persona","punts","tipus"]),
+    rewards: sheet_("Recompenses", ["id","recompensa","cost","activa"]),
+    changes: sheet_("CanvisPunts", ["id","data","persona","recompensaId","cost"]),
+    requests: sheet_("PeticionsPremis", ["id","data","persona","recompensaId","cost","estat"])
   };
 }
 function isoDay_(value) {
