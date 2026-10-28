@@ -462,7 +462,23 @@ function doPost(e) {
     if (!raw || raw.length > 1600000) throw new Error("Petició buida o massa gran");
     const request = JSON.parse(raw);
     if (request.action !== "photo_upload" && raw.length > 60000) throw new Error("Petició massa gran");
-    response = apiAction(request.key, request.action, request.payload || {});
+    // Compatibilitat amb el servei real:
+    // el projecte existent exposa familyTasksAction i photoApiAction_ en altres fitxers.
+    // Cal conservar les rutes mentre hi hagi mòbils amb la versió anterior.
+    if (request.action === "family_tasks") {
+      if (typeof familyTasksAction !== "function") {
+        throw new Error("Cal conservar el fitxer de tasques del projecte existent");
+      }
+      const inner = request.payload || {};
+      response = familyTasksAction(request.key, inner.action, inner.data || {});
+    } else if (request.action === "photos_list" || request.action === "photos_get") {
+      if (typeof photoApiAction_ !== "function") {
+        throw new Error("Cal conservar Fotos.gs del projecte existent");
+      }
+      response = photoApiAction_(request.key, request.action, request.payload || {});
+    } else {
+      response = apiAction(request.key, request.action, request.payload || {});
+    }
   } catch (ex) {
     response = { ok: false, error: String(ex.message || "Petició incorrecta").slice(0, 160) };
   }
