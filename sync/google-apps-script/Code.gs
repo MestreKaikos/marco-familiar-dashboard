@@ -140,113 +140,150 @@ function setDinner_(tab, op) {
   }
 }
 
-/** Fulls familiars existents: NO se n'esborra cap registre per activar aquesta fase. */
+/**
+ * Adaptador segur a Tasques.gs original. No redefineix cap de les seves funcions.
+ * Aquest fitxer és la font de veritat de les freqüències, franges i del PIN.
+ */
 function familySheets_() {
-  return {
-    tasks: sheet_("Tasques", ["id","titol","punts","activa","frequencia","persona"]),
-    done: sheet_("TasquesFetes", ["data","tascaId","persona","punts","tipus"]),
-    rewards: sheet_("Recompenses", ["id","recompensa","cost","activa"]),
-    changes: sheet_("CanvisPunts", ["id","data","persona","recompensaId","cost"]),
-    requests: sheet_("PeticionsPremis", ["id","data","persona","recompensaId","cost","estat"])
-  };
-}
-function isoDay_(value) {
-  if (value instanceof Date && !isNaN(value.getTime())) {
-    return Utilities.formatDate(value, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  if (typeof familyTaskSheet_ !== "function" ||
+      typeof familyTasksSnapshot_ !== "function" ||
+      typeof taskSchedule_ !== "function") {
+    throw new Error("Cal conservar Tasques.gs del projecte familiar");
   }
-  return String(value || "").slice(0, 10);
+  return {
+    tasks: familyTaskSheet_("Tasques",["id","titol","punts","activa","frequencia","dies","franges"]),
+    done: familyTaskSheet_("TasquesFetes",["data","tascaId","persona","punts","franja"]),
+    rewards: familyTaskSheet_("Recompenses",["id","recompensa","cost","activa"]),
+    changes: familyTaskSheet_("CanvisPunts",["id","data","persona","recompensaId","cost"]),
+    requests: familyTaskSheet_("PeticionsPremis",["id","data","persona","recompensaId","cost","estat"])
+  };
 }
 function active_(value) {
   return value === true || ["true","1","si","sí"].includes(String(value).trim().toLowerCase());
 }
 function readFamily_() {
-  const tabs = familySheets_();
-  const tasks = rows_(tabs.tasks,6).filter(r => r[0] && r[1] && active_(r[3])).map(r => ({
-    id: String(r[0]), title: String(r[1]), stars: Math.max(1,Math.min(5,Number(r[2])||1)),
-    daily: String(r[4]).trim().toLowerCase() === "diària",
-    owner: String(r[5]) === "Família" ? "Família" : "Rai"
+  const original = familyTasksSnapshot_();
+  const tasks = original.tasks.filter(t => t.active).map(t => ({
+    id: t.id, title: t.title, stars: t.points, owner: "Rai",
+    // La versió Android actual coneix una completada per dia per tasca.
+    // Altres franges es mostren sense permetre completar-les incorrectament.
+    daily: t.frequency !== "once",
+    frequency: t.frequency, days: t.days, slots: t.slots,
+    dueToday: t.dueToday === true
   }));
-  const done = rows_(tabs.done,5).filter(r => r[1] && ["Rai","Família"].includes(String(r[2]))).map(r => ({
-    date: isoDay_(r[0]), taskId: String(r[1]), owner: String(r[2]), points: Number(r[3]) || 0
+  const done = original.done.filter(d => d.kid === "Rai").map(d => ({
+    date: d.date, taskId: d.taskId, owner: "Rai", points: d.points, slot: d.slot
   }));
-  const rewards = rows_(tabs.rewards,4).filter(r => r[0] && r[1] && active_(r[3])).map(r => ({
-    id: String(r[0]), title: String(r[1]), cost: Math.max(1,Number(r[2])||1)
+  const rewards = original.rewards.filter(r => r.active).map(r => ({
+    id: r.id, title: r.title, cost: r.cost
   }));
-  const spent = rows_(tabs.changes,5).filter(r => r[2] === "Rai")
-    .reduce((sum,r) => sum + (Number(r[4]) || 0),0);
-  const stars = Math.max(0,done.filter(r => r.owner === "Rai").reduce((sum,r) => sum + r.points,0) - spent);
-  // Les peticions antigues es conserven; l'Android només mostra les pendents.
-  const pending = rows_(tabs.requests,6).find(r => r[2] === "Rai" &&
-    ["pending","pendent"].includes(String(r[5]).toLowerCase()));
-  return { tasks: tasks, taskDone: done, rewards: rewards, stars: stars,
-    pendingReward: pending ? String(pending[3]) : "" };
+  const pending = original.requests.find(r =>
+    r.kid === "Rai" && r.status === "pendent");
+  const reserved = original.requests.filter(r =>
+    r.kid === "Rai" && r.status === "pendent")
+    .reduce((sum, r) => sum + r.cost, 0);
+  return {
+    tasks: tasks, taskDone: done, rewards: rewards,
+    stars: Math.max(0, original.points), pointsReserved: reserved,
+    pendingReward: pending ? pending.rewardId : "",
+    pendingRequestId: pending ? pending.id : ""
+  };
 }
-function validateDate_(value) {
-  const date = String(value || "");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) ||
-      isNaN(Date.parse(date+"T00:00:00Z"))) throw new Error("Data no vàlida");
-  return date;
-}
+/** L'Android v1 només crea feines de Rai, diàries o d'una sola vegada.
+ * Les altres programacions es conserven, sense modificar-les.
+ */
 function taskSet_(op) {
+  if (op.owner && op.owner !== "Rai")
+    throw new Error("Les feines familiars no tenen aquest format al full antic");
   const tabs = familySheets_();
   const id = validateId_(op.id), title = safeText_(op.title,100);
   if (!title) throw new Error("Tasca sense títol");
-  const points = Math.max(1,Math.min(5,Number(op.stars)||1));
-  const frequency = op.daily === true ? "diària" : "única";
-  const owner = op.owner === "Família" ? "Família" : "Rai";
-  const rows = rows_(tabs.tasks,6);
+  const points = familyPositive_(op.stars,100);
+  const schedule = taskSchedule_({
+    frequency: op.daily === true ? "daily" : "once"
+  });
+  const rows = rows_(tabs.tasks,7);
   const idx = rows.findIndex(r => String(r[0]) === id);
   if (idx < 0) {
-    if (rows.length >= 200) throw new Error("Límit de tasques");
-    tabs.tasks.appendRow([id,title,points,true,frequency,owner]);
+    if (rows.length >= MAX_FAMILY_TASKS_) throw new Error("Massa tasques");
+    tabs.tasks.appendRow([id,title,points,true,schedule.frequency,schedule.days,schedule.slots]);
   } else {
-    tabs.tasks.getRange(idx+2,1,1,6).setValues([[id,title,points,true,frequency,owner]]);
+    // No perdre dies i franges de feines creades abans des del mòbil.
+    const was = rows[idx], preserve = taskSchedule_({
+      frequency: String(was[4] || "daily"),
+      days: String(was[5] || ""),
+      slots: String(was[6] || "matí,vespre")
+    });
+    tabs.tasks.getRange(idx+2,1,1,7).setValues([[
+      id,title,points,true,preserve.frequency,preserve.days,preserve.slots
+    ]]);
   }
 }
 function taskDelete_(op) {
   const tab = familySheets_().tasks;
-  const id = validateId_(op.id), rows = rows_(tab,6);
+  const id = validateId_(op.id), rows = rows_(tab,7);
   const idx = rows.findIndex(r => String(r[0]) === id);
   if (idx >= 0) tab.getRange(idx+2,4,1,1).setValues([[false]]);
 }
 function taskComplete_(op) {
-  const tabs = familySheets_(), id = validateId_(op.id), date = validateDate_(op.date);
-  const task = rows_(tabs.tasks,6).find(r => String(r[0]) === id && active_(r[3]));
-  if (!task) throw new Error("La tasca no existeix o està inactiva");
-  const daily = String(task[4]).trim().toLowerCase() === "diària";
-  const owner = String(task[5]) === "Família" ? "Família" : "Rai";
-  const existing = rows_(tabs.done,5).some(r => String(r[1]) === id && r[2] === owner &&
-    (daily ? isoDay_(r[0]) === date : true));
-  if (existing) return; // No acreditar dues vegades el mateix esforç.
-  const points = Math.max(1,Math.min(5,Number(task[2])||1));
-  tabs.done.appendRow([date,id,owner,owner === "Rai" ? points : 0,daily?"diària":"única"]);
+  const id = validateId_(op.id);
+  if (typeof op.date !== "string" || op.date !== taskDate_())
+    throw new Error("Confirma la feina durant el dia actual");
+  const tabs = familySheets_();
+  const snapshot = familyTasksSnapshot_();
+  const task = snapshot.tasks.find(t => t.id === id && t.active && t.dueToday);
+  if (!task) throw new Error("Aquesta feina no toca avui");
+  const slot = String(op.slot || "única");
+  if (task.frequency === "slots")
+    throw new Error("Cal triar la franja al gestor familiar");
+  if (!task.slots.split(",").includes(slot))
+    throw new Error("Franja no vàlida");
+  const already = snapshot.done.some(d =>
+    d.taskId === id && d.kid === "Rai" && d.date === op.date && d.slot === slot);
+  if (!already) {
+    tabs.done.appendRow([op.date,id,"Rai",task.points,slot]);
+  }
 }
 function rewardSet_(op) {
-  const tab = familySheets_().rewards, id = validateId_(op.id);
-  const title = safeText_(op.title,100), cost = Math.max(1,Math.min(999,Number(op.cost)||1));
+  const tab = familySheets_().rewards;
+  const id = validateId_(op.id), title = safeText_(op.title,100);
   if (!title) throw new Error("Premi sense títol");
+  const cost = familyPositive_(op.cost,10000);
   const rows = rows_(tab,4), idx = rows.findIndex(r => String(r[0]) === id);
   if (idx < 0) {
-    if (rows.length >= 200) throw new Error("Límit de premis");
+    if (rows.length >= MAX_FAMILY_REWARDS_) throw new Error("Massa recompenses");
     tab.appendRow([id,title,cost,true]);
-  } else tab.getRange(idx+2,1,1,4).setValues([[id,title,cost,true]]);
+  } else {
+    tab.getRange(idx+2,1,1,4).setValues([[id,title,cost,true]]);
+  }
 }
 function rewardDelete_(op) {
   const tab = familySheets_().rewards, id = validateId_(op.id);
   const rows = rows_(tab,4), idx = rows.findIndex(r => String(r[0]) === id);
   if (idx >= 0) tab.getRange(idx+2,4,1,1).setValues([[false]]);
 }
-function rewardRedeem_(op) {
-  // L'ID de la mutació identifica l'operació de bescanvi en reintents offline.
-  const mutationId = validateId_(op.mutationId), id = validateId_(op.id);
+/** Una petició de recompensa MAI no descompta punts sense el PIN adult.
+ * El mateix mutationId s'utilitza com a ID per a reintents sense duplicats.
+ */
+function rewardRequest_(op) {
+  const id = validateId_(op.id), mutationId = validateId_(op.mutationId);
   const tabs = familySheets_();
-  const changes = rows_(tabs.changes,5);
-  if (changes.some(r => String(r[0]) === mutationId)) return;
-  const reward = rows_(tabs.rewards,4).find(r => String(r[0]) === id && active_(r[3]));
-  if (!reward) throw new Error("Premi inexistent o inactiu");
-  const balance = readFamily_().stars, cost = Number(reward[2])||0;
-  if (cost <= 0 || balance < cost) throw new Error("No hi ha prou punts");
-  tabs.changes.appendRow([mutationId,new Date().toISOString(),"Rai",id,cost]);
+  const snapshot = familyTasksSnapshot_();
+  const existing = snapshot.requests.find(r => r.id === mutationId);
+  if (existing) {
+    if (existing.rewardId !== id) throw new Error("ID de petició en conflicte");
+    return;
+  }
+  const reward = snapshot.rewards.find(r => r.id === id && r.active);
+  if (!reward) throw new Error("Recompensa no disponible");
+  const reserved = snapshot.requests.filter(r =>
+    r.kid === "Rai" && r.status === "pendent")
+    .reduce((sum,r) => sum + r.cost,0);
+  if (snapshot.points - reserved < reward.cost)
+    throw new Error("Punts insuficients o reservats per altres peticions");
+  tabs.requests.appendRow([
+    mutationId,taskDate_(),"Rai",id,reward.cost,"pendent"
+  ]);
 }
 
 function perform_(ops) {
@@ -264,17 +301,13 @@ function perform_(ops) {
       case "task_complete": taskComplete_(op); break;
       case "reward_set": rewardSet_(op); break;
       case "reward_delete": rewardDelete_(op); break;
-      case "reward_redeem": rewardRedeem_(op); break;
+      case "reward_request": rewardRequest_(op); break;
+      case "reward_redeem": throw new Error("Cal aprovar el premi amb el PIN a través de Tasques.gs");
       default: throw new Error("Acció no admesa");
     }
   });
 }
 
-/**
- * Les fotos es guarden en una carpeta PRIVADA de Drive. El full Fotos
- * només manté l'índex: cap URL pública ni enllaç de Drive es filtra als clients.
- * Qualsevol operació requereix la mateixa clau que la compra i els sopars.
- */
 /**
  * Galeria familiar integrada amb Fotos.gs, SENSE una segona carpeta ni pestanya Fotos.
  * photoFolder_() és la funció existent de Fotos.gs i fa servir PHOTO_FOLDER_ID.
