@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,8 +49,8 @@ import java.time.LocalDate
 
 /** Una sola pantalla amb tres columnes: compra, feines i recompenses. Tot és local. */
 @Composable
-fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate) {
-    var groceryName by remember { mutableStateOf("") }
+fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Boolean = false, pending: Int = 0) {
+    var groceryName by rememberSaveable { mutableStateOf("") }
     var editGrocery by remember { mutableStateOf<LocalGrocery?>(null) }
     var addChore by remember { mutableStateOf(false) }
     var addReward by remember { mutableStateOf(false) }
@@ -119,7 +120,13 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate) {
                     }
                 }
             }
-            Text("Només es desa en aquest dispositiu", style = Type.Tiny.copy(color = Palette.InkMuted), modifier = Modifier.padding(top = 12.dp))
+            Text(
+                if (!connected) "Només es desa en aquest dispositiu"
+                else if (pending > 0) "$pending canvi(s) pendent(s) de sincronitzar"
+                else "Compra compartida · dades del marc i dels mòbils",
+                style = Type.Tiny.copy(color = Palette.InkMuted),
+                modifier = Modifier.padding(top = 12.dp)
+            )
         }
 
         FamilyPanel(Modifier.weight(1.12f).fillMaxHeight()) {
