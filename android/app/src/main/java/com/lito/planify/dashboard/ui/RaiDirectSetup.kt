@@ -16,8 +16,9 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.util.UUID
 
 /**
- * Configuració local per provar el marc en un únic telèfon.
- * Evita enviar les credencials pel navegador i el servidor HTTP de vinculació.
+ * Formulari com a PANTALLA, no diàleg.
+ * Els esborranys romanen al magatzem privat de l'app quan es canvia a un navegador
+ * o a Google Sheets per copiar una altra URL/clau.
  */
 @Composable
 internal fun RaiDirectSetup(onDismiss: () -> Unit, onSaved: (String, String) -> Unit) {
@@ -28,63 +29,87 @@ internal fun RaiDirectSetup(onDismiss: () -> Unit, onSaved: (String, String) -> 
     val photoPrefs = remember(context) {
         context.getSharedPreferences("marc_fotos", Context.MODE_PRIVATE)
     }
-    var url by remember {
-        mutableStateOf(familyPrefs.getString("url", "").orEmpty()
-            .ifBlank { photoPrefs.getString("shared_url", "").orEmpty() })
+    val draftPrefs = remember(context) {
+        context.getSharedPreferences("marc_setup_draft", Context.MODE_PRIVATE)
     }
-    var familyKey by remember { mutableStateOf(familyPrefs.getString("key", "").orEmpty()) }
-    var photoKey by remember { mutableStateOf(photoPrefs.getString("shared_key", "").orEmpty()) }
+    var url by remember {
+        mutableStateOf(draftPrefs.getString("url", null)
+            ?: familyPrefs.getString("url", "").orEmpty()
+                .ifBlank { photoPrefs.getString("shared_url", "").orEmpty() })
+    }
+    var familyKey by remember {
+        mutableStateOf(draftPrefs.getString("familyKey", null)
+            ?: familyPrefs.getString("key", "").orEmpty())
+    }
+    var photoKey by remember {
+        mutableStateOf(draftPrefs.getString("photoKey", null)
+            ?: photoPrefs.getString("shared_key", "").orEmpty())
+    }
     var calendars by remember {
-        mutableStateOf(Store(context).calendarFeeds.joinToString("\n") { "${it.name} | ${it.url}" })
+        mutableStateOf(draftPrefs.getString("calendars", null)
+            ?: Store(context).calendarFeeds.joinToString("\n") { "${it.name} | ${it.url}" })
     }
     var error by remember { mutableStateOf("") }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Configurar Marc Familiar") },
-        text = {
-            Column(
-                Modifier.fillMaxWidth().heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(9.dp)
-            ) {
-                Text("Les dades es desen directament al mòbil, sense passar pel QR.")
-                OutlinedTextField(
-                    value = url, onValueChange = { url = it; error = "" },
-                    label = { Text("URL d'Apps Script (/exec)") },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true
-                )
-                OutlinedTextField(
-                    value = familyKey, onValueChange = { familyKey = it; error = "" },
-                    label = { Text("Clau familiar (compra, sopars i tasques)") },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    visualTransformation = PasswordVisualTransformation()
-                )
-                Text("Fotografies (opcional)", style = MaterialTheme.typography.titleSmall)
-                OutlinedTextField(
-                    value = photoKey, onValueChange = { photoKey = it; error = "" },
-                    label = { Text("Clau privada de lectura de fotos") },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    visualTransformation = PasswordVisualTransformation()
-                )
-                Text("Calendaris (opcional)", style = MaterialTheme.typography.titleSmall)
-                Text("Un calendari per línia: Nom | URL privada iCal", style = MaterialTheme.typography.bodySmall)
-                OutlinedTextField(
-                    value = calendars, onValueChange = { calendars = it; error = "" },
-                    label = { Text("Calendaris de Google") },
-                    modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 5
-                )
-                if (error.isNotEmpty()) {
-                    Text(error, color = MaterialTheme.colorScheme.error)
-                }
-                Text(
-                    "No introdueixis la contrasenya de Google. Només les claus que ja utilitza Marc Familiar.",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel·lar") } },
-        confirmButton = {
-            Button(onClick = {
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+            .padding(horizontal = 22.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("⚙️ Configurar Marc Familiar", style = MaterialTheme.typography.headlineSmall)
+            TextButton(onClick = onDismiss) { Text("Tornar") }
+        }
+        Text(
+            "Pots sortir al navegador per copiar cada dada i tornar: el que escriguis " +
+                "quedarà guardat automàticament en aquest mòbil.",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        OutlinedTextField(
+            value = url, onValueChange = {
+                url = it; error = ""
+                draftPrefs.edit().putString("url", it).apply()
+            },
+            label = { Text("URL d'Apps Script (/exec)") },
+            modifier = Modifier.fillMaxWidth(), singleLine = true
+        )
+        OutlinedTextField(
+            value = familyKey, onValueChange = {
+                familyKey = it; error = ""
+                draftPrefs.edit().putString("familyKey", it).apply()
+            },
+            label = { Text("Clau familiar per a les tasques") },
+            modifier = Modifier.fillMaxWidth(), singleLine = true,
+            visualTransformation = PasswordVisualTransformation()
+        )
+        HorizontalDivider()
+        Text("Fotografies (opcional)", style = MaterialTheme.typography.titleMedium)
+        OutlinedTextField(
+            value = photoKey, onValueChange = {
+                photoKey = it; error = ""
+                draftPrefs.edit().putString("photoKey", it).apply()
+            },
+            label = { Text("Clau privada de lectura de fotos") },
+            modifier = Modifier.fillMaxWidth(), singleLine = true,
+            visualTransformation = PasswordVisualTransformation()
+        )
+        HorizontalDivider()
+        Text("Calendaris de Google (opcional)", style = MaterialTheme.typography.titleMedium)
+        Text("Un per línia: Nom | URL privada iCal", style = MaterialTheme.typography.bodySmall)
+        OutlinedTextField(
+            value = calendars, onValueChange = {
+                calendars = it; error = ""
+                draftPrefs.edit().putString("calendars", it).apply()
+            },
+            label = { Text("Calendaris") },
+            modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 5
+        )
+        if (error.isNotEmpty()) {
+            Text(error, color = MaterialTheme.colorScheme.error)
+        }
+        Button(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = {
                 val cleanUrl = url.trim()
                 val cleanFamilyKey = familyKey.trim()
                 val cleanPhotoKey = photoKey.trim()
@@ -113,7 +138,7 @@ internal fun RaiDirectSetup(onDismiss: () -> Unit, onSaved: (String, String) -> 
                         require(cal != null && cal.isHttps &&
                             (cal.host == "calendar.google.com" || cal.host == "www.google.com") &&
                             cal.encodedPath.contains("/ical/")) {
-                            "Un dels calendaris no té un enllaç secret iCal vàlid."
+                            "Un calendari no té un enllaç secret iCal vàlid."
                         }
                         PersonalCalendar(UUID.randomUUID().toString(), parts[0].trim().take(60), calUrl)
                     }
@@ -126,11 +151,20 @@ internal fun RaiDirectSetup(onDismiss: () -> Unit, onSaved: (String, String) -> 
                     if (entries.isNotEmpty()) Store(context).calendarFeeds = entries
                 }
                 if (outcome.isSuccess) {
+                    // Esborrany temporal eliminat després de desar correctament.
+                    draftPrefs.edit().remove("url").remove("familyKey")
+                        .remove("photoKey").remove("calendars").apply()
                     onSaved(cleanUrl, cleanFamilyKey)
                 } else {
-                    error = outcome.exceptionOrNull()?.message ?: "No s'ha pogut desar la configuració."
+                    error = outcome.exceptionOrNull()?.message ?: "No s'ha pogut desar."
                 }
-            }) { Text("Desar i connectar") }
-        }
-    )
+            }
+        ) { Text("Desar i connectar") }
+        Text(
+            "No cal introduir la contrasenya de Google. Les claus només es desen " +
+                "a l'espai privat de l'aplicació en aquest dispositiu.",
+            style = MaterialTheme.typography.bodySmall
+        )
+        Spacer(Modifier.height(20.dp))
+    }
 }
