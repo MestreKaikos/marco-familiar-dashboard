@@ -41,16 +41,3 @@ Per afegir calendaris addicionals, repeteix els passos. El marc descarrega peri�
 - Verificar compilació automàtica i captures a GitHub abans de fusionar el PR.
 
 *No utilitzem OAuth de Google en aquesta fase. La sincronització és unidireccional amb iCal i pot tenir una demora en els canvis.*
-
-
-## Colors personals per calendari
-
-A **Opcions → Calendaris de Google**, sota el nom de cada calendari es mostra una paleta tàctil de vuit colors. Pots triar-ne un per a «Família», un altre per a «Rai», etc.
-
-- El color es desa **al mateix Android**, juntament amb la configuració del calendari, i es manté després de reiniciar l'app.
-- Els calendaris antics reben el color que tenien assignat anteriorment; quan se'n desa o modifica un, es persisteix el color amb el seu identificador.
-- Si elimines un calendari, els restants **no canvien de color**. Si n'afegeixes un de nou, s'intenta triar un color que encara no estigui utilitzat.
-- A la pestanya **Calendari** hi ha una llegenda amb el nom i el color de cada font.
-- Els esdeveniments de la portada i la setmana fan servir el mateix color.
-- **No** es llegeix ni es modifica el color de Google Calendar al servidor; aquest és un color local de visualització.
-- Per a una prova visual sense dades privades, obre la galeria de captures a `docs/captures/README.md`. El simulador comença sense calendaris de la família i, per tant, no pot mostrar una llegenda amb dades personals.

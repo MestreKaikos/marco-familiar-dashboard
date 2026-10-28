@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "android/**"
+      - ".github/scripts/captures-colors.sh"
       - ".github/scripts/captures-emulador.sh"
       - ".github/workflows/android-captures.yml"
   workflow_dispatch:
@@ -61,13 +62,14 @@ jobs:
           disk-size: 6G
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none -camera-front none -no-snapshot
           disable-animations: true
-          script: bash .github/scripts/captures-emulador.sh
+          script: bash .github/scripts/captures-colors.sh
       - name: Ofereix les captures per descarregar
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: captures-reals-marc-familiar
-          path: captures/*.png
-          if-no-files-found: error
+          path: captures/*
+          if-no-files-found: warn
           retention-days: 14
       - name: Publica les captures al repositori per poder-les veure sense instal·lar l'app
         if: github.event_name == 'pull_request'

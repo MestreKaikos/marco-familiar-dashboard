@@ -47,7 +47,9 @@ fun FamilyCalendarScreen(state: UiState, dinners: DinnerPlan) {
         contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 24.dp)
     ) {
         if (state.personalCalendars.isNotEmpty()) {
-            item { CalendarLegend(state.personalCalendars) }
+            item {
+                CalendarLegend(state.personalCalendars)
+            }
         }
         if (!state.ics && state.token == null) {
             item {

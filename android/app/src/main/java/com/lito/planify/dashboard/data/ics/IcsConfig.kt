@@ -44,12 +44,12 @@ class IcsConfig(private val props: Properties) {
     val calendars: List<IcsCalendar> get() = personalCalendars ?: builtInCalendars
 
     fun setPersonalCalendars(calendars: List<PersonalCalendar>) {
-        personalCalendars = CalendarColors.normalize(calendars.take(5)).mapIndexed { i, calendar ->
+        personalCalendars = calendars.take(5).mapIndexed { i, calendar ->
             IcsCalendar(
                 id = i + 1,
                 key = calendar.id,
                 name = calendar.name.take(50),
-                color = calendar.color ?: CalendarColors.fallback(i),
+                color = CalendarColors.normalize(calendar.color) ?: CalendarColors.legacy(i),
                 role = CalendarRole.EVENTS,
                 url = calendar.url
             )

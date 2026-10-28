@@ -488,9 +488,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         val items = store.calendarFeeds
         if (items.size >= 5) return "Ja hi ha cinc calendaris configurats."
         if (items.any { it.url == url }) return "Aquest calendari ja està afegit."
-        val used = items.mapNotNull { it.color }.toSet()
-        val color = CalendarColors.choices.firstOrNull { it !in used } ?: CalendarColors.fallback(items.size)
-        applyPersonalCalendars(items + PersonalCalendar(UUID.randomUUID().toString(), name, url, color))
+        applyPersonalCalendars(items + PersonalCalendar(UUID.randomUUID().toString(), name, url, CalendarColors.nextAvailable(items)))
         return null
     }
 
@@ -498,14 +496,14 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         applyPersonalCalendars(store.calendarFeeds.filterNot { it.id == id })
     }
 
-    /** Recoloreix només aquest calendari; la resta conserven l'ID i el color. */
-    fun updatePersonalCalendarColor(id: String, color: String) {
-        if (!CalendarColors.valid(color)) return
-        val current = store.calendarFeeds
-        if (current.none { it.id == id }) return
-        applyPersonalCalendars(current.map {
-            if (it.id == id) it.copy(color = color.uppercase(java.util.Locale.ROOT)) else it
-        })
+    /** Només canvia el color d'aquest calendari; no altera els altres ni la seva URL. */
+    fun changePersonalCalendarColor(id: String, hex: String) {
+        val color = CalendarColors.normalize(hex) ?: return
+        if (CalendarColors.options.none { it.hex == color }) return
+        val calendars = store.calendarFeeds
+        val current = calendars.firstOrNull { it.id == id } ?: return
+        if (current.color == color) return
+        applyPersonalCalendars(calendars.map { if (it.id == id) it.copy(color = color) else it })
     }
 
     private fun applyPersonalCalendars(feeds: List<PersonalCalendar>) {

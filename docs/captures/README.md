@@ -37,6 +37,25 @@ Es generen per comprovar l'aspecte de la versió horitzontal de **1920 × 1200**
 ![Configuració del PIN per protegir la validació de les tasques i premis](10-pin-dels-adults.png)
 
 
+## Colors personalitzables de Google Calendar
+
+Captures d'emulador Android 10, **amb dos calendaris ficticis** («Rai» i «Família»).
+No contenen esdeveniments reals ni enllaços iCal privats.
+
+![Llegenda de calendaris a la portada](14-llegenda-colors-avui.png)
+
+![Llegenda de calendaris a la vista setmanal](15-llegenda-colors-calendari.png)
+
+![Calendaris amb el seu propi color](16-calendaris-amb-colors.png)
+
+![Selector de vuit colors per calendari](17-selector-color-calendari.png)
+
+![Color canviat a «Taronja» sense alterar el de «Família»](18-color-calendari-actualitzat.png)
+
+![El color es conserva després de reiniciar l'aplicació](19-color-persistent-portada.png)
+
+[Guia de colors de Google Calendar](../COLORS-CALENDARIS.md).
+
 ## Meteorologia i Google Calendar
 
 La ubicació meteorològica inicial és **Malgrat de Mar**. La configuració de Google Calendar es mostra sempre **sense URL privades** en aquestes captures.
