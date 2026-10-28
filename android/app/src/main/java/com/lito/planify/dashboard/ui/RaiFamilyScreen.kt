@@ -87,6 +87,7 @@ fun RaiFamilyScreen() {
     var url by remember { mutableStateOf(prefs.getString("url","").orEmpty()) }
     var key by remember { mutableStateOf(prefs.getString("key","").orEmpty()) }
     var edit by remember { mutableStateOf(url.isBlank()||key.isBlank()) }
+    var showQr by remember { mutableStateOf(url.isBlank()||key.isBlank()) }
     var draftUrl by remember { mutableStateOf(url) }
     var draftKey by remember { mutableStateOf(key) }
     var snapshot by remember { mutableStateOf<RaiSnapshot?>(null) }
@@ -120,10 +121,17 @@ fun RaiFamilyScreen() {
     Column(Modifier.fillMaxSize().padding(28.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
             Text("⭐ Tasques d'en Rai",style=com.lito.planify.dashboard.ui.theme.Type.Title)
-            OutlinedButton(onClick={edit=!edit}){Text("Configurar")}
+            OutlinedButton(onClick={showQr=!showQr}){Text(if(showQr)"Tancar QR" else "Connectar amb QR")}
+            OutlinedButton(onClick={edit=!edit}){Text("Manual")}
             OutlinedButton(onClick={seq++}){Text("Actualitzar")}
         }
-        if(edit) {
+        if(showQr) {
+            RaiPairingView { newUrl,newKey ->
+                url=newUrl;key=newKey;draftUrl=newUrl;draftKey=newKey
+                showQr=false;edit=false;seq++
+            }
+        }
+        if(edit && !showQr) {
             OutlinedTextField(draftUrl,{draftUrl=it},label={Text("URL Apps Script /exec")},modifier=Modifier.fillMaxWidth())
             OutlinedTextField(draftKey,{draftKey=it},label={Text("Clau familiar")},visualTransformation=PasswordVisualTransformation(),modifier=Modifier.fillMaxWidth())
             Button(onClick={
