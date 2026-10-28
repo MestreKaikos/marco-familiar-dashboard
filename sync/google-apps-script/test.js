@@ -30,6 +30,7 @@ class FakeDriveFile {
   getName() { return this.name; }
   getMimeType() { return this.blob.getContentType(); }
   getDateCreated() { return new Date("2026-10-28T09:00:00Z"); }
+  getLastUpdated() { return new Date("2026-10-28T09:00:00Z"); }
   setTrashed(value) { this.trashed = value; }
 }
 
@@ -84,7 +85,7 @@ const context = vm.createContext({
     computeDigest: (alg, value) => Array.from(crypto.createHash(alg).update(value).digest()).map(x => x >= 128 ? x - 256 : x),
     base64Decode: value => Array.from(Buffer.from(value, "base64")),
     base64Encode: bytes => Buffer.from(bytes).toString("base64"),
-    newBlob: (bytes, type) => new FakeBlob(bytes, type)
+    newBlob: (bytes, type, name) => { const blob = new FakeBlob(bytes, type); blob.name = name; return blob; }
   },
   DriveApp: {
     createFolder: name => {
@@ -184,34 +185,45 @@ assert.ok(!deleted.data.tasks.some(t=>t.id==="old_task"));
 assert.ok(tabs.get("TasquesFetes").rows.some(r=>r[1]==="old_task"),"El registre històric es manté");
 
 
-// Fotografies: autenticació, Drive privat, càrrega idempotent, descàrrega i baixa.
+// Fotografies: Fotos.gs continua sent el propietari de la carpeta i de la clau de lectura.
+const existingFolder=context.DriveApp.createFolder("Marc Familiar · Fotos compartides");
+store.set('PHOTO_FOLDER_ID',existingFolder.getId());
+const oldReaderKey='1'.repeat(64);
+store.set('PHOTO_READ_KEY_HASH',crypto.createHash('sha256').update(oldReaderKey).digest('hex'));
+context.photoFolder_ = () => context.DriveApp.getFolderById(store.get('PHOTO_FOLDER_ID'));
 assert.equal(context.apiAction('0'.repeat(64),'photo_list',{}).ok,false);
 assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,0);
-// Ja existia una carpeta de Drive amb PNG: indexem sense moure ni esborrar fitxers.
-const existingFolder=context.DriveApp.createFolder("Marc Familiar · Fotos compartides");
+// La carpeta existent ha de seguir intacta; NO es crea una nova carpeta ni un full Fotos.
+const folderCount=driveFolders.size;
 const png=Buffer.from([137,80,78,71,13,10,26,10,1,2,3]);
 const existingPng=existingFolder.createFile(new FakeBlob(png,"image/png"));
 existingPng.name="Rai_car.png";
 context.prepararFotosFamiliars();
+assert.equal(driveFolders.size,folderCount,'No s’ha creat una carpeta nova');
+assert.equal(tabs.has("Fotos"),false,'No es necessita una pestanya Fotos duplicada');
+assert.equal(store.get('PHOTO_FOLDER_ID'),existingFolder.getId());
+assert.equal(store.get('PHOTO_READ_KEY_HASH'),crypto.createHash('sha256').update(oldReaderKey).digest('hex'));
 assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,1);
 assert.equal(context.apiAction(secret,'photo_get',{id:existingPng.getId()}).photo.mimeType,"image/png");
 const jpeg=Buffer.from([255,216,1,2,3,255,217]).toString('base64');
 const addPhoto=context.apiAction(secret,'photo_upload',{id:'photo_1',name:'Platja.jpg',base64:jpeg});
 assert.equal(addPhoto.ok,true,addPhoto.error);
 assert.equal(addPhoto.photos.length,2);
-assert.equal(addPhoto.photos[0].name,'Platja.jpg');
+assert.ok(addPhoto.photos.some(p=>p.name.includes('Platja')));
+const newPhoto=addPhoto.photo;
+assert.ok(newPhoto.id !== 'photo_1','La llista utilitza els IDs reals de Drive');
 assert.equal(addPhoto.photos[0].base64,undefined,'No enviem base64 a la llista');
 assert.ok(store.get('PHOTO_FOLDER_ID'),'La carpeta privada és al Drive');
-assert.equal(context.apiAction(secret,'photo_get',{id:'photo_1'}).photo.base64,jpeg);
+assert.equal(context.apiAction(secret,'photo_get',{id:newPhoto.id}).photo.base64,jpeg);
 assert.equal(context.apiAction(secret,'photo_upload',{id:'photo_1',name:'Platja.jpg',base64:jpeg}).photos.length,2);
 assert.equal(context.apiAction(secret,'photo_get',{id:'../../x'}).ok,false);
 assert.equal(context.apiAction(secret,'photo_upload',{id:'photo_2',name:'Engany',base64:'AAAAAA=='}).ok,false);
 assert.equal(context.apiAction(secret,'photo_get',{id:'photo_2'}).ok,false);
 const invalidRequest=context.doPost({postData:{contents:JSON.stringify({key:secret,action:'photo_upload',payload:{id:'photo_3',base64:'AAA'}})}});
 assert.equal(JSON.parse(invalidRequest.text).ok,false);
-assert.equal(context.apiAction(secret,'photo_delete',{id:'photo_1'}).ok,true);
+assert.equal(context.apiAction(secret,'photo_delete',{id:newPhoto.id}).ok,true);
 assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,1);
-assert.equal(context.apiAction(secret,'photo_get',{id:'photo_1'}).ok,false);
+assert.equal(context.apiAction(secret,'photo_get',{id:newPhoto.id}).ok,false);
 assert.equal(locked,false);
 
 const http = context.doPost({postData:{contents:JSON.stringify({key:secret,action:"sync",payload:{ops:[]}})}});
@@ -227,6 +239,7 @@ context.familyTasksAction = (key, action, data) => {
 };
 context.photoApiAction_ = (key, action, payload) => {
   legacyCalls.push({route:action,key,payload});
+  if(key!==oldReaderKey)return {ok:false,error:'Clau de lectura incorrecta'};
   return {ok: true, legacy:"photos", action, payload};
 };
 const invokeLegacy = request => JSON.parse(context.doPost({
@@ -237,15 +250,16 @@ const taskLegacy=invokeLegacy({key:secret,action:"family_tasks",
 assert.equal(taskLegacy.legacy,"tasks");
 assert.equal(taskLegacy.action,"list");
 assert.equal(legacyCalls[0].key,secret);
-const photosLegacy=invokeLegacy({key:secret,action:"photos_list",payload:{page:1}});
+assert.equal(invokeLegacy({key:secret,action:"photos_list",payload:{page:1}}).ok,false);
+const photosLegacy=invokeLegacy({key:oldReaderKey,action:"photos_list",payload:{page:1}});
 assert.equal(photosLegacy.legacy,"photos");
 assert.equal(photosLegacy.action,"photos_list");
-const photoLegacy=invokeLegacy({key:secret,action:"photos_get",payload:{id:"foto_01"}});
+const photoLegacy=invokeLegacy({key:oldReaderKey,action:"photos_get",payload:{id:"foto_01"}});
 assert.equal(photoLegacy.payload.id,"foto_01");
-assert.equal(legacyCalls.length,3);
+assert.equal(legacyCalls.length,4);
 delete context.familyTasksAction;
 delete context.photoApiAction_;
 assert.equal(invokeLegacy({key:secret,action:"family_tasks",payload:{action:"list"}}).ok,false);
 assert.equal(invokeLegacy({key:secret,action:"photos_list",payload:{}}).ok,false);
 
-console.log("OK · una sola clau, compra, sopars, tasques, punts idempotents, premis i JPG/PNG de Drive i API antiga preservada.");
+console.log("OK · KEY_HASH i PHOTO_READ_KEY_HASH compatibles; mateix PHOTO_FOLDER_ID, fotos existents, compra, sopars, tasques i punts.");
