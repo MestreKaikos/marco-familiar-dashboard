@@ -38,7 +38,26 @@ internal class RaiLocalPairing(private val context:Context,private val onPaired:
     private val server=ServerSocket(0).apply { soTimeout=1000 }
     private val worker=Thread {
         while(live.get()&&System.currentTimeMillis()<expiry){
-            try{server.accept().use(::handle)}catch(_:java.net.SocketTimeoutException){}catch(_:Exception){if(!live.get())break}
+            try {
+                val client = server.accept()
+                Thread {
+                    client.use { socket ->
+                        try {
+                            handle(socket)
+                        } catch (_: Exception) {
+                            // Si falla la lectura, el navegador no s'ha de quedar esperant.
+                            runCatching {
+                                respond(socket, 500,
+                                    "<html lang='ca'><meta name='viewport' content='width=device-width'><body><h2>No s'ha pogut connectar</h2><p>Torna al marc, genera un QR nou i repeteix la vinculació.</p></body></html>")
+                            }
+                        }
+                    }
+                }.apply { isDaemon = true; start() }
+            } catch (_: java.net.SocketTimeoutException) {
+                // Comprova periòdicament si el codi ha caducat.
+            } catch (_: Exception) {
+                if (!live.get()) break
+            }
         }
         close()
     }.apply { isDaemon=true;start() }
@@ -62,6 +81,7 @@ internal class RaiLocalPairing(private val context:Context,private val onPaired:
             "Content-Length: ${body.size}\r\nConnection: close\r\n\r\n").toByteArray(Charsets.US_ASCII)
         )
         socket.getOutputStream().write(body)
+        socket.getOutputStream().flush()
     }
     private fun handle(socket:Socket) {
         socket.soTimeout=6000
