@@ -1,6 +1,9 @@
 package com.lito.planify.dashboard.ui
 
 import android.content.Context
+import com.lito.planify.dashboard.data.Store
+import com.lito.planify.dashboard.data.PersonalCalendar
+import java.util.UUID
 import android.graphics.Bitmap
 import android.net.wifi.WifiManager
 import androidx.compose.foundation.Image
@@ -73,7 +76,7 @@ internal class RaiLocalPairing(private val context:Context,private val onPaired:
             if(header.startsWith("Content-Length:",true))length=header.substringAfter(":").trim().toIntOrNull() ?: -1
         }
         if(parts[0]=="GET") {
-            respond(socket,200,"""<!doctype html><html lang="ca"><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connectar Marc Familiar</title><style>body{font-family:system-ui;max-width:480px;margin:35px auto;padding:18px}input,button{box-sizing:border-box;width:100%;padding:14px;margin:10px 0;border-radius:10px;border:1px solid #bbb}button{background:#222;color:white}</style></head><body><h2>Connectar Marc Familiar</h2><p>Introdueix les dades des del mòbil. El codi caduca al cap de cinc minuts.</p><form method="post"><label>URL d'Apps Script (/exec)<input name="url" type="url" required></label><label>Clau familiar de compra i tasques<input name="key" type="password" required minlength="64" maxlength="64"></label><button>Connectar el marc</button></form><p>Fes-ho només a la Wi-Fi privada de casa.</p></body></html>""")
+            respond(socket,200,"""<!doctype html><html lang="ca"><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connectar Marc Familiar</title><style>body{font-family:system-ui;max-width:480px;margin:35px auto;padding:18px}input,button{box-sizing:border-box;width:100%;padding:14px;margin:10px 0;border-radius:10px;border:1px solid #bbb}button{background:#222;color:white}</style></head><body><h2>Connectar Marc Familiar</h2><p>Introdueix les dades des del mòbil. El codi caduca al cap de cinc minuts.</p><form method="post"><label>URL d'Apps Script (/exec)<input name="url" type="url" required></label><label>Clau familiar de compra i tasques<input name="key" type="password" required minlength="64" maxlength="64"></label><hr><h3>Fotos compartides (opcional)</h3><label>Clau privada de lectura de fotos<input name="photoKey" type="password" minlength="64" maxlength="64"></label><hr><h3>Calendaris Google (opcional)</h3><p>Enganxa les adreces privades iCal, una per línia, fins a 5. Només Google Calendar publicat com a enllaç secret iCal, no la URL normal del navegador.</p><textarea name="calendars" rows="4" style="box-sizing:border-box;width:100%;padding:12px" placeholder="Nom del calendari | https://calendar.google.com/calendar/ical/..."></textarea><button>Connectar el marc</button></form><p>Fes-ho només a la Wi-Fi privada de casa.</p></body></html>""")
             return
         }
         if(parts[0]!="POST" || length<1 || length>4000){respond(socket,400,"Petició invàlida");return}
@@ -91,15 +94,33 @@ internal class RaiLocalPairing(private val context:Context,private val onPaired:
         }.toMap()
         val url=fields["url"].orEmpty().trim()
         val key=fields["key"].orEmpty().trim()
+        val photoKey=fields["photoKey"].orEmpty().trim()
+        val calendarLines=fields["calendars"].orEmpty().lines().map { it.trim() }.filter { it.isNotBlank() }
+        val calendars=calendarLines.mapNotNull { line ->
+            val bits=line.split("|",limit=2)
+            if(bits.size!=2)return@mapNotNull null
+            val label=bits[0].trim().take(60)
+            val ical=bits[1].trim()
+            val u=ical.toHttpUrlOrNull()
+            if(label.isBlank()||u==null||!u.isHttps||!(u.host=="calendar.google.com"||u.host=="www.google.com")||!u.encodedPath.contains("/ical/"))null
+            else PersonalCalendar(UUID.randomUUID().toString(),label,ical)
+        }
         val good=runCatching {
             val u=url.toHttpUrlOrNull()
             u!=null&&u.isHttps&&u.host=="script.google.com"&&u.encodedPath.endsWith("/exec")&&
-                key.matches(Regex("[a-fA-F0-9]{64}"))
+                key.matches(Regex("[a-fA-F0-9]{64}")) &&
+                (photoKey.isBlank()||photoKey.matches(Regex("[a-fA-F0-9]{64}"))) &&
+                calendarLines.size<=5 && calendars.size==calendarLines.size
         }.getOrDefault(false)
         if(!good){respond(socket,400,"Dades incorrectes: revisa l'URL /exec i la clau de 64 caràcters");return}
         context.getSharedPreferences("marc_rai_sync",Context.MODE_PRIVATE).edit()
             .putString("url",url).putString("key",key).apply()
-        respond(socket,200,"<html lang='ca'><meta name='viewport' content='width=device-width'><body><h2>Marc vinculat!</h2><p>Ja pots tornar a la pantalla del marc.</p></body></html>")
+        if(photoKey.isNotBlank()) {
+            context.getSharedPreferences("marc_fotos",Context.MODE_PRIVATE).edit()
+                .putString("shared_url",url).putString("shared_key",photoKey).apply()
+        }
+        if(calendars.isNotEmpty())Store(context).calendarFeeds=calendars
+        respond(socket,200,"<html lang='ca'><meta name='viewport' content='width=device-width'><body><h2>Marc vinculat!</h2><p>Ja pots tornar a la pantalla del marc. Per activar els nous calendaris, reinicia l’aplicació.</p></body></html>")
         android.os.Handler(android.os.Looper.getMainLooper()).post { onPaired(url,key) }
         close()
     }
