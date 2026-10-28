@@ -1,6 +1,5 @@
 package com.lito.planify.dashboard.ui
 
-import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -8,7 +7,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.lito.planify.dashboard.ui.theme.Type
@@ -16,39 +14,10 @@ import kotlinx.coroutines.launch
 
 /** Família i compra sempre llegeixen el mateix estat compartit que la portada. */
 @Composable
-fun RaiFamilyScreen(
-    cloud: FamilyCloudStore,
-    onSetupChange: (Boolean) -> Unit = {}
-) {
-    val context=LocalContext.current
+internal fun RaiFamilyScreen(cloud: FamilyCloudStore) {
     val scope=rememberCoroutineScope()
-    val draftPrefs=remember(context) {
-        context.getSharedPreferences("marc_setup_draft",Context.MODE_PRIVATE)
-    }
-    var showQr by remember { mutableStateOf(false) }
-    var showDirect by remember {
-        mutableStateOf(draftPrefs.getBoolean("in_progress",false))
-    }
     var productName by remember { mutableStateOf("") }
 
-    LaunchedEffect(showDirect) { onSetupChange(showDirect) }
-    DisposableEffect(Unit) { onDispose { onSetupChange(false) } }
-
-    if(showDirect) {
-        RaiDirectSetup(
-            onDismiss = {
-                draftPrefs.edit().putBoolean("in_progress",false).apply()
-                showDirect=false
-            },
-            onSaved = { _,_ ->
-                draftPrefs.edit().putBoolean("in_progress",false).apply()
-                showQr=false
-                showDirect=false
-                scope.launch { cloud.refresh() }
-            }
-        )
-        return
-    }
     Column(
         Modifier.fillMaxSize().padding(20.dp),
         verticalArrangement=Arrangement.spacedBy(10.dp)
@@ -59,22 +28,8 @@ fun RaiFamilyScreen(
             horizontalArrangement=Arrangement.spacedBy(8.dp)
         ) {
             Text("👨‍👩‍👦 Família",style=Type.Title,modifier=Modifier.weight(1f))
-            OutlinedButton(onClick={showQr=!showQr}) {
-                Text(if(showQr)"Tancar QR" else "QR")
-            }
-            OutlinedButton(onClick={
-                draftPrefs.edit().putBoolean("in_progress",true).apply()
-                showQr=false
-                showDirect=true
-            }) { Text("Configurar") }
             OutlinedButton(onClick={scope.launch {cloud.refresh()}},enabled=!cloud.loading && !cloud.working) {
                 Text("Actualitzar")
-            }
-        }
-        if(showQr) {
-            RaiPairingView { _,_ ->
-                showQr=false
-                scope.launch { cloud.refresh() }
             }
         }
         if(cloud.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -84,7 +39,7 @@ fun RaiFamilyScreen(
             style=MaterialTheme.typography.bodySmall
         )
         if(!cloud.connected) {
-            Text("Prem Configurar per connectar la compra, els sopars i les tasques amb Google Sheets.")
+            Text("Connecta la família des d'Opcions → Connexions de Marc Familiar.")
         }
         Row(Modifier.fillMaxSize(),horizontalArrangement=Arrangement.spacedBy(16.dp)) {
             Column(Modifier.weight(1f).fillMaxHeight(),verticalArrangement=Arrangement.spacedBy(8.dp)) {
