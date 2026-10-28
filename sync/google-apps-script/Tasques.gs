@@ -1,6 +1,7 @@
 /**
  * Marc Familiar · Tasques.gs
- * Còpia de referència del codi compartit pel propietari (28/10/2026).
+ * Còpia del codi compartit pel propietari (28/10/2026), amb correcció
+ * del validador de freqüències sense franges ('única').
  * NO substitueix automàticament el fitxer real d'Apps Script.
  * No altera KEY_HASH ni redefineix doGet/doPost/apiAction.
  */
@@ -33,7 +34,10 @@ function taskSchedule_(raw) {
   if(days.some(d=>!/^[1-7]$/.test(d)) || new Set(days).size!==days.length)throw Error('Dies no vàlids');
   if(['weekdays','weekly'].includes(frequency)&&!days.length)throw Error('Selecciona almenys un dia');
   const slots=frequency==='slots' ? String(raw.slots||'matí,vespre').split(',').map(x=>x.trim()) : ['única'];
-  if(slots.length<1||slots.length>4||slots.some(x=>!['matí','migdia','tarda','vespre'].includes(x)) || new Set(slots).size!==slots.length)
+  if(frequency==='slots' &&
+    (slots.length<1||slots.length>4||
+      slots.some(x=>!['matí','migdia','tarda','vespre'].includes(x)) ||
+      new Set(slots).size!==slots.length))
     throw Error('Franges no vàlides');
   return {frequency,days:days.join(','),slots:slots.join(',')};
 }
