@@ -81,13 +81,20 @@ private object RaiApi {
 
 /** Nova família compartida; no altera el magatzem local antic ni les fotos. */
 @Composable
-fun RaiFamilyScreen() {
+fun RaiFamilyScreen(onSetupChange: (Boolean) -> Unit = {}) {
     val context=LocalContext.current
     val prefs=remember(context){context.getSharedPreferences("marc_rai_sync",Context.MODE_PRIVATE)}
     var url by remember { mutableStateOf(prefs.getString("url","").orEmpty()) }
     var key by remember { mutableStateOf(prefs.getString("key","").orEmpty()) }
     var showQr by remember { mutableStateOf(false) }
-    var showDirect by remember { mutableStateOf(false) }
+    val setupPrefs = remember(context) {
+        context.getSharedPreferences("marc_setup_draft", Context.MODE_PRIVATE)
+    }
+    var showDirect by remember {
+        mutableStateOf(setupPrefs.getBoolean("in_progress", false))
+    }
+    LaunchedEffect(showDirect) { onSetupChange(showDirect) }
+    DisposableEffect(Unit) { onDispose { onSetupChange(false) } }
     var snapshot by remember { mutableStateOf<RaiSnapshot?>(null) }
     var error by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
@@ -116,11 +123,30 @@ fun RaiFamilyScreen() {
         operation=name to payload
         seq++
     }
+    if (showDirect) {
+        RaiDirectSetup(
+            onDismiss = {
+                setupPrefs.edit().putBoolean("in_progress", false).apply()
+                showDirect = false
+            },
+            onSaved = { newUrl, newKey ->
+                setupPrefs.edit().putBoolean("in_progress", false).apply()
+                url = newUrl; key = newKey
+                showQr = false; showDirect = false
+                error = ""; seq++
+            }
+        )
+        return
+    }
     Column(Modifier.fillMaxSize().padding(28.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
             Text("⭐ Tasques d'en Rai",style=com.lito.planify.dashboard.ui.theme.Type.Title)
             OutlinedButton(onClick={showQr=!showQr}){Text(if(showQr)"Tancar QR" else "Connectar amb QR")}
-            OutlinedButton(onClick={showDirect=true}){Text("Configurar")}
+            OutlinedButton(onClick={
+                setupPrefs.edit().putBoolean("in_progress", true).apply()
+                showQr = false
+                showDirect = true
+            }){Text("Configurar")}
             OutlinedButton(onClick={seq++}){Text("Actualitzar")}
         }
         if(showQr) {
@@ -128,16 +154,6 @@ fun RaiFamilyScreen() {
                 url=newUrl;key=newKey
                 showQr=false;seq++
             }
-        }
-        if(showDirect) {
-            RaiDirectSetup(
-                onDismiss = { showDirect = false },
-                onSaved = { newUrl,newKey ->
-                    url = newUrl; key = newKey
-                    showQr = false; showDirect = false
-                    error = ""; seq++
-                }
-            )
         }
         if(error.isNotBlank())Text(error,color=androidx.compose.ui.graphics.Color.Red)
         if(busy)LinearProgressIndicator(Modifier.fillMaxWidth())
