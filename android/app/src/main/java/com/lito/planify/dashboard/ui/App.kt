@@ -39,6 +39,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import com.lito.planify.dashboard.data.Event
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalContext
+import android.content.Context
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
@@ -109,7 +112,18 @@ fun DashboardApp(
     chores: ChoreCallbacks,
     home: HomeCallbacks = HomeCallbacks()
 ) {
-    var page by remember { mutableStateOf(Page.Today) }
+    val deviceContext = LocalContext.current
+    var page by rememberSaveable {
+        val editing = deviceContext.getSharedPreferences("marc_setup_draft", Context.MODE_PRIVATE)
+            .getBoolean("in_progress", false)
+        mutableStateOf(if (editing) Page.Tasks else Page.Today)
+    }
+    var familySetupActive by remember {
+        mutableStateOf(
+            deviceContext.getSharedPreferences("marc_setup_draft", Context.MODE_PRIVATE)
+                .getBoolean("in_progress", false)
+        )
+    }
     // Sopars compartits entre la portada i el calendari, desats només al dispositiu.
     val dinners = rememberDinnerPlan()
     val family = rememberLocalFamilyStore()
@@ -118,8 +132,8 @@ fun DashboardApp(
     var shownEvent by remember { mutableStateOf<Event?>(null) }
 
     // Després de dos minuts sense tocar, tornem a Avui, excepte durant la presentació de fotos.
-    LaunchedEffect(page, lastTouch) {
-        if (page == Page.Today || page == Page.Photos) return@LaunchedEffect
+    LaunchedEffect(page, lastTouch, familySetupActive) {
+        if (page == Page.Today || page == Page.Photos || (page == Page.Tasks && familySetupActive)) return@LaunchedEffect
         delay(IDLE_MILLIS)
         page = Page.Today
     }
@@ -145,7 +159,7 @@ fun DashboardApp(
                 }
             }
     ) {
-        if (state.night && page != Page.Photos) {
+        if (state.night && page != Page.Photos && !(page == Page.Tasks && familySetupActive)) {
             NightScreen(state, onWake = {
                 page = Page.Today
                 onPeek()
@@ -166,7 +180,7 @@ fun DashboardApp(
                         Page.Energy -> EnergyScreen(state)
                         // Prueba: Casa y Energía juntas (EnergyScreen y HomeScreen siguen por si se separan)
                         Page.Home -> HomeEnergyScreen(state, home)
-                        Page.Tasks -> RaiFamilyScreen()
+                        Page.Tasks -> RaiFamilyScreen(onSetupChange = { familySetupActive = it })
                         Page.Settings -> SettingsScreen(state, actions, settings)
                     }
                 }
