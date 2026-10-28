@@ -1,9 +1,8 @@
 /**
  * Marc Familiar · sincronització via Google Sheets, sense servidor propi.
  *
- * Instal·lació: crea un full de càlcul privat -> Extensions -> Apps Script ->
- * enganxa Code.gs i Mobile.html -> executa setup_() a l'editor i copia
- * la clau mostrada al registre -> Implementa -> Aplicació web.
+ * Integració amb el projecte existent: conserva Fotos.gs i el fitxer de
+ * familyTasksAction. No executis rotateSecret_() ni creïs cap clau nova.
  *
  * El Web App ha d'executar-se com el propietari, i accepta peticions externes
  * NÚMÉS amb la clau aleatòria, mai per l'URL. No compartir la clau al GitHub.
@@ -19,9 +18,9 @@ const CANVIS_PUNTS = "CanvisPunts";
 const PETICIONS_PREMIS = "PeticionsPremis";
 const MAX_PRODUCTS = 200;
 const MAX_DINNERS = 366;
-const FOTOS = "Fotos";
-const MAX_PHOTOS = 120;
-const PHOTO_MAX_BYTES = 1100000; // JPEG redimensionat al mòbil, no fitxer original de càmera.
+const MAX_PHOTOS = 300; // Mateix límit que Fotos.gs.
+const PHOTO_MAX_BYTES = 5 * 1024 * 1024; // Fotos.gs accepta imatges existents de fins a 5 MB.
+const PHOTO_UPLOAD_MAX_BYTES = 1100000; // Les pujades del panell unificat són JPEG comprimits.
 
 /** Executa-la una sola vegada des de l'editor d'Apps Script; no des del mòbil. */
 function setup_() {
@@ -281,155 +280,101 @@ function perform_(ops) {
  * només manté l'índex: cap URL pública ni enllaç de Drive es filtra als clients.
  * Qualsevol operació requereix la mateixa clau que la compra i els sopars.
  */
-function photoTab_() {
-  const tab = sheet_(FOTOS, ["id", "nom", "fitxer_drive", "pujat_el"]);
-  // Només les 120 files de fotos: mai aplicar format a 4 columnes senceres
-  // a cada consulta (Apps Script té quotes i temps màxim d'execució).
-  const props = PropertiesService.getScriptProperties();
-  if (!props.getProperty("PHOTO_SHEET_FORMATTED")) {
-    tab.getRange("A2:D121").setNumberFormat("@");
-    props.setProperty("PHOTO_SHEET_FORMATTED", "1");
-  }
-  return tab;
-}
-
-function photoRows_() {
-  return rows_(photoTab_(), 4).filter(function (row) {
-    return /^[a-zA-Z0-9_-]{1,80}$/.test(String(row[0])) && row[2];
-  });
-}
-
-function photoSummary_(r) {
-  return { id: String(r[0]), name: String(r[1]), createdAt: String(r[3]) };
-}
-
-function photoList_() {
-  return photoRows_()
-    .map(photoSummary_)
-    .sort(function (a, b) { return b.createdAt.localeCompare(a.createdAt); })
-    .slice(0, MAX_PHOTOS);
-}
-
-function photoFolder_() {
-  const props = PropertiesService.getScriptProperties();
-  const id = props.getProperty("PHOTO_FOLDER_ID");
-  if (id) return DriveApp.getFolderById(id);
-  const candidates = DriveApp.getFoldersByName("Marc Familiar · Fotos compartides");
-  const folder = candidates.hasNext() ? candidates.next() :
-    DriveApp.createFolder("Marc Familiar · Fotos compartides");
-  props.setProperty("PHOTO_FOLDER_ID", folder.getId());
-  return folder;
-}
-
 /**
- * PAS D'ACTUALITZACIÓ: executa aquesta funció PÚBLICA una vegada des de
- * l'editor per autoritzar l'accés a Drive. No canvia la clau familiar.
- * La carpeta i el full Fotos continuen sent privats.
+ * Galeria familiar integrada amb Fotos.gs, SENSE una segona carpeta ni pestanya Fotos.
+ * photoFolder_() és la funció existent de Fotos.gs i fa servir PHOTO_FOLDER_ID.
+ * Les rutes heretades photos_list/photos_get conserven PHOTO_READ_KEY_HASH;
+ * les noves photo_list/photo_get fan servir la clau familiar KEY_HASH.
  */
-/** Opcional: si un desplegament antic guardava un altre PHOTO_FOLDER_ID,
- * aquesta funció canvia només la carpeta de NOUS enviaments a la que ja existeix.
- * Els registres de fotos anteriors continuen referenciant els seus IDs de Drive.
- */
-function vincularCarpetaFotosExistents() {
-  const matches = DriveApp.getFoldersByName("Marc Familiar · Fotos compartides");
-  if (!matches.hasNext()) throw new Error("No s'ha trobat la carpeta familiar existent");
-  const folder = matches.next();
-  PropertiesService.getScriptProperties().setProperty("PHOTO_FOLDER_ID", folder.getId());
-  Logger.log("Carpeta existent vinculada. Torna a executar prepararFotosFamiliars.");
+function unifiedPhotoFormat_(mime) {
+  return ["image/jpeg", "image/png", "image/webp"].includes(mime);
 }
 
-function prepararFotosFamiliars() {
-  const folder = photoFolder_(), tab = photoTab_();
-  const known = new Set(photoRows_().map(r => String(r[2])));
-  const files = folder.getFiles();
-  let imported = 0;
-  let existingCount = known.size;
-  while (files.hasNext()) {
-    const file = files.next(), mime = file.getMimeType(), id = file.getId();
-    if (known.has(id) || !["image/jpeg","image/png"].includes(mime) ||
-        file.getSize() > PHOTO_MAX_BYTES || file.getSize() < 6) continue;
-    if (existingCount >= MAX_PHOTOS) break;
-    // Els fitxers existents no es mouen, no es converteixen ni es fan públics.
-    tab.appendRow([id, safeText_(file.getName(),75), id, file.getDateCreated().toISOString()]);
-    known.add(id); existingCount++; imported++;
+function familyDrivePhotos_() {
+  if (typeof photoFolder_ !== "function") throw new Error("Falta el fitxer Fotos.gs original");
+  const folder = photoFolder_();
+  const files = folder.getFiles(), photos = [];
+  let seen = 0;
+  while (files.hasNext() && seen < MAX_PHOTOS) {
+    const file = files.next(); seen++;
+    if (!unifiedPhotoFormat_(file.getMimeType()) || file.getSize() < 6 ||
+        file.getSize() > PHOTO_MAX_BYTES) continue;
+    photos.push({
+      id: file.getId(), name: file.getName(),
+      createdAt: file.getLastUpdated().toISOString(),
+      mimeType: file.getMimeType(), size: file.getSize()
+    });
   }
-  SpreadsheetApp.flush();
-  Logger.log("Fotografies preparades. Indexades " + imported + " imatges existents. No cal canviar la clau.");
+  return photos.sort(function(a,b) { return b.createdAt.localeCompare(a.createdAt); });
 }
 
-/** Identificador aportat pel navegador, per evitar duplicats en reintents. */
+/** Comprovació no destructiva: no crea cap carpeta ni toca cap foto o Sheets. */
+function prepararFotosFamiliars() {
+  const photos = familyDrivePhotos_();
+  Logger.log("Carpeta de Fotos.gs accessible. Fotos compatibles trobades: " +
+    photos.length + ". Clau familiar i clau antiga de lectura intactes.");
+}
+
+/** Pujada JPEG reduïda, amb identificador estable en el nom per evitar duplicats. */
 function photoUpload_(payload) {
   const id = validateId_(payload && payload.id);
-  const previous = photoRows_().find(function (r) { return String(r[0]) === id; });
-  if (previous) return photoSummary_(previous);
+  const folder = photoFolder_();
+  const prefix = "marc_" + id + "_";
+  const existing = familyDrivePhotos_().find(p => p.name.startsWith(prefix));
+  if (existing) return existing;
+  if (familyDrivePhotos_().length >= MAX_PHOTOS)
+    throw new Error("La carpeta de fotos ha arribat al límit de 300 elements");
 
-  const tab = photoTab_();
-  if (photoRows_().length >= MAX_PHOTOS) throw new Error("Límit de 120 fotografies. Elimina'n alguna abans.");
-  const name = safeText_(payload && payload.name, 75) || "Fotografia familiar";
-  const base64 = payload && payload.base64;
-  if (typeof base64 !== "string" || base64.length > 1480000 ||
-      !/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) throw new Error("Fotografia incorrecta o massa gran");
-  const bytes = Utilities.base64Decode(base64);
-  if (bytes.length < 4 || bytes.length > PHOTO_MAX_BYTES ||
+  const encoded = payload && payload.base64;
+  if (typeof encoded !== "string" || encoded.length > 1480000 ||
+      !/^[A-Za-z0-9+/]+={0,2}$/.test(encoded))
+    throw new Error("JPEG massa gran o invàlid");
+  const bytes = Utilities.base64Decode(encoded);
+  if (bytes.length < 4 || bytes.length > PHOTO_UPLOAD_MAX_BYTES ||
       (bytes[0] & 255) !== 255 || (bytes[1] & 255) !== 216 ||
       (bytes[bytes.length - 2] & 255) !== 255 ||
-      (bytes[bytes.length - 1] & 255) !== 217) {
-    throw new Error("Cal una fotografia JPEG vàlida de fins a 1,1 MB");
-  }
-  const file = photoFolder_().createFile(Utilities.newBlob(bytes, "image/jpeg", id + ".jpg"));
-  const createdAt = new Date().toISOString();
-  try {
-    tab.appendRow([id, name, file.getId(), createdAt]);
-    SpreadsheetApp.flush();
-  } catch (ex) {
-    file.setTrashed(true);
-    throw ex;
-  }
-  return { id: id, name: name, createdAt: createdAt };
+      (bytes[bytes.length - 1] & 255) !== 217)
+    throw new Error("Cal una imatge JPEG de fins a 1,1 MB");
+
+  const originalName = String(payload && payload.name || "fotografia")
+    .replace(/[^A-Za-z0-9._ -]/g, "_").slice(0, 60)
+    .replace(/\.(jpe?g|png|webp)$/i,"");
+  const name = prefix + (originalName || "fotografia") + ".jpg";
+  const file = folder.createFile(Utilities.newBlob(bytes,"image/jpeg",name));
+  return { id: file.getId(), name: file.getName(), mimeType: "image/jpeg",
+    createdAt: file.getLastUpdated().toISOString(), size: file.getSize() };
 }
 
+/** Només permet llegir un fitxer que sigui dins de la carpeta familiar. */
 function photoGet_(payload) {
   const id = validateId_(payload && payload.id);
-  const row = photoRows_().find(function (r) { return String(r[0]) === id; });
-  if (!row) throw new Error("La fotografia ja no existeix");
-  const file = DriveApp.getFileById(String(row[2]));
-  const blob = file.getBlob();
-  const mimeType = blob.getContentType();
-  if (!["image/jpeg","image/png"].includes(mimeType) || file.getSize() > PHOTO_MAX_BYTES) {
-    throw new Error("Format de fotografia no admès");
-  }
-  return { id: id, name: String(row[1]), mimeType: mimeType,
-    base64: Utilities.base64Encode(blob.getBytes()) };
+  const photo = familyDrivePhotos_().find(p => p.id === id);
+  if (!photo) throw new Error("Fotografia no disponible a la carpeta familiar");
+  const file = DriveApp.getFileById(id);
+  return { id: id, name: photo.name, mimeType: photo.mimeType,
+    base64: Utilities.base64Encode(file.getBlob().getBytes()) };
 }
 
+/** Com a Fotos.gs, la baixa només afecta un fitxer real de la carpeta. */
 function photoDelete_(payload) {
   const id = validateId_(payload && payload.id);
-  const tab = photoTab_();
-  const rows = rows_(tab, 4);
-  const index = rows.findIndex(function (r) { return String(r[0]) === id; });
-  if (index < 0) return;
-  // No permet esborrar cap fitxer de Drive que no estigui referenciat a Fotos.
-  const fileId = String(rows[index][2]);
-  try { DriveApp.getFileById(fileId).setTrashed(true); } catch (ex) {
-    Logger.log("Una foto ja no era al Drive: " + id);
-  }
-  tab.deleteRow(index + 2);
+  if (!familyDrivePhotos_().some(p => p.id === id)) return;
+  DriveApp.getFileById(id).setTrashed(true);
 }
 
-function photoAction_(action, payload) {
-  if (action === "photo_list") return { ok: true, photos: photoList_() };
-  if (action === "photo_get") return { ok: true, photo: photoGet_(payload) };
-  if (action !== "photo_upload" && action !== "photo_delete") {
-    return { ok: false, error: "Acció no permesa" };
-  }
+function photoAction_(action,payload) {
+  if (action === "photo_list") return {ok:true,photos:familyDrivePhotos_()};
+  if (action === "photo_get") return {ok:true,photo:photoGet_(payload)};
+  if (action !== "photo_upload" && action !== "photo_delete")
+    return {ok:false,error:"Acció de fotografia no permesa"};
   const lock = LockService.getScriptLock();
   try {
     lock.waitLock(20000);
-    const uploaded = action === "photo_upload" ? photoUpload_(payload) : (photoDelete_(payload), null);
-    SpreadsheetApp.flush();
-    return { ok: true, photo: uploaded, photos: photoList_() };
+    const uploaded = action === "photo_upload" ? photoUpload_(payload) :
+      (photoDelete_(payload),null);
+    return {ok:true,photo:uploaded,photos:familyDrivePhotos_()};
   } finally {
-    if (lock.hasLock()) lock.releaseLock();
+    if(lock.hasLock()) lock.releaseLock();
   }
 }
 
