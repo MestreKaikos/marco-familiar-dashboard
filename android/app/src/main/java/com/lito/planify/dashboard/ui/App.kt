@@ -116,7 +116,7 @@ fun DashboardApp(
     var page by rememberSaveable {
         val editing = deviceContext.getSharedPreferences("marc_setup_draft", Context.MODE_PRIVATE)
             .getBoolean("in_progress", false)
-        mutableStateOf(if (editing) Page.Tasks else Page.Today)
+        mutableStateOf(if (editing) Page.Settings else Page.Today)
     }
     var familySetupActive by remember {
         mutableStateOf(
@@ -124,16 +124,23 @@ fun DashboardApp(
                 .getBoolean("in_progress", false)
         )
     }
-    // Sopars compartits entre la portada i el calendari, desats només al dispositiu.
+    // Un sol magatzem compartit de Google Sheets per a Avui, Família i Opcions.
+    // No es recrea en canviar de pestanya.
+    val cloud = remember(deviceContext) { FamilyCloudStore(deviceContext) }
+    LaunchedEffect(cloud) {
+        while (true) {
+            cloud.refresh()
+            delay(60_000L)
+        }
+    }
     val dinners = rememberDinnerPlan()
-    val family = rememberLocalFamilyStore()
     var lastTouch by remember { mutableLongStateOf(0L) }
     /** Cita abierta en el aviso ([EventOverlay]); se cierra sola al volver a Hoy por inactividad. */
     var shownEvent by remember { mutableStateOf<Event?>(null) }
 
     // Després de dos minuts sense tocar, tornem a Avui, excepte durant la presentació de fotos.
     LaunchedEffect(page, lastTouch, familySetupActive) {
-        if (page == Page.Today || page == Page.Photos || (page == Page.Tasks && familySetupActive)) return@LaunchedEffect
+        if (page == Page.Today || page == Page.Photos || (page == Page.Settings && familySetupActive)) return@LaunchedEffect
         delay(IDLE_MILLIS)
         page = Page.Today
     }
@@ -172,7 +179,7 @@ fun DashboardApp(
                 Box(Modifier.weight(1f).fillMaxHeight()) {
                     when (page) {
                         // La portada familiar funciona sense credencials; el backend antic és opcional.
-                        Page.Today -> if (state.ics || state.token == null) FamilyTodayScreen(state, dinners, family, onOpen = { page = it }) else TodayScreen(state, lastTouch)
+                        Page.Today -> if (cloud.connected || state.ics || state.token == null) FamilyTodayScreen(state, dinners, cloud, onOpen = { page = it }) else TodayScreen(state, lastTouch)
                         Page.Photos -> PhotosScreen()
                         // Con los calendarios de la familia, semanas en vertical como la portada; con Planify, la de Lito
                         Page.Calendar -> if (state.ics || state.token == null) FamilyCalendarScreen(state, dinners) else CalendarScreen(state, onLoadWeek)
@@ -180,8 +187,8 @@ fun DashboardApp(
                         Page.Energy -> EnergyScreen(state)
                         // Prueba: Casa y Energía juntas (EnergyScreen y HomeScreen siguen por si se separan)
                         Page.Home -> HomeEnergyScreen(state, home)
-                        Page.Tasks -> RaiFamilyScreen(onSetupChange = { familySetupActive = it })
-                        Page.Settings -> SettingsScreen(state, actions, settings)
+                        Page.Tasks -> RaiFamilyScreen(cloud)
+                        Page.Settings -> SettingsScreen(state, actions, settings, cloud, onEditing = { familySetupActive = it })
                     }
                 }
                 Rail(page, state, onSelect = { page = it }, onSync = onSync, onSleep = actions.sleep)
