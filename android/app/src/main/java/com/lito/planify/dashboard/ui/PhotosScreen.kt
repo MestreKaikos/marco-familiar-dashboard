@@ -65,6 +65,7 @@ fun PhotosScreen() {
         }
     }
     var index by remember { mutableIntStateOf(0) }
+    var currentPhotoUri by remember { mutableStateOf<Uri?>(null) }
     var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var loading by remember { mutableStateOf(false) }
     var refreshRequest by remember { mutableIntStateOf(0) }
@@ -119,7 +120,8 @@ fun PhotosScreen() {
         while (true) {
             try {
                 val result = SharedPhotoSync.sync(context, sharedUrl, sharedKey)
-                sharedPhotos = result.photos.map { LocalPhoto(Uri.fromFile(it.file), it.name, remote = true) }
+                val updated = result.photos.map { LocalPhoto(Uri.fromFile(it.file), it.name, remote = true) }
+                if (updated != sharedPhotos) sharedPhotos = updated
                 sharedStatus = if (result.pending > 0) "Queden fotos pendents de descarregar" else "Fotos compartides sincronitzades"
             } catch (_: Exception) {
                 sharedStatus = "No s'han pogut actualitzar les fotos compartides; les descarregades es conserven"
@@ -129,7 +131,20 @@ fun PhotosScreen() {
     }
 
     val allPhotos = photos + sharedPhotos
-    val photo = allPhotos.getOrNull(index)
+    LaunchedEffect(allPhotos) {
+        if (allPhotos.isNotEmpty()) {
+            val preserved = currentPhotoUri?.let { uri ->
+                allPhotos.indexOfFirst { it.uri == uri }
+            } ?: -1
+            index = if (preserved >= 0) preserved else index.coerceIn(0, allPhotos.lastIndex)
+            currentPhotoUri = allPhotos[index].uri
+        } else {
+            index = 0
+            currentPhotoUri = null
+        }
+    }
+    val photo = allPhotos.getOrNull(index.coerceIn(0, (allPhotos.size - 1).coerceAtLeast(0)))
+    LaunchedEffect(photo?.uri) { currentPhotoUri = photo?.uri }
     LaunchedEffect(photo?.uri) {
         bitmap = null
         if (photo != null) {
@@ -152,12 +167,11 @@ fun PhotosScreen() {
             } catch (_: Exception) { error = "No s'ha pogut obrir aquesta fotografia." }
         }
     }
-    LaunchedEffect(allPhotos.size) {
-        if (allPhotos.size > 1) {
-            while (true) {
-                delay(SLIDESHOW_DELAY_MS)
-                index = (index + 1) % allPhotos.size
-            }
+    val currentPhotos by rememberUpdatedState(allPhotos)
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(SLIDESHOW_DELAY_MS)
+            if (currentPhotos.size > 1) index = (index + 1) % currentPhotos.size
         }
     }
 
@@ -198,7 +212,7 @@ fun PhotosScreen() {
                 }) { Text("Desconnectar") }
             }
         }
-        if (sharedStatus.isNotBlank()) Text(sharedStatus, style = Type.Tiny)
+        if (sharedStatus.isNotBlank()) Text("$sharedStatus · ${sharedPhotos.size} compartides · ${allPhotos.size} en total", style = Type.Tiny)
         Spacer(Modifier.height(14.dp))
         Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(20.dp)).background(Color.Black),
             contentAlignment = Alignment.Center) {
