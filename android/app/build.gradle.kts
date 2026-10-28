@@ -99,6 +99,7 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation("com.airbnb.android:lottie:6.7.1")
+    implementation("com.google.zxing:core:3.5.3")
 
     implementation("com.squareup.retrofit2:retrofit:3.0.0")
     implementation("com.squareup.retrofit2:converter-gson:3.0.0")
