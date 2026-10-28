@@ -79,6 +79,16 @@ La pàgina mòbil és una interfície **en línia**. És l'aplicació Android de
 - La clau de l'APK es desa a preferències **privades d'Android**, sense xifrat addicional: evitar instal·lar la versió de prova en un dispositiu compartit o compromès.
 - Els permisos de Google Apps Script són un compromís de confiança: el script executa com el propietari i **pot modificar el full**. Inspecciona el codi i no hi afegeixis scripts de tercers.
 
+## Millores de connexió i verificació (fase de proves)
+
+- La configuració es troba a **Opcions → Sincronització familiar**, en una **pantalla completa**, no dins de Família ni en una finestra flotant.
+- Es poden enganxar l'URL i la clau en moments diferents. L'Android desa un esborrany privat i conserva els camps si canvies de pestanya o d'aplicació. L'esborrany s'esborra en connectar o desconnectar el dispositiu.
+- Si prems Connectar amb un format invàlid, veuràs quin camp has de corregir. Si el servei no respon, queda visible l'error i no es perd el que s'ha introduït.
+- Un cop connectat, la pantalla indica **quants productes i sopars ha retornat Google Sheets**, quants productes es mostren al marc, quants canvis hi ha pendents i l'hora de l'última sincronització.
+- **Avui** i **Família** llegeixen la mateixa `LocalFamilyStore` en memòria; no hi ha dues llistes separades. El text de Família distingeix mode local, mode compartit i canvis pendents.
+
+**Comprovació si apareixen tasques però no compra:** les tasques i premis són locals i poden continuar visibles encara que la compra estigui buida. Entra a Opcions → Sincronització familiar, prem **Sincronitzar ara** i compara «Productes al núvol» amb «Productes visibles al marc». Si el núvol diu 0 però Google Sheets té productes, verifica que el desplegament **/exec** apuntin al mateix Apps Script i que el codi publicat sigui l'últim. No facis «Utilitzar només les dades del núvol» fins a confirmar-ho, perquè substitueix la compra local.
+
 ## Proves recomanades
 
 - [ ] Crear un full i script de **prova**, sense dades familiars.
