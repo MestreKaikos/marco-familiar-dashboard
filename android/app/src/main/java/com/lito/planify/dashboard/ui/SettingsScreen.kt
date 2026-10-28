@@ -35,6 +35,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -70,6 +72,7 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 
 class SettingsCallbacks(
     val onSearch: (String) -> Unit,
@@ -87,8 +90,51 @@ class SettingsCallbacks(
  * Dentro de las cajas (blancas) los controles van en crema ([Control]) para que se distingan.
  */
 @Composable
-fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: SettingsCallbacks) {
+internal fun SettingsScreen(
+    state: UiState,
+    actions: DashboardActions,
+    callbacks: SettingsCallbacks,
+    cloud: FamilyCloudStore,
+    onEditing: (Boolean) -> Unit
+) {
+    val context=LocalContext.current
+    val draftPrefs=remember(context) {
+        context.getSharedPreferences("marc_setup_draft",android.content.Context.MODE_PRIVATE)
+    }
+    val scope=rememberCoroutineScope()
+    var familySetup by remember {
+        mutableStateOf(draftPrefs.getBoolean("in_progress",false))
+    }
+    var familyQr by remember { mutableStateOf(false) }
     var calendarSetup by remember { mutableStateOf(false) }
+    LaunchedEffect(familySetup, familyQr) { onEditing(familySetup || familyQr) }
+    DisposableEffect(Unit) { onDispose { onEditing(false) } }
+    if (familySetup) {
+        RaiDirectSetup(
+            onDismiss = {
+                draftPrefs.edit().putBoolean("in_progress",false).apply()
+                familySetup = false
+            },
+            onSaved = { _,_ ->
+                draftPrefs.edit().putBoolean("in_progress",false).apply()
+                familySetup = false
+                scope.launch { cloud.refresh() }
+            }
+        )
+        return
+    }
+    if (familyQr) {
+        Column(Modifier.fillMaxSize().padding(20.dp)) {
+            androidx.compose.material3.TextButton(onClick={familyQr=false}) {
+                Text("← Tornar a Opcions")
+            }
+            RaiPairingView { _,_ ->
+                familyQr=false
+                scope.launch { cloud.refresh() }
+            }
+        }
+        return
+    }
     if (calendarSetup) {
         CalendarSetupScreen(state, callbacks, onBack = { calendarSetup = false })
         return
@@ -109,6 +155,11 @@ fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: Setting
                 }
                 Panel(Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
+                        PillButton("Connexions de Marc Familiar", Modifier.fillMaxWidth(), primary = true, onClick = {
+                            draftPrefs.edit().putBoolean("in_progress",true).apply()
+                            familySetup=true
+                        })
+                        PillButton("Vincular amb QR", Modifier.fillMaxWidth(), background = Control, onClick = { familyQr=true })
                         PillButton("Wi-Fi", Modifier.fillMaxWidth(), background = Control, onClick = actions.openWifi)
                         PillButton("Calendaris de Google", Modifier.fillMaxWidth(), background = Control, onClick = { calendarSetup = true })
                         PillButton("Opcions d’Android", Modifier.fillMaxWidth(), background = Control, onClick = actions.openSettings)
