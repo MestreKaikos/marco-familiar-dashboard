@@ -61,7 +61,13 @@ button.ghost{background:transparent;color:#74695c}button:focus-visible,input:foc
 <form id="raiAddTask" class="row" style="margin-top:16px">
 <input id="raiTaskTitle" maxlength="100" placeholder="Nova tasca..." required aria-label="Nova tasca">
 <input id="raiTaskPoints" type="number" min="1" max="100" value="5" style="max-width:85px" required aria-label="Punts">
+<select id="raiTaskFrequency" aria-label="Repetició" style="padding:12px;border-radius:12px">
+<option value="daily">Cada dia</option><option value="weekdays">Dies concrets</option>
+<option value="weekly">Cada setmana</option><option value="once">Una vegada</option>
+<option value="slots">Diverses vegades al dia</option></select>
 <button type="submit">Afegir</button></form>
+<div id="raiDays" hidden style="padding:10px 0">Dies: <label style="margin-right:10px"><input type="checkbox" value="1" checked> Dl</label><label style="margin-right:10px"><input type="checkbox" value="2" checked> Dt</label><label style="margin-right:10px"><input type="checkbox" value="3" checked> Dc</label><label style="margin-right:10px"><input type="checkbox" value="4" checked> Dj</label><label style="margin-right:10px"><input type="checkbox" value="5" checked> Dv</label><label style="margin-right:10px"><input type="checkbox" value="6" > Ds</label><label style="margin-right:10px"><input type="checkbox" value="7" > Dg</label></div>
+<div id="raiSlots" hidden style="padding:10px 0">Franges: <label style="margin-right:10px"><input type="checkbox" value="matí" checked> matí</label><label style="margin-right:10px"><input type="checkbox" value="migdia" > migdia</label><label style="margin-right:10px"><input type="checkbox" value="tarda" > tarda</label><label style="margin-right:10px"><input type="checkbox" value="vespre" checked> vespre</label></div>
 <form id="raiAddReward" class="row" style="margin-top:10px">
 <input id="raiRewardTitle" maxlength="100" placeholder="Nova recompensa..." required aria-label="Nova recompensa">
 <input id="raiRewardCost" type="number" min="1" max="10000" value="20" style="max-width:85px" required aria-label="Cost en punts">
@@ -203,16 +209,19 @@ function renderRai(){
  const data=raiSnapshot;if(!data)return;
  $('raiPoints').textContent='Saldo: '+data.points+' punts · Avui '+data.today;
  const list=$('raiTaskList');list.replaceChildren();
- const today=new Set(data.done.filter(d=>d.date===data.today).map(d=>d.taskId));
- const tasks=data.tasks.filter(t=>t.active);
+ const today=new Set(data.done.filter(d=>d.date===data.today).map(d=>d.taskId+'|'+d.slot));
+ const tasks=data.tasks.filter(t=>t.active&&t.dueToday);
  if(!tasks.length)list.appendChild(makeText('p','Encara no hi ha tasques. Afegeix-ne una.'));
  tasks.forEach(task=>{
-  const line=makeText('div','','item'),done=today.has(task.id);
-  const button=makeText('button',done?'↩ Desfer':'✓ Feta','small');
-  button.type='button';button.disabled=raiTasksBusy;
-  button.addEventListener('click',()=>raiAction(done?'tasks_undo':'tasks_done',{id:task.id}));
-  line.appendChild(makeText('span',task.title+' · +'+task.points+' punts','name'+(done?' bought':'')));
-  line.appendChild(button);list.appendChild(line);
+  (task.slots||'única').split(',').forEach(slot=>{
+   const line=makeText('div','','item'),done=today.has(task.id+'|'+slot);
+   const button=makeText('button',done?'↩ Desfer':'✓ Feta','small');
+   button.type='button';button.disabled=raiTasksBusy;
+   button.addEventListener('click',()=>raiAction(done?'tasks_undo':'tasks_done',{id:task.id,slot}));
+   const label=task.title+(slot==='única'?'':' · '+slot)+' · +'+task.points+' punts';
+   line.appendChild(makeText('span',label,'name'+(done?' bought':'')));
+   line.appendChild(button);list.appendChild(line);
+  });
  });
  const rewards=$('raiRewardList');rewards.replaceChildren();
  data.rewards.filter(r=>r.active).forEach(reward=>{
@@ -245,11 +254,19 @@ function renderRai(){
    line.append(accept,reject);pendingList.appendChild(line);
  });
 }
+$('raiTaskFrequency').addEventListener('change',()=>{
+ const frequency=$('raiTaskFrequency').value;
+ $('raiDays').hidden=!['weekdays','weekly'].includes(frequency);
+ $('raiSlots').hidden=frequency!=='slots';
+});
 $('raiAddTask').addEventListener('submit',event=>{
  event.preventDefault();
  const title=$('raiTaskTitle').value.trim(),points=Number($('raiTaskPoints').value);
  if(title&&points>=1&&points<=100){
-   raiAction('tasks_set',{id:newId(),title,points});
+   const frequency=$('raiTaskFrequency').value;
+   const days=Array.from(document.querySelectorAll('#raiDays input:checked')).map(x=>x.value).join(',');
+   const slots=Array.from(document.querySelectorAll('#raiSlots input:checked')).map(x=>x.value).join(',');
+   raiAction('tasks_set',{id:newId(),title,points,frequency,days,slots});
    $('raiTaskTitle').value='';
  }
 });
