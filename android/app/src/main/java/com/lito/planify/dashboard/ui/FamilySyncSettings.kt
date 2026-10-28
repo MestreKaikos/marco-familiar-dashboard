@@ -55,6 +55,8 @@ fun FamilySyncSettings(sync: FamilySync, dinners: DinnerPlan, family: LocalFamil
                     style = Type.Small)
                 Text("Sopars al núvol: " + (sync.cloudDinners.takeIf { it >= 0 }?.toString() ?: "—"),
                     style = Type.Small)
+                Text("Feines al núvol: " + (sync.cloudTasks.takeIf { it >= 0 }?.toString() ?: "Cal actualitzar Apps Script"), style = Type.Small)
+                Text("Recompenses al núvol: " + (sync.cloudRewards.takeIf { it >= 0 }?.toString() ?: "Cal actualitzar Apps Script"), style = Type.Small)
                 Text("Productes visibles al marc: " + family.groceries.size, style = Type.Small)
                 Text("Canvis pendents d'enviar: " + sync.pendingCount, style = Type.Small)
                 Text("Última actualització: " + (sync.lastUpdate ?: "encara no"),
@@ -64,7 +66,7 @@ fun FamilySyncSettings(sync: FamilySync, dinners: DinnerPlan, family: LocalFamil
                     enabled = !sync.busy,
                     modifier = Modifier.fillMaxWidth()
                 ) { Text(if (sync.busy) "Sincronitzant..." else "Sincronitzar ara") }
-                Text("La compra i els sopars es comparteixen. Les feines, les estrelles, els premis i el PIN d'en Rai continuen locals.",
+                Text("La compra, els sopars, les tasques, les estrelles i els premis es comparteixen. El PIN d'adults es queda només al marc.",
                     style = Type.Small.copy(color = Palette.InkSoft))
                 OutlinedButton(onClick = { confirmDisconnect = true }, modifier = Modifier.fillMaxWidth()) {
                     Text("Desconnectar aquest dispositiu")
@@ -117,7 +119,7 @@ fun FamilySyncSettings(sync: FamilySync, dinners: DinnerPlan, family: LocalFamil
                     enabled = !sync.busy && sync.draftUrl.isNotBlank() && sync.draftKey.isNotBlank(),
                     modifier = Modifier.fillMaxWidth()
                 ) { Text("Utilitzar només les dades del núvol") }
-                Text("Aquesta opció substitueix els productes i els sopars locals. Les tasques i els premis no es modifiquen.",
+                Text("Aquesta opció també actualitza les tasques i els premis des del Sheets. Abans es desa una còpia de les feines locals.",
                     style = Type.Tiny.copy(color = Palette.Accent))
             }
         }
@@ -128,7 +130,7 @@ fun FamilySyncSettings(sync: FamilySync, dinners: DinnerPlan, family: LocalFamil
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text("Sincronització familiar", style = Type.Title)
-            Text("La mateixa llista de la compra i els mateixos sopars al marc i als mòbils.",
+            Text("Compra, sopars, feines, estrelles, premis i fotos amb un sol Google Sheets i una sola clau.",
                 style = Type.Small)
             Text("Com funciona", style = Type.Large.copy(fontWeight = FontWeight.SemiBold))
             Text(
