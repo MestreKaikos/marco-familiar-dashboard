@@ -7,6 +7,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -99,34 +102,61 @@ fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: Setting
         CalendarSetupScreen(state, callbacks, onBack = { calendarSetup = false })
         return
     }
-    ScreenPadding {
-        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-            Panel(Modifier.weight(1f).fillMaxHeight()) {
-                LocationSection(state, callbacks)
-            }
-            Panel(Modifier.weight(1f).fillMaxHeight()) {
-                ScheduleSection(state.schedule, callbacks.onSchedule)
-            }
-            // La columna de la derecha, en dos cajas: brillo y conexión arriba, y los botones abajo
-            Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-                Panel(Modifier.fillMaxWidth().weight(1f)) {
-                    BrightnessSection(state.brightness, callbacks.onBrightness)
-                    Section("Connexió") { WifiCard() }
-                }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        if (maxWidth < 1050.dp || maxHeight < 730.dp) {
+            Column(
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Opcions del Marc Familiar", style = Type.Title)
+                Text("Configura la sincronització i els calendaris des d'aquí.",
+                    style = Type.Small.copy(color = Palette.InkSoft))
+                PillButton("Sincronització familiar", Modifier.fillMaxWidth(), background = Control, onClick = { syncSetup = true })
+                PillButton("Calendaris de Google", Modifier.fillMaxWidth(), background = Control, onClick = { calendarSetup = true })
+                PillButton("Wi-Fi", Modifier.fillMaxWidth(), background = Control, onClick = actions.openWifi)
+                PillButton("Opcions d’Android", Modifier.fillMaxWidth(), background = Control, onClick = actions.openSettings)
                 Panel(Modifier.fillMaxWidth()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
-                        PillButton("Wi-Fi", Modifier.fillMaxWidth(), background = Control, onClick = actions.openWifi)
-                        PillButton("Calendaris de Google", Modifier.fillMaxWidth(), background = Control, onClick = { calendarSetup = true })
-                        PillButton("Sincronització familiar", Modifier.fillMaxWidth(), background = Control, onClick = { syncSetup = true })
-                        PillButton("Opcions d’Android", Modifier.fillMaxWidth(), background = Control, onClick = actions.openSettings)
-                        // Con calendarios iCal no hay sesión: borra lo descargado y vuelve a pedirlo
-                        if (state.ics || state.token != null) {
-                            PillButton(if (state.ics) "Netejar dades del calendari" else "Tancar la sessió", Modifier.fillMaxWidth(), background = Control, onClick = callbacks.onLogout)
+                    BrightnessSection(state.brightness, callbacks.onBrightness)
+                    ScheduleSection(state.schedule, callbacks.onSchedule)
+                    LocationSection(state, callbacks)
+                }
+                if (state.ics || state.token != null) {
+                    PillButton(if (state.ics) "Netejar dades del calendari" else "Tancar la sessió",
+                        Modifier.fillMaxWidth(), background = Control, onClick = callbacks.onLogout)
+                }
+                PillButton("Apagar o reiniciar", Modifier.fillMaxWidth(), background = Control, onClick = actions.powerMenu)
+            }
+        } else {
+        ScreenPadding {
+            Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+                Panel(Modifier.weight(1f).fillMaxHeight()) {
+                    LocationSection(state, callbacks)
+                }
+                Panel(Modifier.weight(1f).fillMaxHeight()) {
+                    ScheduleSection(state.schedule, callbacks.onSchedule)
+                }
+                // La columna de la derecha, en dos cajas: brillo y conexión arriba, y los botones abajo
+                Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(28.dp)) {
+                    Panel(Modifier.fillMaxWidth().weight(1f)) {
+                        BrightnessSection(state.brightness, callbacks.onBrightness)
+                        Section("Connexió") { WifiCard() }
+                    }
+                    Panel(Modifier.fillMaxWidth()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
+                            PillButton("Wi-Fi", Modifier.fillMaxWidth(), background = Control, onClick = actions.openWifi)
+                            PillButton("Calendaris de Google", Modifier.fillMaxWidth(), background = Control, onClick = { calendarSetup = true })
+                            PillButton("Sincronització familiar", Modifier.fillMaxWidth(), background = Control, onClick = { syncSetup = true })
+                            PillButton("Opcions d’Android", Modifier.fillMaxWidth(), background = Control, onClick = actions.openSettings)
+                            // Con calendarios iCal no hay sesión: borra lo descargado y vuelve a pedirlo
+                            if (state.ics || state.token != null) {
+                                PillButton(if (state.ics) "Netejar dades del calendari" else "Tancar la sessió", Modifier.fillMaxWidth(), background = Control, onClick = callbacks.onLogout)
+                            }
+                            PillButton("Apagar o reiniciar", Modifier.fillMaxWidth(), background = Control, onClick = actions.powerMenu)
                         }
-                        PillButton("Apagar o reiniciar", Modifier.fillMaxWidth(), background = Control, onClick = actions.powerMenu)
                     }
                 }
             }
+        }
         }
     }
 }
