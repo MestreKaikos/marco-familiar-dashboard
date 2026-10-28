@@ -50,6 +50,22 @@ button.ghost{background:transparent;color:#74695c}button:focus-visible,input:foc
 <button class="primary" id="sendPhoto" type="submit" style="margin-top:12px">Enviar fotografies</button>
 </form><p id="photoStatus" role="status" aria-live="polite"></p>
 </section>
+<section class="panel" id="raiTasks">
+<h2>⭐ Tasques i recompenses d'en Rai</h2>
+<p id="raiPoints">Carregant punts…</p>
+<div id="raiTaskList"></div>
+<h2 style="margin-top:18px">🎁 Recompenses</h2>
+<div id="raiRewardList"></div>
+<form id="raiAddTask" class="row" style="margin-top:16px">
+<input id="raiTaskTitle" maxlength="100" placeholder="Nova tasca..." required aria-label="Nova tasca">
+<input id="raiTaskPoints" type="number" min="1" max="100" value="5" style="max-width:85px" required aria-label="Punts">
+<button type="submit">Afegir</button></form>
+<form id="raiAddReward" class="row" style="margin-top:10px">
+<input id="raiRewardTitle" maxlength="100" placeholder="Nova recompensa..." required aria-label="Nova recompensa">
+<input id="raiRewardCost" type="number" min="1" max="10000" value="20" style="max-width:85px" required aria-label="Cost en punts">
+<button type="submit">Afegir</button></form>
+<p id="raiTaskStatus" aria-live="polite"></p>
+</section>
 <div class="row" style="justify-content:space-between"><span id="syncTime">Connectat · Sincronització automàtica</span><button class="small" id="refresh">Actualitzar ara</button></div>
 </div></main>
 <script>
@@ -75,7 +91,7 @@ function call(ops,onDone){
 }
 function showLogin(){key='';try{sessionStorage.removeItem('marc-sync-key');}catch(_){}
  $('auth').hidden=false;$('application').hidden=true;$('disconnect').hidden=true;$('secret').value='';}
-function showApp(){$('auth').hidden=true;$('application').hidden=false;$('disconnect').hidden=false;call([]);}
+function showApp(){$('auth').hidden=true;$('application').hidden=false;$('disconnect').hidden=false;call([]);raiAction('tasks_snapshot');}
 function render(){
  const items=(data.groceries||[]).slice().sort((a,b)=>Number(a.bought)-Number(b.bought));
  const list=$('items');list.replaceChildren();const pending=items.filter(x=>!x.bought).length;
@@ -168,7 +184,64 @@ $('uploadPhoto').addEventListener('submit',async event=>{
     status.className='error';
   }finally{photoBusy=false;button.disabled=false;}
 });
+let raiTasksBusy=false,raiSnapshot=null;
+function raiAction(action,payload={}){
+ if(!key||raiTasksBusy)return;
+ raiTasksBusy=true;$('raiTaskStatus').textContent='Desant…';
+ google.script.run.withSuccessHandler(result=>{
+  raiTasksBusy=false;
+  if(!result||!result.ok){$('raiTaskStatus').textContent=result&&result.error||'No s’ha pogut desar';return;}
+  raiSnapshot=result.data;renderRai();
+  $('raiTaskStatus').textContent='';
+ }).withFailureHandler(err=>{
+  raiTasksBusy=false;$('raiTaskStatus').textContent=err&&err.message||'Error de connexió';
+ }).familyTasksAction(key,action,payload);
+}
+function renderRai(){
+ const data=raiSnapshot;if(!data)return;
+ $('raiPoints').textContent='Saldo: '+data.points+' punts · Avui '+data.today;
+ const list=$('raiTaskList');list.replaceChildren();
+ const today=new Set(data.done.filter(d=>d.date===data.today).map(d=>d.taskId));
+ const tasks=data.tasks.filter(t=>t.active);
+ if(!tasks.length)list.appendChild(makeText('p','Encara no hi ha tasques. Afegeix-ne una.'));
+ tasks.forEach(task=>{
+  const line=makeText('div','','item'),done=today.has(task.id);
+  const button=makeText('button',done?'↩ Desfer':'✓ Feta','small');
+  button.type='button';button.disabled=raiTasksBusy;
+  button.addEventListener('click',()=>raiAction(done?'tasks_undo':'tasks_done',{id:task.id}));
+  line.appendChild(makeText('span',task.title+' · +'+task.points+' punts','name'+(done?' bought':'')));
+  line.appendChild(button);list.appendChild(line);
+ });
+ const rewards=$('raiRewardList');rewards.replaceChildren();
+ data.rewards.filter(r=>r.active).forEach(reward=>{
+  const line=makeText('div','','item'),button=makeText('button','Canviar','small');
+  button.type='button';button.disabled=data.points<reward.cost;
+  button.addEventListener('click',()=>{
+    if(confirm('Canviar '+reward.cost+' punts per «'+reward.title+'»?'))
+      raiAction('rewards_claim',{id:reward.id});
+  });
+  line.appendChild(makeText('span',reward.title+' · '+reward.cost+' punts','name'));
+  line.appendChild(button);rewards.appendChild(line);
+ });
+ if(!data.rewards.some(r=>r.active))rewards.appendChild(makeText('p','Encara no hi ha recompenses.'));
+}
+$('raiAddTask').addEventListener('submit',event=>{
+ event.preventDefault();
+ const title=$('raiTaskTitle').value.trim(),points=Number($('raiTaskPoints').value);
+ if(title&&points>=1&&points<=100){
+   raiAction('tasks_set',{id:newId(),title,points});
+   $('raiTaskTitle').value='';
+ }
+});
+$('raiAddReward').addEventListener('submit',event=>{
+ event.preventDefault();
+ const title=$('raiRewardTitle').value.trim(),cost=Number($('raiRewardCost').value);
+ if(title&&cost>=1&&cost<=10000){
+   raiAction('rewards_set',{id:newId(),title,cost});
+   $('raiRewardTitle').value='';
+ }
+});
 if(key)showApp();
-setInterval(()=>{if(key&&!document.hidden)call([])},45000);
+setInterval(()=>{if(key&&!document.hidden){call([]);raiAction('tasks_snapshot');}},45000);
 })();
 </script></body></html>
