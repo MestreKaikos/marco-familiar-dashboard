@@ -35,11 +35,32 @@ jobs:
         run: sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0"
       - name: Configura Gradle
         uses: gradle/actions/setup-gradle@v4
+      - name: Prepara la clau estable de signatura
+        env:
+          KEYSTORE_B64: ${{ secrets.MARC_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::Falta el secret MARC_KEYSTORE_BASE64."
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > android/marc-familiar-signing.jks
+          chmod 600 android/marc-familiar-signing.jks
       - name: Compila la versió debug
+        env:
+          MARC_SIGNING_PASSWORD: ${{ secrets.MARC_SIGNING_PASSWORD }}
+          MARC_SIGNING_ALIAS: ${{ secrets.MARC_SIGNING_ALIAS }}
+          MARC_SIGNING_KEY_PASSWORD: ${{ secrets.MARC_SIGNING_KEY_PASSWORD }}
         working-directory: android
         run: |
+          if [ -z "$MARC_SIGNING_PASSWORD" ] || [ -z "$MARC_SIGNING_ALIAS" ] || [ -z "$MARC_SIGNING_KEY_PASSWORD" ]; then
+            echo "::error::Falten secrets de signatura de Marc Familiar."
+            exit 1
+          fi
           chmod +x ./gradlew
           ./gradlew :app:assembleDebug :app:testDebugUnitTest --no-daemon --stacktrace
+      - name: Elimina el fitxer de clau temporal
+        if: always()
+        run: rm -f android/marc-familiar-signing.jks
       - name: Desa l'APK de prova
         if: success()
         uses: actions/upload-artifact@v4
