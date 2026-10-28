@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
-<title>Marc Familiar · Compra, sopars i fotos</title>
+<title>Marc Familiar · Compra, sopars, tasques i fotos</title>
 <style>
 :root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#26231e;background:#f7f0e6}
 *{box-sizing:border-box}
@@ -84,6 +84,26 @@ button:focus-visible,input:focus-visible{outline:3px solid #7c9ef1}
         <span class="pill">7 dies</span>
       </div>
       <div id="dinners"></div>
+    </section>
+    <section class="panel">
+      <div class="row" style="justify-content:space-between;margin-bottom:12px">
+        <h2 style="margin:0">⭐ Tasques i recompenses d'en Rai</h2>
+        <span class="pill" id="starCount">0 punts</span>
+      </div>
+      <p>La llista i el saldo són els mateixos que al marc. Les feines es validen amb el PIN al marc.</p>
+      <div id="tasks"></div>
+      <form id="addTask" class="row" style="margin-top:14px">
+        <input id="taskTitle" required maxlength="100" placeholder="Nova feina d'en Rai" aria-label="Nom de la feina"/>
+        <input id="taskPoints" type="number" min="1" max="5" value="1" aria-label="Punts" style="max-width:85px"/>
+        <button class="small primary" type="submit">Afegir</button>
+      </form>
+      <h2 style="margin-top:22px">🎁 Recompenses</h2>
+      <div id="rewards"></div>
+      <form id="addReward" class="row" style="margin-top:14px">
+        <input id="rewardTitle" required maxlength="100" placeholder="Nova recompensa" aria-label="Nom del premi"/>
+        <input id="rewardPoints" type="number" min="1" max="999" value="10" aria-label="Cost en punts" style="max-width:85px"/>
+        <button class="small primary" type="submit">Afegir</button>
+      </form>
     </section>
     <section class="panel">
       <div class="row" style="justify-content:space-between;margin-bottom:12px">
@@ -176,6 +196,7 @@ function render(){
     del.addEventListener('click',()=>call([{type:'grocery_delete',id:item.id}]));
     line.appendChild(del);list.appendChild(line);
   });
+  renderTasks();
   const days=$('dinners');days.replaceChildren();
   const now=new Date();
   const names=['Diumenge','Dilluns','Dimarts','Dimecres','Dijous','Divendres','Dissabte'];
@@ -195,6 +216,51 @@ function render(){
     outer.appendChild(row);days.appendChild(outer);
   }
 }
+// Les tasques, els premis i els punts són del mateix Google Sheets familiar.
+function renderTasks(){
+  const tasks=(data.tasks||[]), done=(data.taskDone||[]), rewards=(data.rewards||[]);
+  $('starCount').textContent=(data.stars||0)+' punts';
+  const target=$('tasks'); target.replaceChildren();
+  if(!tasks.length)target.appendChild(makeText('p','Encara no hi ha feines actives.'));
+  const today=new Date(), day=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+  tasks.forEach(task=>{
+    const completed=done.some(d=>d.taskId===task.id && d.owner===(task.owner||'Rai') && (!task.daily||d.date===day));
+    const row=makeText('div','','item');
+    const info=makeText('span',(completed?'✓ ':'')+task.title+' · '+task.stars+' punts'+(task.daily?' · diària':''),'name'+(completed?' bought':''));
+    row.appendChild(info);
+    const del=makeText('button','Treure','small ghost');del.type='button';
+    del.addEventListener('click',()=>{
+      if(confirm('Vols desactivar aquesta feina? No es perdran els punts ja acreditats.'))
+        call([{type:'task_delete',id:task.id}]);
+    });
+    row.appendChild(del);target.appendChild(row);
+  });
+  const rewardArea=$('rewards');rewardArea.replaceChildren();
+  if(!rewards.length)rewardArea.appendChild(makeText('p','Encara no hi ha recompenses.'));
+  rewards.forEach(reward=>{
+    const row=makeText('div','','item');
+    row.appendChild(makeText('span',reward.title+' · '+reward.cost+' punts','name'));
+    const del=makeText('button','Treure','small ghost');del.type='button';
+    del.addEventListener('click',()=>{
+      if(confirm('Desactivar el premi?'))call([{type:'reward_delete',id:reward.id}]);
+    });
+    row.appendChild(del);rewardArea.appendChild(row);
+  });
+}
+$('addTask').addEventListener('submit',e=>{
+  e.preventDefault();
+  const title=$('taskTitle').value.trim(),stars=Number($('taskPoints').value);
+  if(!title || !Number.isInteger(stars) || stars<1 || stars>5)return;
+  call([{type:'task_set',id:newId(),title:title.slice(0,100),stars:stars,owner:'Rai',daily:false}],
+    ()=>{$('taskTitle').value='';});
+});
+$('addReward').addEventListener('submit',e=>{
+  e.preventDefault();
+  const title=$('rewardTitle').value.trim(),cost=Number($('rewardPoints').value);
+  if(!title || !Number.isInteger(cost) || cost<1 || cost>999)return;
+  call([{type:'reward_set',id:newId(),title:title.slice(0,100),cost:cost}],
+    ()=>{$('rewardTitle').value='';});
+});
 // Peticions separades de les de compra: una càrrega de fotos no bloqueja els sopars.
 function photoCall(action,payload) {
   return new Promise((resolve,reject)=>{
@@ -230,7 +296,7 @@ function renderPhotos(){
         const response=await photoCall('photo_get',{id:photo.id});
         const img=document.createElement('img');
         img.alt=photo.name||'Fotografia familiar';
-        img.src='data:image/jpeg;base64,'+response.photo.base64;
+        img.src='data:'+(response.photo.mimeType||'image/jpeg')+';base64,'+response.photo.base64;
         outer.appendChild(img);view.textContent='Amagar';
       }catch(err){photoStatus(err.message,true);}
       finally{view.disabled=false;}
