@@ -17,8 +17,8 @@ function familyTaskSheet_(name,header) {
   return sheet_(name,header);
 }
 function setupFamilyTasks() {
-  familyTaskSheet_(TASKS_TAB_,['id','titol','punts','activa']);
-  familyTaskSheet_(TASK_DONE_TAB_,['data','tascaId','persona','punts']);
+  familyTaskSheet_(TASKS_TAB_,['id','titol','punts','activa','frequencia','dies','franges']);
+  familyTaskSheet_(TASK_DONE_TAB_,['data','tascaId','persona','punts','franja']);
   familyTaskSheet_(REWARDS_TAB_,['id','recompensa','cost','activa']);
   familyTaskSheet_(REWARD_CLAIMS_TAB_,['id','data','persona','recompensaId','cost']);
   familyTaskSheet_(REWARD_REQUESTS_TAB_,['id','data','persona','recompensaId','cost','estat']);
@@ -26,6 +26,23 @@ function setupFamilyTasks() {
 }
 function taskDate_(){
   return Utilities.formatDate(new Date(),Session.getScriptTimeZone()||'Europe/Madrid','yyyy-MM-dd');
+}
+function taskSchedule_(raw) {
+  const frequency=String(raw.frequency||'daily');
+  if(!['daily','weekdays','weekly','once','slots'].includes(frequency))throw Error('Repetició no vàlida');
+  const days=String(raw.days||'').split(',').filter(Boolean);
+  if(days.some(d=>!/^[1-7]$/.test(d)) || new Set(days).size!==days.length)throw Error('Dies no vàlids');
+  if(['weekdays','weekly'].includes(frequency)&&!days.length)throw Error('Selecciona almenys un dia');
+  const slots=frequency==='slots' ? String(raw.slots||'matí,vespre').split(',').map(x=>x.trim()) : ['única'];
+  if(slots.length<1||slots.length>4||slots.some(x=>!['matí','migdia','tarda','vespre'].includes(x)) || new Set(slots).size!==slots.length)
+    throw Error('Franges no vàlides');
+  return {frequency,days:days.join(','),slots:slots.join(',')};
+}
+function taskOccursToday_(task,date) {
+  if(task.frequency==='once') return !task.everDone;
+  if(task.frequency==='daily'||task.frequency==='slots')return true;
+  const day=(new Date(date+'T12:00:00Z').getUTCDay()+6)%7+1;
+  return task.days.split(',').includes(String(day));
 }
 function familyTaskId_(id) {
   if(typeof id!=='string'||!/^[a-zA-Z0-9_-]{1,80}$/.test(id))throw Error('ID invàlid');
@@ -41,6 +58,7 @@ function familyTasksSnapshot_(){
     .filter(r=>r[0]&&r[1]).map(r=>({id:String(r[0]),title:String(r[1]),points:Number(r[2])||0,active:r[3]===true}));
   const done=rows_(familyTaskSheet_(TASK_DONE_TAB_,['data','tascaId','persona','punts']),4)
     .filter(r=>r[0]&&r[1]).map(r=>({date:String(r[0]),taskId:String(r[1]),kid:String(r[2]),points:Number(r[3])||0}));
+  tasks.forEach(t=>{ t.everDone=done.some(d=>d.taskId===t.id); t.dueToday=t.active&&taskOccursToday_(t,taskDate_()); });
   const rewards=rows_(familyTaskSheet_(REWARDS_TAB_,['id','recompensa','cost','activa']),4)
     .filter(r=>r[0]&&r[1]).map(r=>({id:String(r[0]),title:String(r[1]),cost:Number(r[2])||0,active:r[3]===true}));
   const claims=rows_(familyTaskSheet_(REWARD_CLAIMS_TAB_,['id','data','persona','recompensaId','cost']),5)
@@ -65,11 +83,12 @@ function familyTasksAction(key,action,payload){
       const id=familyTaskId_(payload.id);
       const title=safeText_(payload.title,100);
       const points=familyPositive_(payload.points,100);
+      const schedule=taskSchedule_(payload);
       if(!title)throw Error('Falta el nom de la tasca');
       const tab=familyTaskSheet_(TASKS_TAB_,['id','titol','punts','activa']);
       const rows=rows_(tab,4),index=rows.findIndex(r=>r[0]===id);
-      if(index<0){if(rows.length>=MAX_FAMILY_TASKS_)throw Error('Massa tasques');tab.appendRow([id,title,points,true]);}
-      else tab.getRange(index+2,1,1,4).setValues([[id,title,points,payload.active!==false]]);
+      if(index<0){if(rows.length>=MAX_FAMILY_TASKS_)throw Error('Massa tasques');tab.appendRow([id,title,points,true,schedule.frequency,schedule.days,schedule.slots]);}
+      else tab.getRange(index+2,1,1,7).setValues([[id,title,points,payload.active!==false,schedule.frequency,schedule.days,schedule.slots]]);
     }else if(action==='tasks_done'){
       const id=familyTaskId_(payload.id),snapshot=familyTasksSnapshot_();
       const task=snapshot.tasks.find(t=>t.id===id&&t.active);
