@@ -9,6 +9,23 @@ const logs = [];
 const store = new Map();
 const tabs = new Map();
 let locked = false;
+const driveFiles = new Map();
+const driveFolders = new Map();
+let driveSequence = 0;
+class FakeBlob {
+  constructor(bytes, type) { this.bytes = Buffer.from(bytes); this.type = type; }
+  getContentType() { return this.type; }
+  getSize() { return this.bytes.length; }
+  getBytes() { return Array.from(this.bytes); }
+}
+class FakeDriveFile {
+  constructor(blob) { this.id = `f-${++driveSequence}`; this.blob = blob; this.trashed = false; driveFiles.set(this.id, this); }
+  getId() { return this.id; }
+  getBlob() { if(this.trashed) throw new Error("File deleted"); return this.blob; }
+  getSize() { return this.blob.getSize(); }
+  setTrashed(value) { this.trashed = value; }
+}
+
 
 class FakeSheet {
   constructor(name) { this.name = name; this.rows = []; }
@@ -57,7 +74,19 @@ const context = vm.createContext({
     DigestAlgorithm: { SHA_256: "sha256" },
     Charset: { UTF_8: "UTF-8" },
     getUuid: () => crypto.randomUUID(),
-    computeDigest: (alg, value) => Array.from(crypto.createHash(alg).update(value).digest()).map(x => x >= 128 ? x - 256 : x)
+    computeDigest: (alg, value) => Array.from(crypto.createHash(alg).update(value).digest()).map(x => x >= 128 ? x - 256 : x),
+    base64Decode: value => Array.from(Buffer.from(value, "base64")),
+    base64Encode: bytes => Buffer.from(bytes).toString("base64"),
+    newBlob: (bytes, type) => new FakeBlob(bytes, type)
+  },
+  DriveApp: {
+    createFolder: () => {
+      const folder = {id:`d-${++driveSequence}`, createFile: blob => new FakeDriveFile(blob)};
+      driveFolders.set(folder.id, folder);
+      return {...folder, getId: () => folder.id};
+    },
+    getFolderById: id => { const folder=driveFolders.get(id); if(!folder)throw new Error("Folder missing"); return folder; },
+    getFileById: id => { const file=driveFiles.get(id); if(!file||file.trashed)throw new Error("File missing"); return file; }
   },
   LockService: {
     getScriptLock: () => ({
@@ -112,8 +141,30 @@ assert.ok(tabs.get("Compra").rows.some(row => row[1] === "'=SUM(1,2)"), "Una fó
 assert.equal(context.apiAction(secret, "sync", {ops:[{type:"unknown"}]}).ok, false);
 assert.equal(locked, false, "El bloqueig sempre s'allibera després d'un error");
 
+// Fotografies: autenticació, Drive privat, càrrega idempotent, descàrrega i baixa.
+assert.equal(context.apiAction('0'.repeat(64),'photo_list',{}).ok,false);
+assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,0);
+const jpeg=Buffer.from([255,216,1,2,3,255,217]).toString('base64');
+const addPhoto=context.apiAction(secret,'photo_upload',{id:'photo_1',name:'Platja.jpg',base64:jpeg});
+assert.equal(addPhoto.ok,true,addPhoto.error);
+assert.equal(addPhoto.photos.length,1);
+assert.equal(addPhoto.photos[0].name,'Platja.jpg');
+assert.equal(addPhoto.photos[0].base64,undefined,'No enviem base64 a la llista');
+assert.ok(store.get('PHOTO_FOLDER_ID'),'La carpeta privada és al Drive');
+assert.equal(context.apiAction(secret,'photo_get',{id:'photo_1'}).photo.base64,jpeg);
+assert.equal(context.apiAction(secret,'photo_upload',{id:'photo_1',name:'Platja.jpg',base64:jpeg}).photos.length,1);
+assert.equal(context.apiAction(secret,'photo_get',{id:'../../x'}).ok,false);
+assert.equal(context.apiAction(secret,'photo_upload',{id:'photo_2',name:'Engany',base64:'AAAAAA=='}).ok,false);
+assert.equal(context.apiAction(secret,'photo_get',{id:'photo_2'}).ok,false);
+const invalidRequest=context.doPost({postData:{contents:JSON.stringify({key:secret,action:'photo_upload',payload:{id:'photo_3',base64:'AAA'}})}});
+assert.equal(JSON.parse(invalidRequest.text).ok,false);
+assert.equal(context.apiAction(secret,'photo_delete',{id:'photo_1'}).ok,true);
+assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,0);
+assert.equal(context.apiAction(secret,'photo_get',{id:'photo_1'}).ok,false);
+assert.equal(locked,false);
+
 const http = context.doPost({postData:{contents:JSON.stringify({key:secret,action:"sync",payload:{ops:[]}})}});
 assert.equal(JSON.parse(http.text).ok, true);
 const page = context.doGet();
 assert.equal(page.name, "Mobile");
-console.log("OK · autenticació, compra, sopars, idempotència, bloqueig i API POST.");
+console.log("OK · autenticació, compra, sopars, fotos privades de Drive, idempotència, bloqueig i API POST.");
