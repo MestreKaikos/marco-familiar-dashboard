@@ -218,4 +218,34 @@ const http = context.doPost({postData:{contents:JSON.stringify({key:secret,actio
 assert.equal(JSON.parse(http.text).ok, true);
 const page = context.doGet();
 assert.equal(page.name, "Mobile");
-console.log("OK · una sola clau, compra, sopars, tasques, punts idempotents, premis i JPG/PNG de Drive.");
+
+// Les rutes HTTP antigues de Fotos.gs i familyTasksAction no es trenquen.
+const legacyCalls = [];
+context.familyTasksAction = (key, action, data) => {
+  legacyCalls.push({route:"family_tasks",key,action,data});
+  return {ok: true, legacy:"tasks", action, data};
+};
+context.photoApiAction_ = (key, action, payload) => {
+  legacyCalls.push({route:action,key,payload});
+  return {ok: true, legacy:"photos", action, payload};
+};
+const invokeLegacy = request => JSON.parse(context.doPost({
+  postData: {contents:JSON.stringify(request)}
+}).text);
+const taskLegacy=invokeLegacy({key:secret,action:"family_tasks",
+  payload:{action:"list",data:{persona:"Rai"}}});
+assert.equal(taskLegacy.legacy,"tasks");
+assert.equal(taskLegacy.action,"list");
+assert.equal(legacyCalls[0].key,secret);
+const photosLegacy=invokeLegacy({key:secret,action:"photos_list",payload:{page:1}});
+assert.equal(photosLegacy.legacy,"photos");
+assert.equal(photosLegacy.action,"photos_list");
+const photoLegacy=invokeLegacy({key:secret,action:"photos_get",payload:{id:"foto_01"}});
+assert.equal(photoLegacy.payload.id,"foto_01");
+assert.equal(legacyCalls.length,3);
+delete context.familyTasksAction;
+delete context.photoApiAction_;
+assert.equal(invokeLegacy({key:secret,action:"family_tasks",payload:{action:"list"}}).ok,false);
+assert.equal(invokeLegacy({key:secret,action:"photos_list",payload:{}}).ok,false);
+
+console.log("OK · una sola clau, compra, sopars, tasques, punts idempotents, premis i JPG/PNG de Drive i API antiga preservada.");
