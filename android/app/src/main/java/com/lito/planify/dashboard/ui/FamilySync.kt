@@ -50,6 +50,28 @@ class FamilySync internal constructor(context: Context) {
     var pendingCount by mutableIntStateOf(readQueue().size)
         private set
 
+    // Esborrany persistent: permet enganxar l'URL i la clau en moments diferents
+    // i tornar a Opcions sense perdre el que s'ha escrit. Mai no es publica al núvol.
+    var draftUrl by mutableStateOf(prefs.getString("draft_url", "").orEmpty())
+        private set
+    var draftKey by mutableStateOf(prefs.getString("draft_key", "").orEmpty())
+        private set
+
+    fun editDraftUrl(value: String) {
+        draftUrl = value.take(350)
+        prefs.edit().putString("draft_url", draftUrl).apply()
+    }
+
+    fun editDraftKey(value: String) {
+        draftKey = value.take(64)
+        prefs.edit().putString("draft_key", draftKey).apply()
+    }
+
+    var cloudGroceries by mutableIntStateOf(prefs.getInt("cloud_grocery_count", -1))
+        private set
+    var cloudDinners by mutableIntStateOf(prefs.getInt("cloud_dinner_count", -1))
+        private set
+
     private val url: String get() = prefs.getString("url", "").orEmpty()
     private val key: String get() = prefs.getString("key", "").orEmpty()
 
@@ -125,11 +147,14 @@ class FamilySync internal constructor(context: Context) {
                 ops.chunked(60).forEach { chunk -> latest = call(endpoint, token, chunk) }
             }
             prefs.edit().putString("url", endpoint).putString("key", token)
-                .putBoolean("ready", true).putString("queue", "[]").apply()
+                .putBoolean("ready", true).putString("queue", "[]")
+                .remove("draft_url").remove("draft_key").apply()
+            draftUrl = ""
+            draftKey = ""
             connected = true
             pendingCount = 0
             applySnapshot(latest, dinners, family)
-            updateSuccess()
+            updateSuccess(latest)
             true
         } catch (e: Exception) {
             status = messageForError(e)
@@ -142,7 +167,13 @@ class FamilySync internal constructor(context: Context) {
     /** La desconexió conserva les dades locals, però no es poden enviar nous canvis. */
     fun disconnect() {
         prefs.edit().remove("url").remove("key").remove("last_sync")
-            .remove("queue").putBoolean("ready", false).apply()
+            .remove("queue").remove("draft_url").remove("draft_key")
+            .remove("cloud_grocery_count").remove("cloud_dinner_count")
+            .putBoolean("ready", false).apply()
+        draftUrl = ""
+        draftKey = ""
+        cloudGroceries = -1
+        cloudDinners = -1
         connected = false
         pendingCount = 0
         lastUpdate = null
@@ -165,7 +196,7 @@ class FamilySync internal constructor(context: Context) {
                 }
                 if (readQueue().isEmpty()) {
                     applySnapshot(result, dinners, family)
-                    updateSuccess()
+                    updateSuccess(result)
                     return@withLock
                 }
             }
@@ -177,14 +208,25 @@ class FamilySync internal constructor(context: Context) {
         }
     }
 
-    private fun messageForError(ex: Exception): String =
-        if (ex.message?.contains("clau", ignoreCase = true) == true) "Clau familiar incorrecta."
-        else "No s'ha pogut sincronitzar. Les dades locals es conserven."
+    private fun messageForError(ex: Exception): String {
+        val detail = ex.message.orEmpty()
+        return when {
+            detail.contains("clau", ignoreCase = true) -> "Clau familiar incorrecta. Comprova-la a Opcions."
+            detail.contains("Límit", ignoreCase = true) -> "El full ha arribat al límit de registres."
+            detail.contains("No es pot connectar al servei", ignoreCase = true) ->
+                "No s'ha pogut contactar amb Apps Script. Revisa l'enllaç /exec i el desplegament."
+            else -> "No s'ha pogut sincronitzar. Revisa la connexió i la versió publicada d'Apps Script."
+        }
+    }
 
-    private fun updateSuccess() {
+    private fun updateSuccess(snapshot: JSONObject) {
         val now = java.time.LocalDateTime.now().toString().take(16).replace("T", " ")
+        cloudGroceries = snapshot.optJSONObject("data")?.optJSONArray("groceries")?.length() ?: -1
+        cloudDinners = snapshot.optJSONObject("data")?.optJSONObject("dinners")?.length() ?: -1
         lastUpdate = now
-        prefs.edit().putString("last_sync", now).apply()
+        prefs.edit().putString("last_sync", now)
+            .putInt("cloud_grocery_count", cloudGroceries)
+            .putInt("cloud_dinner_count", cloudDinners).apply()
         status = "Sincronitzat correctament · " + now
     }
 
