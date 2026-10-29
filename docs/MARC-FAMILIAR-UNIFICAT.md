@@ -25,12 +25,12 @@ Una **única URL /exec i una única clau familiar** per a compres, sopars, tasqu
 - `task_set`, `task_delete`, `task_complete`: crear/desactivar/validar feines. La validació s'escriu a `TasquesFetes` i no suma dues vegades la mateixa feina única o la mateixa feina diària el mateix dia.
 - `reward_set`, `reward_delete`, `reward_request`: premis i petició idempotent. **No s'admet `reward_redeem` sense PIN**. El saldo real es calcula amb `familyTasksSnapshot_`; els punts només es descompten després de `familyTasksAction(..., 'rewards_decide', {id,pin,approve})`.
 - La pàgina mòbil manté les quatre pestanyes inferiors (Compra, Sopars, Fotos, Rai); permet configurar dies, freqüències, franges, marcar o desfer tasques, sol·licitar recompenses i aprovar-les amb el **PIN del servidor**, sense guardar-lo. La clau familiar és compartida: no hi ha comptes diferenciats per persona.
-- `photo_list`, `photo_get`, `photo_upload`, `photo_delete`: accés directe a la carpeta privada preexistent de `Fotos.gs` amb la clau familiar. Les sis imatges existents apareixen sense cap importació, sempre que compleixin el límit de 5 MB.
+- `photo_list` i `photo_get`: lectura de la carpeta privada de `Fotos.gs` amb la clau familiar. `photo_upload` és una via alternativa de JPEG comprimit, mentre que el **mòbil conserva `uploadFamilyPhoto` original** per a JPG/PNG/WebP de 5 MB. `photo_delete` només pot eliminar imatges creades per la via nova (`marc_<id>_`); **mai les fotografies originals**. La galeria mòbil no mostra cap opció d'esborrat.
 
 ## Validació abans de desplegar
-- [ ] Node: proves de compra, sopars, tasques, punts, premis i fotos (Drive simulat).
-- [ ] Android: compilació i proves unitàries.
-- [ ] Prova en Android 10 (pantalla horitzontal) i captures.
+- [x] Node: proves simulades de compra, sopars, tasques, punts, PIN de premis, quatre pestanyes mòbils i fotos del Drive.
+- [x] Android: compilació automatitzada prèvia amb èxit (pendent de confirmar la darrera compilació d'aquesta branca).
+- [x] Android 10 (emulador horitzontal): captures automatitzades prèvies publicades (pendent de validar la darrera execució).
 - [ ] En un entorn de prova: mateix `/exec` i clau per a totes les seccions.
 - [ ] Les feines fetes i els punts d'en Rai coincideixen amb les pestanyes existents del Sheets.
 - [ ] Les sis fotografies de prova apareixen sense tornar-les a enviar ni crear una pestanya `Fotos`.
