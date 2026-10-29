@@ -13,6 +13,8 @@ const COMPRA = "Compra";
 const SOPARS = "Sopars";
 const MAX_PRODUCTS = 200;
 const MAX_DINNERS = 366;
+const REMINDERS = "Recordatoris";
+const MAX_REMINDERS = 250;
 const MAX_PHOTOS = 300; // Mateix límit que Fotos.gs.
 const PHOTO_MAX_BYTES = 5 * 1024 * 1024; // Fotos.gs accepta imatges existents de fins a 5 MB.
 const PHOTO_UPLOAD_MAX_BYTES = 1100000; // Les pujades del panell unificat són JPEG comprimits.
@@ -93,7 +95,7 @@ function readSnapshot_() {
       dinners[r[0]] = String(r[1]);
     }
   });
-  return Object.assign({ groceries: groceries, dinners: dinners }, readFamily_());
+  return Object.assign({ groceries: groceries, dinners: dinners, reminders: readReminders_() }, readFamily_());
 }
 
 function validateId_(id) {
@@ -144,6 +146,70 @@ function setDinner_(tab, op) {
  * Adaptador segur a Tasques.gs original. No redefineix cap de les seves funcions.
  * Aquest fitxer és la font de veritat de les freqüències, franges i del PIN.
  */
+/** Recordatoris compartits: no interfereixen amb la pestanya històrica Sopars. */
+function reminderSheet_() {
+  const tab = sheet_(REMINDERS, ["id","titol","data","fet","notes"]);
+  const props = PropertiesService.getScriptProperties();
+  if (!props.getProperty("REMINDERS_DATE_TEXT_FORMATTED")) {
+    tab.getRange("C:C").setNumberFormat("@");
+    props.setProperty("REMINDERS_DATE_TEXT_FORMATTED","1");
+  }
+  return tab;
+}
+function reminderDate_(raw) {
+  const date = String(raw || "").trim();
+  if (!date) return "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Data del recordatori invàlida");
+  const parsed = new Date(date + "T00:00:00Z");
+  if (isNaN(parsed.getTime()) || parsed.toISOString().slice(0,10) !== date)
+    throw new Error("Data del recordatori invàlida");
+  return date;
+}
+function readReminders_() {
+  return rows_(reminderSheet_(),5)
+    .filter(r=>r[0]&&r[1])
+    .map(r=>({
+      id:String(r[0]),title:String(r[1]),
+      date:r[2] instanceof Date
+        ? Utilities.formatDate(r[2],"Europe/Madrid","yyyy-MM-dd")
+        : String(r[2]||"").slice(0,10),
+      done:active_(r[3]),notes:String(r[4]||"")
+    }))
+    .sort((a,b)=>{
+      if(a.done!==b.done)return a.done?1:-1;
+      return (a.date||"9999-99-99").localeCompare(b.date||"9999-99-99")||
+        a.title.localeCompare(b.title);
+    })
+    .slice(0,MAX_REMINDERS);
+}
+function reminderSet_(op) {
+  const id=validateId_(op.id);
+  const title=safeText_(op.title,120);
+  if(!title)throw new Error("Escriu el títol del recordatori");
+  const date=reminderDate_(op.date);
+  const notes=safeText_(op.notes,240);
+  const tab=reminderSheet_(), rows=rows_(tab,5);
+  const idx=rows.findIndex(r=>String(r[0])===id);
+  const done=typeof op.done==="boolean" ? op.done :
+    idx>=0 ? active_(rows[idx][3]) : false;
+  if(idx<0){
+    if(rows.length>=MAX_REMINDERS)throw new Error("Límit de 250 recordatoris");
+    tab.appendRow([id,title,date,done,notes]);
+  } else tab.getRange(idx+2,1,1,5).setValues([[id,title,date,done,notes]]);
+}
+function reminderDone_(op) {
+  const id=validateId_(op.id),tab=reminderSheet_(),rows=rows_(tab,5);
+  const idx=rows.findIndex(r=>String(r[0])===id);
+  if(idx<0)throw new Error("Recordatori no disponible");
+  if(typeof op.done!=="boolean")throw new Error("Estat no vàlid");
+  tab.getRange(idx+2,4,1,1).setValues([[op.done]]);
+}
+function reminderDelete_(op) {
+  const id=validateId_(op.id),tab=reminderSheet_(),rows=rows_(tab,5);
+  const idx=rows.findIndex(r=>String(r[0])===id);
+  if(idx>=0)tab.deleteRow(idx+2);
+}
+
 function familySheets_() {
   if (typeof familyTaskSheet_ !== "function" ||
       typeof familyTasksSnapshot_ !== "function" ||
@@ -297,6 +363,9 @@ function perform_(ops) {
       case "grocery_set": upsertProduct_(shopping, op); break;
       case "grocery_delete": deleteProduct_(shopping, op); break;
       case "dinner_set": setDinner_(dinnerTab, op); break;
+      case "reminder_set": reminderSet_(op); break;
+      case "reminder_done": reminderDone_(op); break;
+      case "reminder_delete": reminderDelete_(op); break;
       case "task_set": taskSet_(op); break;
       case "task_delete": taskDelete_(op); break;
       case "task_complete": taskComplete_(op); break;
@@ -468,6 +537,6 @@ function doPost(e) {
 /** Interfície adaptada al mòbil; sense accedir a dades fins a validar la clau. */
 function doGet() {
   return HtmlService.createHtmlOutputFromFile("Mobile")
-    .setTitle("Marc Familiar · Compra, sopars, tasques i fotos")
+    .setTitle("Marc Familiar · Recordatoris, compra, Rai i fotos")
     .addMetaTag("viewport", "width=device-width, initial-scale=1");
 }
