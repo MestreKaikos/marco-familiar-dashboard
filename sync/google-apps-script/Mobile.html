@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light">
+<meta name="color-scheme" content="light"><meta name="theme-color" content="#f7f0e6"><meta name="apple-mobile-web-app-capable" content="yes">
 <title>Marc Familiar · Compra, sopars, tasques i fotos</title>
 <style>
 :root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#26231e;background:#f7f0e6}
@@ -48,6 +48,13 @@ button:focus-visible,input:focus-visible{outline:3px solid #7c9ef1}
 #photoNotice.good{color:#298252}
 #photoInput{border:0;background:transparent;padding-left:0}
 #photoInput::file-selector-button{border:0;background:#e9dccb;border-radius:9px;padding:10px;cursor:pointer}
+.app-nav{position:fixed;bottom:0;left:0;right:0;z-index:20;background:#fffefaf2;backdrop-filter:blur(18px);padding:10px 8px max(10px,env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;border-top:1px solid #eadfce}
+.app-nav button{display:flex;flex-direction:column;gap:5px;align-items:center;justify-content:center;background:transparent;border-radius:14px;font-size:12px;padding:10px 2px;color:#776e62}
+.app-nav button span{font-size:21px}.app-nav button.active{color:#1f2c25;background:#e1eadf}
+#application{padding-bottom:96px}#application>.panel[data-tab]{display:none}#application>.panel[data-tab].active{display:block}
+select{font:inherit;background:#fffcf9;border:1px solid #e4d6c2;color:#26231e}
+#photoPreview{display:none;width:100%;max-height:270px;object-fit:contain;border-radius:12px;margin:12px 0}
+@media(max-width:430px){.row{flex-wrap:wrap}.row input{min-width:160px}.panel{padding:16px}main{padding-top:10px}}
 </style>
 </head>
 <body>
@@ -67,7 +74,7 @@ button:focus-visible,input:focus-visible{outline:3px solid #7c9ef1}
   </div>
   <div id="application" hidden>
     <p id="message" aria-live="polite"></p>
-    <section class="panel">
+    <section class="panel" data-tab="compra">
       <div class="row" style="justify-content:space-between;margin-bottom:14px">
         <h2 style="margin:0">🛒 Llista de la compra</h2>
         <span class="pill" id="pendingCount">0 pendents</span>
@@ -78,58 +85,74 @@ button:focus-visible,input:focus-visible{outline:3px solid #7c9ef1}
       </form>
       <div id="items" style="margin-top:14px"></div>
     </section>
-    <section class="panel">
+    <section class="panel" data-tab="sopars">
       <div class="row" style="justify-content:space-between;align-items:start">
         <div><h2>🍽️ Què sopem?</h2><p style="margin:-8px 0 12px">Planifica els pròxims set dies.</p></div>
         <span class="pill">7 dies</span>
       </div>
       <div id="dinners"></div>
     </section>
-    <section class="panel">
+    <section class="panel" data-tab="rai">
       <div class="row" style="justify-content:space-between;margin-bottom:12px">
         <h2 style="margin:0">⭐ Tasques i recompenses d'en Rai</h2>
-        <span class="pill" id="starCount">0 punts</span>
+        <span class="pill" id="raiPoints">Carregant punts…</span>
       </div>
-      <p>Els punts provenen del Sheets compartit. Les feines poden tenir dies i franges; els premis s'aproven amb el PIN adult del servei.</p>
-      <div id="tasks"></div>
-      <form id="addTask" class="row" style="margin-top:14px">
-        <input id="taskTitle" required maxlength="100" placeholder="Nova feina d'en Rai" aria-label="Nom de la feina"/>
-        <input id="taskPoints" type="number" min="1" max="5" value="1" aria-label="Punts" style="max-width:85px"/>
-        <button class="small primary" type="submit">Afegir</button>
+      <div id="raiTaskList"></div>
+      <h2 style="margin-top:20px">🎁 Recompenses</h2>
+      <div id="raiRewardList"></div>
+      <h2 style="margin-top:20px">🔐 Peticions pendents</h2>
+      <div id="raiPendingRewards"></div>
+      <form id="raiAddTask" class="row" style="margin-top:18px">
+        <input id="raiTaskTitle" required maxlength="100" placeholder="Nova tasca…" aria-label="Títol de la tasca">
+        <input id="raiTaskPoints" type="number" min="1" max="100" value="5" required aria-label="Punts" style="max-width:90px">
+        <select id="raiTaskFrequency" aria-label="Repetició" style="padding:12px;border-radius:12px">
+          <option value="daily">Cada dia</option><option value="weekdays">Dies concrets</option>
+          <option value="weekly">Cada setmana</option><option value="once">Una vegada</option>
+          <option value="slots">Diverses vegades al dia</option>
+        </select>
+        <button class="primary" type="submit">Afegir</button>
       </form>
-      <h2 style="margin-top:22px">🎁 Recompenses</h2>
-      <div id="rewards"></div>
-      <div id="rewardApproval" hidden style="border:1px solid #e4d6c2;border-radius:12px;padding:12px;margin:12px 0">
-        <p id="rewardPendingTitle" style="margin:0 0 8px">Premi pendent de l'adult</p>
-        <div class="row">
-          <input id="rewardApprovalPin" type="password" inputmode="numeric"
-            autocomplete="off" minlength="4" maxlength="8" placeholder="PIN adult del servei"
-            aria-label="PIN adult"/>
-        </div>
-        <div class="row" style="margin-top:9px">
-          <button type="button" id="rewardApprove" class="small primary">Aprovar premi</button>
-          <button type="button" id="rewardReject" class="small">Denegar premi</button>
-        </div>
+      <div id="raiDays" hidden style="padding:10px 0">Dies:
+        <label><input type="checkbox" value="1" checked> Dl</label>
+        <label><input type="checkbox" value="2" checked> Dt</label>
+        <label><input type="checkbox" value="3" checked> Dc</label>
+        <label><input type="checkbox" value="4" checked> Dj</label>
+        <label><input type="checkbox" value="5" checked> Dv</label>
+        <label><input type="checkbox" value="6"> Ds</label>
+        <label><input type="checkbox" value="7"> Dg</label>
       </div>
-      <form id="addReward" class="row" style="margin-top:14px">
-        <input id="rewardTitle" required maxlength="100" placeholder="Nova recompensa" aria-label="Nom del premi"/>
-        <input id="rewardPoints" type="number" min="1" max="999" value="10" aria-label="Cost en punts" style="max-width:85px"/>
-        <button class="small primary" type="submit">Afegir</button>
+      <div id="raiSlots" hidden style="padding:10px 0">Franges:
+        <label><input type="checkbox" value="matí" checked> matí</label>
+        <label><input type="checkbox" value="migdia"> migdia</label>
+        <label><input type="checkbox" value="tarda"> tarda</label>
+        <label><input type="checkbox" value="vespre" checked> vespre</label>
+      </div>
+      <form id="raiAddReward" class="row" style="margin-top:14px">
+        <input id="raiRewardTitle" required maxlength="100" placeholder="Nova recompensa" aria-label="Recompensa">
+        <input id="raiRewardCost" type="number" min="1" max="10000" value="20" required style="max-width:95px" aria-label="Cost del premi">
+        <button type="submit">Afegir premi</button>
       </form>
+      <p id="raiTaskStatus" role="status" aria-live="polite"></p>
     </section>
-    <section class="panel">
+    <section class="panel" data-tab="fotos">
       <div class="row" style="justify-content:space-between;margin-bottom:12px">
-        <h2 style="margin:0">🖼️ Fotografies familiars</h2>
-        <span class="pill" id="photoCount">0 fotos</span>
+        <h2 style="margin:0">📸 Fotografies familiars</h2><span class="pill" id="photoCount">0 fotos</span>
       </div>
-      <p>Envia fotos des del mòbil perquè apareguin al marc. Es redimensionen abans de pujar-les i es guarden al Drive privat familiar.</p>
+      <p>Envia JPG, PNG o WebP de fins a 5 MB, com abans. Pots triar-ne fins a 20 per tanda.</p>
       <form id="uploadPhotos">
-        <input id="photoInput" type="file" accept="image/*" multiple aria-label="Seleccionar fotografies" />
+        <input id="photoInput" type="file" accept="image/jpeg,image/png,image/webp" multiple required aria-label="Fotografies">
+        <img id="photoPreview" alt="Vista prèvia de la fotografia">
         <button id="photoUploadButton" class="primary" type="submit">Enviar fotografies</button>
       </form>
-      <p id="photoNotice" aria-live="polite"></p>
+      <p id="photoNotice" role="status" aria-live="polite"></p>
       <div id="photoItems"></div>
     </section>
+    <nav class="app-nav" aria-label="Seccions de Marc Familiar">
+      <button type="button" data-open="compra"><span>🛒</span>Compra</button>
+      <button type="button" data-open="sopars"><span>🍽️</span>Sopars</button>
+      <button type="button" data-open="fotos"><span>📸</span>Fotos</button>
+      <button type="button" data-open="rai"><span>⭐</span>Rai</button>
+    </nav>
     <div class="row" style="justify-content:space-between">
       <span id="syncTime">Connectat · Sincronització automàtica</span>
       <button class="small" id="refresh">Actualitzar ara</button>
@@ -146,6 +169,20 @@ let busy = false;
 let photoBusy = false;
 let photos = [];
 const $ = id => document.getElementById(id);
+function openTab(name){
+  if(!['compra','sopars','fotos','rai'].includes(name)) name='compra';
+  document.querySelectorAll('[data-tab]').forEach(el=>el.classList.toggle('active',el.dataset.tab===name));
+  document.querySelectorAll('[data-open]').forEach(el=>{
+    const active=el.dataset.open===name;
+    el.classList.toggle('active',active);
+    el.setAttribute('aria-current',active?'page':'false');
+  });
+  try{sessionStorage.setItem('marc-active-tab',name);}catch(_){}
+  window.scrollTo({top:0,behavior:'instant'});
+}
+document.querySelectorAll('[data-open]').forEach(el=>el.addEventListener('click',()=>openTab(el.dataset.open)));
+try{openTab(sessionStorage.getItem('marc-active-tab')||'compra')}catch(_){openTab('compra')}
+
 function message(text,error) {
   $('message').textContent=text||'';
   $('message').className=error?'error':'good';
@@ -175,13 +212,14 @@ function call(ops, onDone) {
     .apiAction(key,'sync',{ops:ops||[]});
 }
 function showLogin(){
-  photos=[];renderPhotos();
+  photos=[];renderPhotos();raiSnapshot=null;
   key='';try { sessionStorage.removeItem('marc-sync-key'); } catch (_) {}
   $('auth').hidden=false;$('application').hidden=true;$('disconnect').hidden=true;
 }
 function showApp(){
   $('auth').hidden=true;$('application').hidden=false;$('disconnect').hidden=false;
   call([]);
+  raiAction("tasks_snapshot");
   refreshPhotos();
 }
 function makeText(tag,text,cls){
@@ -208,7 +246,6 @@ function render(){
     del.addEventListener('click',()=>call([{type:'grocery_delete',id:item.id}]));
     line.appendChild(del);list.appendChild(line);
   });
-  renderTasks();
   const days=$('dinners');days.replaceChildren();
   const now=new Date();
   const names=['Diumenge','Dilluns','Dimarts','Dimecres','Dijous','Divendres','Dissabte'];
@@ -228,88 +265,99 @@ function render(){
     outer.appendChild(row);days.appendChild(outer);
   }
 }
-// Les tasques, els premis i els punts són del mateix Google Sheets familiar.
-function renderTasks(){
-  const tasks=(data.tasks||[]), done=(data.taskDone||[]), rewards=(data.rewards||[]);
-  $('starCount').textContent=(data.stars||0)+' punts';
-  const target=$('tasks'); target.replaceChildren();
-  if(!tasks.length)target.appendChild(makeText('p','Encara no hi ha feines actives.'));
-  const today=new Date(), day=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
-  tasks.forEach(task=>{
-    const completed=done.some(d=>d.taskId===task.id && d.owner===(task.owner||'Rai') && (task.frequency==='once'||d.date===day));
-    const row=makeText('div','','item');
-    const schedule=task.frequency==='once'?' · una vegada':
-      task.frequency==='daily'?' · cada dia':
-      task.frequency==='slots'?' · per franges ('+(task.slots||'')+')':
-      ' · dies '+(task.days||'');
-    const due=task.dueToday===false?' · no toca avui':'';
-    const info=makeText('span',(completed?'✓ ':'')+task.title+' · '+task.stars+' punts'+schedule+due,
-      'name'+(completed?' bought':''));
-    row.appendChild(info);
-    const del=makeText('button','Treure','small ghost');del.type='button';
-    del.addEventListener('click',()=>{
-      if(confirm('Vols desactivar aquesta feina? No es perdran els punts ja acreditats.'))
-        call([{type:'task_delete',id:task.id}]);
-    });
-    row.appendChild(del);target.appendChild(row);
-  });
-  const rewardArea=$('rewards');rewardArea.replaceChildren();
-  if(!rewards.length)rewardArea.appendChild(makeText('p','Encara no hi ha recompenses.'));
-  rewards.forEach(reward=>{
-    const row=makeText('div','','item');
-    row.appendChild(makeText('span',reward.title+' · '+reward.cost+' punts','name'));
-    const del=makeText('button','Treure','small ghost');del.type='button';
-    del.addEventListener('click',()=>{
-      if(confirm('Desactivar el premi?'))call([{type:'reward_delete',id:reward.id}]);
-    });
-    row.appendChild(del);rewardArea.appendChild(row);
-  });
-  const requestId=data.pendingRequestId||'';
-  $('rewardApproval').hidden=!requestId;
-  if(requestId){
-    const prize=rewards.find(p=>p.id===data.pendingReward);
-    $('rewardPendingTitle').textContent='⏳ Premi pendent: '+(prize?prize.title:'recompensa')+
-      '. El PIN adult és el que es va configurar a Apps Script.';
-  }
-}
-/** El PIN mai s'envia en una cua offline, no s'emmagatzema i no es valida al navegador. */
-function decidePendingReward(approve){
-  const requestId=data.pendingRequestId||'', pin=$('rewardApprovalPin').value;
-  if(!requestId||busy)return;
-  if(!/^[0-9]{4,8}$/.test(pin)){message('Introdueix el PIN adult de 4 a 8 xifres.',true);return;}
-  busy=true;
-  $('rewardApprove').disabled=true;$('rewardReject').disabled=true;
+// L'API familiar existent continua sent la font de veritat de dies, franges i premis.
+let raiBusy=false,raiSnapshot=null;
+function raiAction(action,payload={},onDone){
+  if(!key||raiBusy)return;
+  raiBusy=true;$('raiTaskStatus').textContent='Sincronitzant les tasques…';
   google.script.run.withSuccessHandler(result=>{
-    busy=false;
-    $('rewardApprove').disabled=false;$('rewardReject').disabled=false;
-    $('rewardApprovalPin').value='';
+    raiBusy=false;
     if(!result||!result.ok){
-      message((result&&result.error)||'No s’ha pogut validar el premi',true);
-      return;
+      $('raiTaskStatus').textContent=(result&&result.error)||'No s’han pogut desar les tasques';return;
     }
-    call([]);
+    raiSnapshot=result.data;renderRai();
+    $('raiTaskStatus').textContent='';
+    // Recarrega només el saldo i la llista en l'altra API, sense modificar punts.
+    if(!busy)call([]);
+    if(onDone)onDone();
   }).withFailureHandler(err=>{
-    busy=false;
-    $('rewardApprovalPin').value='';
-    $('rewardApprove').disabled=false;$('rewardReject').disabled=false;
-    message('Error en validar el premi: '+(err&&err.message||'Connexió'),true);
-  }).familyTasksAction(key,'rewards_decide',{id:requestId,pin:pin,approve:approve});
+    raiBusy=false;$('raiTaskStatus').textContent=err&&err.message||'Error de connexió';
+  }).familyTasksAction(key,action,payload);
 }
-$('rewardApprove').addEventListener('click',()=>decidePendingReward(true));
-$('rewardReject').addEventListener('click',()=>decidePendingReward(false));
-$('addTask').addEventListener('submit',e=>{
-  e.preventDefault();
-  const title=$('taskTitle').value.trim(),stars=Number($('taskPoints').value);
-  if(!title || !Number.isInteger(stars) || stars<1 || stars>5)return;
-  call([{type:'task_set',id:newId(),title:title.slice(0,100),stars:stars,owner:'Rai',daily:false}],
-    ()=>{$('taskTitle').value='';});
+function renderRai(){
+  const snapshot=raiSnapshot;if(!snapshot)return;
+  $('raiPoints').textContent='Saldo: '+snapshot.points+' punts · '+snapshot.today;
+  const completed=new Set(snapshot.done.filter(d=>d.date===snapshot.today)
+    .map(d=>d.taskId+'|'+d.slot));
+  const tasks=snapshot.tasks.filter(t=>t.active&&t.dueToday);
+  const target=$('raiTaskList');target.replaceChildren();
+  if(!tasks.length)target.appendChild(makeText('p','Avui no hi ha tasques programades.'));
+  tasks.forEach(task=>{
+    (task.slots||'única').split(',').forEach(slot=>{
+      const done=completed.has(task.id+'|'+slot);
+      const line=makeText('div','','item');
+      const title=task.title+(slot==='única'?'':' · '+slot)+' · +'+task.points+' punts';
+      line.appendChild(makeText('span',title,'name'+(done?' bought':'')));
+      const toggle=makeText('button',done?'↩ Desfer':'✓ Feta','small');
+      toggle.type='button';toggle.disabled=raiBusy;
+      toggle.addEventListener('click',()=>raiAction(done?'tasks_undo':'tasks_done',{id:task.id,slot}));
+      line.appendChild(toggle);target.appendChild(line);
+    });
+  });
+  const rewards=$('raiRewardList');rewards.replaceChildren();
+  const pending=(snapshot.requests||[]).filter(x=>x.status==='pendent'&&x.kid==='Rai');
+  const reserved=pending.reduce((sum,x)=>sum+(Number(x.cost)||0),0);
+  (snapshot.rewards||[]).filter(r=>r.active).forEach(reward=>{
+    const row=makeText('div','','item'),btn=makeText('button','Demanar','small');
+    btn.type='button';btn.disabled=snapshot.points-reserved<reward.cost;
+    btn.addEventListener('click',()=>{
+      if(confirm('Demanar «'+reward.title+'» per '+reward.cost+' punts?'))
+        raiAction('rewards_claim',{id:reward.id});
+    });
+    row.appendChild(makeText('span',reward.title+' · '+reward.cost+' punts','name'));
+    row.appendChild(btn);rewards.appendChild(row);
+  });
+  if(!snapshot.rewards.some(r=>r.active))rewards.appendChild(makeText('p','Encara no hi ha recompenses.'));
+  const approvals=$('raiPendingRewards');approvals.replaceChildren();
+  if(!pending.length)approvals.appendChild(makeText('p','Cap recompensa pendent.'));
+  pending.forEach(request=>{
+    const reward=snapshot.rewards.find(r=>r.id===request.rewardId);
+    const row=makeText('div','','item');
+    row.appendChild(makeText('span',(reward?reward.title:'Premi')+' · '+request.cost+' punts','name'));
+    const yes=makeText('button','Aprovar','small primary');
+    const no=makeText('button','Rebutjar','small ghost');
+    yes.type=no.type='button';
+    const decide=approve=>{
+      const pin=prompt('PIN adult per '+(approve?'aprovar':'rebutjar')+' la recompensa:');
+      if(pin===null)return;
+      if(!/^[0-9]{4,8}$/.test(pin)){$('raiTaskStatus').textContent='El PIN ha de tenir entre 4 i 8 xifres.';return;}
+      raiAction('rewards_decide',{id:request.id,approve,pin});
+    };
+    yes.addEventListener('click',()=>decide(true));no.addEventListener('click',()=>decide(false));
+    row.append(yes,no);approvals.appendChild(row);
+  });
+}
+$('raiTaskFrequency').addEventListener('change',()=>{
+  const frequency=$('raiTaskFrequency').value;
+  $('raiDays').hidden=!['weekdays','weekly'].includes(frequency);
+  $('raiSlots').hidden=frequency!=='slots';
 });
-$('addReward').addEventListener('submit',e=>{
+$('raiAddTask').addEventListener('submit',e=>{
   e.preventDefault();
-  const title=$('rewardTitle').value.trim(),cost=Number($('rewardPoints').value);
-  if(!title || !Number.isInteger(cost) || cost<1 || cost>999)return;
-  call([{type:'reward_set',id:newId(),title:title.slice(0,100),cost:cost}],
-    ()=>{$('rewardTitle').value='';});
+  const title=$('raiTaskTitle').value.trim(),points=Number($('raiTaskPoints').value);
+  if(!title||!Number.isInteger(points)||points<1||points>100)return;
+  const frequency=$('raiTaskFrequency').value;
+  const days=Array.from(document.querySelectorAll('#raiDays input:checked')).map(el=>el.value).join(',');
+  const slots=Array.from(document.querySelectorAll('#raiSlots input:checked')).map(el=>el.value).join(',');
+  if(['weekdays','weekly'].includes(frequency)&&!days){$('raiTaskStatus').textContent='Tria almenys un dia.';return;}
+  if(frequency==='slots'&&!slots){$('raiTaskStatus').textContent='Tria almenys una franja.';return;}
+  raiAction('tasks_set',{id:newId(),title,points,frequency,days,slots},()=>{$('raiTaskTitle').value='';});
+});
+$('raiAddReward').addEventListener('submit',e=>{
+  e.preventDefault();
+  const title=$('raiRewardTitle').value.trim(),cost=Number($('raiRewardCost').value);
+  if(!title||!Number.isInteger(cost)||cost<1||cost>10000)return;
+  raiAction('rewards_set',{id:newId(),title,cost},()=>{$('raiRewardTitle').value='';});
 });
 // Peticions separades de les de compra: una càrrega de fotos no bloqueja els sopars.
 function photoCall(action,payload) {
