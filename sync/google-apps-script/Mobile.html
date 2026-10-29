@@ -420,55 +420,59 @@ async function refreshPhotos(){
     photos=response.photos||[];renderPhotos();
   }catch(err){photoStatus(err.message,true);}
 }
-// Canvas JPEG: no enviem originals de càmera, GPS/EXIF ni fitxers de 10 MB a Apps Script.
-async function compactJpeg(file) {
-  if(!file.type.startsWith('image/'))throw new Error('Selecciona una imatge.');
-  if(file.size>20000000)throw new Error('La foto original supera els 20 MB.');
-  const url=URL.createObjectURL(file);
-  const img=new Image();
-  try{
-    await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error('No es pot obrir la imatge.'));img.src=url;});
-    if(!img.naturalWidth||!img.naturalHeight)throw new Error('Imatge incorrecta.');
-    let maxSide=1600;
-    for(let attempt=0;attempt<7;attempt++){
-      const ratio=Math.min(1,maxSide/Math.max(img.naturalWidth,img.naturalHeight));
-      const canvas=document.createElement('canvas');
-      canvas.width=Math.max(1,Math.round(img.naturalWidth*ratio));
-      canvas.height=Math.max(1,Math.round(img.naturalHeight*ratio));
-      const ctx=canvas.getContext('2d');
-      if(!ctx)throw new Error('El navegador no permet redimensionar.');
-      ctx.drawImage(img,0,0,canvas.width,canvas.height);
-      const jpeg=canvas.toDataURL('image/jpeg',attempt<3?0.75-attempt*0.12:0.52);
-      const encoded=jpeg.split(',')[1]||'';
-      canvas.width=canvas.height=0;
-      if(encoded.startsWith('/9j/')&&encoded.length<=1460000)return encoded;
-      maxSide=Math.round(maxSide*0.78);
-    }
-    throw new Error('No s’ha pogut comprimir prou aquesta fotografia.');
-  }finally{URL.revokeObjectURL(url);}
+// Manté el comportament de producció: pujada d'originals JPG/PNG/WebP de fins a 5 MB.
+// Utilitza la funció uploadFamilyPhoto() de Fotos.gs, que ja valida la signatura del fitxer.
+let previewUrl='';
+$('photoInput').addEventListener('change',()=>{
+  if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl='';}
+  const files=Array.from($('photoInput').files||[]);
+  const preview=$('photoPreview');preview.style.display=files.length?'block':'none';
+  if(files.length){previewUrl=URL.createObjectURL(files[0]);preview.src=previewUrl;}
+  photoStatus(files.length?files.length+' fotografies seleccionades':'',false);
+});
+function readPhotoOriginal(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onerror=()=>reject(new Error('No s’ha pogut llegir '+file.name));
+    reader.onload=()=>resolve(String(reader.result).split(',')[1]);
+    reader.readAsDataURL(file);
+  });
+}
+function uploadOriginal(file,base64){
+  return new Promise((resolve,reject)=>{
+    google.script.run.withSuccessHandler(result=>{
+      if(result&&result.ok)resolve(result);
+      else reject(new Error(result&&result.error||'Error en pujar '+file.name));
+    }).withFailureHandler(err=>reject(new Error(err&&err.message||'Error de connexió')))
+      .uploadFamilyPhoto(key,{name:file.name,mime:file.type,base64});
+  });
 }
 $('uploadPhotos').addEventListener('submit',async e=>{
   e.preventDefault();
   if(photoBusy||!key)return;
   const files=Array.from($('photoInput').files||[]);
   if(!files.length){photoStatus('Selecciona almenys una fotografia.',true);return;}
-  if(files.length>5){photoStatus('Envia com a màxim cinc fotografies alhora.',true);return;}
+  if(files.length>20){photoStatus('Selecciona un màxim de 20 fotografies per tanda.',true);return;}
+  const types=['image/jpeg','image/png','image/webp'];
+  if(files.some(f=>!types.includes(f.type)||!f.size||f.size>5*1024*1024)){
+    photoStatus('Les fotos han de ser JPG, PNG o WebP de fins a 5 MB.',true);return;
+  }
   photoBusy=true;$('photoUploadButton').disabled=true;
-  let count=0;
+  let uploaded=0;
   try{
     for(const file of files){
-      photoStatus('Preparant i enviant '+(count+1)+' de '+files.length+'...',false);
-      const base64=await compactJpeg(file);
-      const response=await photoCall('photo_upload',{
-        id:newId(),name:file.name.slice(0,75),base64:base64
-      });
-      photos=response.photos||photos;
-      count++;renderPhotos();
+      photoStatus('Enviant '+(uploaded+1)+' de '+files.length+'…',false);
+      await uploadOriginal(file,await readPhotoOriginal(file));
+      uploaded++;
     }
-    $('photoInput').value='';
-    photoStatus(count+(count===1?' fotografia enviada.':' fotografies enviades.'),false);
+    $('photoInput').value='';$('photoPreview').style.display='none';
+    if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl='';}
+    photoStatus(uploaded+(uploaded===1?' fotografia enviada':' fotografies enviades')+' correctament.',false);
+    // La galeria nova consulta la mateixa carpeta de Fotos.gs sense moure res.
+    await refreshPhotos();
   }catch(err){
-    photoStatus(count+' enviades. Error: '+err.message,true);
+    photoStatus(uploaded+' de '+files.length+' enviades. '+(err.message||'Error temporal')+
+      '. Pots tornar a seleccionar les que faltin.',true);
   }finally{photoBusy=false;$('photoUploadButton').disabled=false;}
 });
 $('login').addEventListener('submit',e=>{
@@ -484,9 +488,9 @@ $('addProduct').addEventListener('submit',e=>{
   if(!name)return;
   call([{type:'grocery_set',id:newId(),name:name.slice(0,80),bought:false}],()=>$('productName').value='');
 });
-$('refresh').addEventListener('click',()=>{call([]);refreshPhotos();});
+$('refresh').addEventListener('click',()=>{call([]);raiAction('tasks_snapshot');refreshPhotos();});
 if(key)showApp();
-setInterval(()=>{if(key&&!document.hidden)call([])},45000);
+setInterval(()=>{if(key&&!document.hidden){call([]);raiAction("tasks_snapshot");}},45000);
 setInterval(()=>{if(key&&!document.hidden)refreshPhotos()},120000);
 })();
 </script>
