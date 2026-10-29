@@ -364,12 +364,54 @@ assert.equal(context.familyTasksAction(secret,'rewards_decide',{
 assert.equal(context.familyTasksSnapshot_().points,pointsBeforeSlots,
   'Denegar una petició no descompta punts');
 
+// Recordatoris nous (no esborren ni reutilitzen la pestanya Sopars).
+const dinner = context.apiAction(secret,'sync',{ops:[
+  {type:'dinner_set',date:'2026-11-03',value:'Arròs amb verdures'}
+]});
+assert.equal(dinner.ok,true);
+let rem=context.apiAction(secret,'sync',{ops:[
+  {type:'reminder_set',id:'rem_01',title:"Vacunació d'en Llamp",
+   date:'2026-11-12',notes:'Trucar al veterinari'}
+]});
+assert.equal(rem.ok,true,rem.error);
+assert.equal(rem.data.reminders.length,1);
+assert.equal(rem.data.reminders[0].done,false);
+assert.equal(rem.data.reminders[0].date,'2026-11-12');
+assert.ok(tabs.get('Recordatoris'));
+assert.equal(rem.data.dinners['2026-11-03'],'Arròs amb verdures');
+assert.equal(context.apiAction(secret,'sync',{ops:[
+  {type:'reminder_set',id:'rem_01',title:"Vacunació d'en Llamp",
+   date:'2026-11-12',notes:'Trucar al veterinari'}
+]}).data.reminders.length,1,'No duplicar recordatoris pel mateix id');
+assert.equal(context.apiAction(secret,'sync',{ops:[
+  {type:'reminder_set',id:'bad',title:'Data impossible',date:'2026-02-30'}
+]}).ok,false);
+assert.equal(context.apiAction(secret,'sync',{ops:[
+  {type:'reminder_set',id:'rem_02',title:'Pagar quota',date:'2026-10-30'}
+]}).ok,true);
+rem=context.apiAction(secret,'sync',{ops:[{type:'reminder_done',id:'rem_02',done:true}]});
+assert.equal(rem.ok,true);
+assert.equal(rem.data.reminders.at(-1).id,'rem_02');
+assert.equal(rem.data.reminders.find(r=>r.id==='rem_02').done,true);
+rem=context.apiAction(secret,'sync',{ops:[{type:'reminder_done',id:'rem_02',done:false}]});
+assert.equal(rem.data.reminders.find(r=>r.id==='rem_02').done,false);
+rem=context.apiAction(secret,'sync',{ops:[{
+  type:'reminder_set',id:'rem_02',title:'Pagar quota escola',date:'2026-10-31',notes:''
+}]});
+assert.equal(rem.data.reminders.find(r=>r.id==='rem_02').title,'Pagar quota escola');
+assert.equal(rem.data.reminders.find(r=>r.id==='rem_02').date,'2026-10-31');
+rem=context.apiAction(secret,'sync',{ops:[{type:'reminder_delete',id:'rem_02'}]});
+assert.equal(rem.data.reminders.length,1);
+assert.equal(rem.data.dinners['2026-11-03'],'Arròs amb verdures',
+  'Els sopars històrics no s’esborren');
+
 const mobileSource=fs.readFileSync(path.join(__dirname,'Mobile.html'),'utf8');
-for(const section of ['compra','sopars','fotos','rai']){
+for(const section of ['compra','recordatoris','fotos','rai']){
   assert.match(mobileSource,new RegExp('data-tab="'+section+'"'),'Falta la pestanya '+section);
   assert.match(mobileSource,new RegExp('data-open="'+section+'"'),'Falta navegació a '+section);
 }
-for(const id of ['raiTaskFrequency','raiDays','raiSlots','raiTaskList',
+for(const id of ['addReminder','reminderTitle','reminderDate','reminderNotes','reminderItems','reminderCount',
+  'raiTaskFrequency','raiDays','raiSlots','raiTaskList',
   'raiRewardList','raiPendingRewards','raiAddTask','raiAddReward','photoInput','photoPreview',
   'photoItems','photoNotice']){
   assert.ok(mobileSource.includes('id="'+id+'"'),'Falta element original: '+id);
@@ -385,6 +427,12 @@ for(const action of ['tasks_set','tasks_done','tasks_undo','rewards_set','reward
 }
 assert.ok(!mobileSource.includes('compactJpeg(file)'),
   'No substituir l’enviament original per JPEG comprimit');
+assert.ok(mobileSource.includes("type:'reminder_done'"),'Marcar recordatori com a fet');
+assert.ok(mobileSource.includes("type:'reminder_set'"),'Crear i editar recordatori');
+assert.ok(mobileSource.includes("type:'reminder_delete'"),'Treure recordatori');
+assert.ok(mobileSource.includes("type=\"date\""),'Selector de data límit');
+assert.ok(!mobileSource.includes('data-tab="sopars"'),
+  'Sopars deixa de ser una pestanya visible');
 assert.ok(!mobileSource.includes("photoCall('photo_delete'"),
   'El Mobile original no permetia esborrar fotos: la galeria no ho ha de fer');
 
