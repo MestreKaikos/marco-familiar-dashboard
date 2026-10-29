@@ -284,7 +284,10 @@ private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Mo
 @Composable
 private fun ReminderTile(store: FamilyReminders, today: LocalDate, modifier: Modifier, onClick: () -> Unit) {
     val pending = store.pending()
-    val urgent = pending.filter { it.deadline != null && !it.deadline.isAfter(today) }
+    val urgent = pending.filter { reminder ->
+        val deadline = reminder.deadline
+        deadline != null && !deadline.isAfter(today)
+    }
     val description = when {
         urgent.isNotEmpty() -> urgent.take(2).joinToString(" · ") { it.title }
         pending.isNotEmpty() -> pending.take(2).joinToString(" · ") { it.title }
