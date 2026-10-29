@@ -76,6 +76,11 @@ class FamilySync internal constructor(context: Context) {
         private set
     var cloudRewards by mutableIntStateOf(prefs.getInt("cloud_reward_count", -1))
         private set
+    var cloudReminders by mutableIntStateOf(prefs.getInt("cloud_reminder_count", -1))
+        private set
+
+    private var remindersStore: FamilyReminders? = null
+    fun attachReminders(store: FamilyReminders) { remindersStore = store }
 
     private val url: String get() = prefs.getString("url", "").orEmpty()
     private val key: String get() = prefs.getString("key", "").orEmpty()
@@ -175,6 +180,7 @@ class FamilySync internal constructor(context: Context) {
             .remove("queue").remove("draft_url").remove("draft_key")
             .remove("cloud_grocery_count").remove("cloud_dinner_count")
             .remove("cloud_task_count").remove("cloud_reward_count")
+            .remove("cloud_reminder_count")
             .putBoolean("ready", false).apply()
         draftUrl = ""
         draftKey = ""
@@ -182,6 +188,7 @@ class FamilySync internal constructor(context: Context) {
         cloudDinners = -1
         cloudTasks = -1
         cloudRewards = -1
+        cloudReminders = -1
         connected = false
         pendingCount = 0
         lastUpdate = null
@@ -233,12 +240,14 @@ class FamilySync internal constructor(context: Context) {
         cloudDinners = snapshot.optJSONObject("data")?.optJSONObject("dinners")?.length() ?: -1
         cloudTasks = snapshot.optJSONObject("data")?.optJSONArray("tasks")?.length() ?: -1
         cloudRewards = snapshot.optJSONObject("data")?.optJSONArray("rewards")?.length() ?: -1
+        cloudReminders = snapshot.optJSONObject("data")?.optJSONArray("reminders")?.length() ?: -1
         lastUpdate = now
         prefs.edit().putString("last_sync", now)
             .putInt("cloud_grocery_count", cloudGroceries)
             .putInt("cloud_dinner_count", cloudDinners)
             .putInt("cloud_task_count", cloudTasks)
-            .putInt("cloud_reward_count", cloudRewards).apply()
+            .putInt("cloud_reward_count", cloudRewards)
+            .putInt("cloud_reminder_count", cloudReminders).apply()
         status = "Sincronitzat correctament · " + now
     }
 
@@ -247,6 +256,7 @@ class FamilySync internal constructor(context: Context) {
         dinners.replaceFromCloud(parseDinners(root))
         // No esborra tasques locals si l'Apps Script encara és una versió antiga.
         root.optJSONObject("data")?.let { data ->
+            data.optJSONArray("reminders")?.let { items -> remindersStore?.replaceFromCloud(items) }
             if (data.has("tasks") && data.has("taskDone") &&
                 data.has("rewards") && data.has("stars")) {
                 family.replaceFamilyFromCloud(data)
