@@ -53,7 +53,7 @@ fun FamilySyncSettings(sync: FamilySync, dinners: DinnerPlan, family: LocalFamil
             if (sync.connected) {
                 Text("Productes al núvol: " + (sync.cloudGroceries.takeIf { it >= 0 }?.toString() ?: "—"),
                     style = Type.Small)
-                Text("Sopars al núvol: " + (sync.cloudDinners.takeIf { it >= 0 }?.toString() ?: "—"),
+                Text("Recordatoris al núvol: " + (sync.cloudReminders.takeIf { it >= 0 }?.toString() ?: "—"),
                     style = Type.Small)
                 Text("Feines al núvol: " + (sync.cloudTasks.takeIf { it >= 0 }?.toString() ?: "Cal actualitzar Apps Script"), style = Type.Small)
                 Text("Recompenses al núvol: " + (sync.cloudRewards.takeIf { it >= 0 }?.toString() ?: "Cal actualitzar Apps Script"), style = Type.Small)
@@ -66,7 +66,7 @@ fun FamilySyncSettings(sync: FamilySync, dinners: DinnerPlan, family: LocalFamil
                     enabled = !sync.busy,
                     modifier = Modifier.fillMaxWidth()
                 ) { Text(if (sync.busy) "Sincronitzant..." else "Sincronitzar ara") }
-                Text("La compra, els sopars, les tasques, les estrelles i els premis es comparteixen. El PIN d'adults es queda només al marc.",
+                Text("La compra, els recordatoris, les tasques, les estrelles i els premis es comparteixen. Els premis requereixen el PIN adult del servei.",
                     style = Type.Small.copy(color = Palette.InkSoft))
                 OutlinedButton(onClick = { confirmDisconnect = true }, modifier = Modifier.fillMaxWidth()) {
                     Text("Desconnectar aquest dispositiu")
@@ -109,7 +109,7 @@ fun FamilySyncSettings(sync: FamilySync, dinners: DinnerPlan, family: LocalFamil
                     enabled = !sync.busy && sync.draftUrl.isNotBlank() && sync.draftKey.isNotBlank(),
                     modifier = Modifier.fillMaxWidth()
                 ) { Text(if (sync.busy) "Connectant..." else "Connectar i fusionar dades") }
-                Text("Recomanat. Conserva els productes i els sopars del núvol i hi afegeix els locals que hi falten.",
+                Text("Conserva els productes compartits i hi afegeix els locals que falten. Els recordatoris del Sheets es descarreguen al marc.",
                     style = Type.Tiny.copy(color = Palette.InkMuted))
                 OutlinedButton(
                     onClick = {
