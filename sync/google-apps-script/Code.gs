@@ -387,7 +387,13 @@ function photoGet_(payload) {
 /** Com a Fotos.gs, la baixa només afecta un fitxer real de la carpeta. */
 function photoDelete_(payload) {
   const id = validateId_(payload && payload.id);
-  if (!familyDrivePhotos_().some(p => p.id === id)) return;
+  const photo = familyDrivePhotos_().find(p => p.id === id);
+  if (!photo) return;
+  // Els originals i les pujades de l'antic Mobile.html no es poden esborrar
+  // amb una nova API que abans no existia. Només els nous uploads marc_<id>_.
+  if (!/^marc_[a-zA-Z0-9_-]{1,80}_/.test(photo.name)) {
+    throw new Error("Les fotografies familiars originals només es gestionen des del Drive");
+  }
   DriveApp.getFileById(id).setTrashed(true);
 }
 
