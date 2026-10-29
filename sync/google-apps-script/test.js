@@ -282,6 +282,9 @@ assert.equal(store.get('PHOTO_FOLDER_ID'),existingFolder.getId());
 assert.equal(store.get('PHOTO_READ_KEY_HASH'),crypto.createHash('sha256').update(oldReaderKey).digest('hex'));
 assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,1);
 assert.equal(context.apiAction(secret,'photo_get',{id:existingPng.getId()}).photo.mimeType,"image/png");
+assert.equal(context.apiAction(secret,'photo_delete',{id:existingPng.getId()}).ok,false,
+  'Les fotos originals de Drive no s’han de poder eliminar amb la nova API');
+assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,1);
 const jpeg=Buffer.from([255,216,1,2,3,255,217]).toString('base64');
 const addPhoto=context.apiAction(secret,'photo_upload',{id:'photo_1',name:'Platja.jpg',base64:jpeg});
 assert.equal(addPhoto.ok,true,addPhoto.error);
@@ -382,5 +385,7 @@ for(const action of ['tasks_set','tasks_done','tasks_undo','rewards_set','reward
 }
 assert.ok(!mobileSource.includes('compactJpeg(file)'),
   'No substituir l’enviament original per JPEG comprimit');
+assert.ok(!mobileSource.includes("photoCall('photo_delete'"),
+  'El Mobile original no permetia esborrar fotos: la galeria no ho ha de fer');
 
 console.log("OK · Tasques.gs real: freqüències, dies, franges, PIN, recompenses pendents, dos secrets i fotos de Drive.");
