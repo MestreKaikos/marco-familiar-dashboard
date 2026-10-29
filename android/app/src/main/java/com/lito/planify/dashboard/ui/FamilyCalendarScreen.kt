@@ -30,12 +30,11 @@ private const val WEEKS_SHOWN = 13
 /**
  * Calendario de la familia, como uno de pared: las semanas de lunes a domingo una debajo de otra, sin títulos
  * (desplazamiento vertical), empezando por la actual; caben dos a la vista. Cada día es como en la portada (turno de
- * la persona con turnos en su pastilla, cites i el sopar, amb lletra una mica més petita) y además lleva el tiempo de ese día mientras haya
+ * la persona con turnos en su pastilla, cites i recordatoris amb data límit, amb lletra una mica més petita) y además lleva el tiempo de ese día mientras haya
  * previsión (14 días).
  */
 @Composable
-fun FamilyCalendarScreen(state: UiState, dinners: DinnerPlan) {
-    var editingDinner by remember { mutableStateOf<LocalDate?>(null) }
+fun FamilyCalendarScreen(state: UiState, reminders: FamilyReminders, onOpenReminders: () -> Unit) {
     val now = state.now
     val today = now.toLocalDate()
     val thisMonday = today.with(DayOfWeek.MONDAY)
@@ -71,22 +70,15 @@ fun FamilyCalendarScreen(state: UiState, dinners: DinnerPlan) {
                         day, today, now,
                         events.filter { it.at.toLocalDate() == day },
                         shifts.filter { it.at.toLocalDate() == day },
-                        dinners[day],
+                        reminders.dueOn(day).take(2).joinToString(" · ") { it.title }.ifBlank { null },
                         Modifier.weight(1f).fillMaxHeight(),
-                        onDinnerClick = { editingDinner = day },
+                        onDinnerClick = onOpenReminders,
                         forecast = state.forecast,
-                        small = true
+                        small = true,
+                        footerTitle = "📌 RECORDATORIS"
                     )
                 }
             }
         }
-    }
-    editingDinner?.let { day ->
-        DinnerEditor(
-            date = day,
-            initial = dinners[day],
-            onDismiss = { editingDinner = null },
-            onSave = { meal -> dinners.save(day, meal); editingDinner = null }
-        )
     }
 }
