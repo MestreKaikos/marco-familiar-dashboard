@@ -7,6 +7,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -76,7 +79,10 @@ class SettingsCallbacks(
     val onSelectLocation: (GeoResult) -> Unit,
     val onSchedule: (Schedule) -> Unit,
     val onBrightness: (Float?) -> Unit,
-    val onLogout: () -> Unit
+    val onLogout: () -> Unit,
+    val onAddCalendar: (String, String) -> String?,
+    val onRemoveCalendar: (String) -> Unit,
+    val onChangeCalendarColor: (String, String) -> Unit
 )
 
 /**
@@ -85,31 +91,72 @@ class SettingsCallbacks(
  * Dentro de las cajas (blancas) los controles van en crema ([Control]) para que se distingan.
  */
 @Composable
-fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: SettingsCallbacks) {
-    ScreenPadding {
-        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-            Panel(Modifier.weight(1f).fillMaxHeight()) {
-                LocationSection(state, callbacks)
-            }
-            Panel(Modifier.weight(1f).fillMaxHeight()) {
-                ScheduleSection(state.schedule, callbacks.onSchedule)
-            }
-            // La columna de la derecha, en dos cajas: brillo y conexión arriba, y los botones abajo
-            Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-                Panel(Modifier.fillMaxWidth().weight(1f)) {
-                    BrightnessSection(state.brightness, callbacks.onBrightness)
-                    Section("Conexión") { WifiCard() }
-                }
+fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: SettingsCallbacks, sync: FamilySync, dinners: DinnerPlan, family: LocalFamilyStore) {
+    var calendarSetup by remember { mutableStateOf(false) }
+    var syncSetup by remember { mutableStateOf(false) }
+    if (syncSetup) {
+        FamilySyncSettings(sync, dinners, family, onBack = { syncSetup = false })
+        return
+    }
+    if (calendarSetup) {
+        CalendarSetupScreen(state, callbacks, onBack = { calendarSetup = false })
+        return
+    }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        if (maxWidth < 1050.dp || maxHeight < 730.dp) {
+            Column(
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text("Opcions del Marc Familiar", style = Type.Title)
+                Text("Configura la sincronització i els calendaris des d'aquí.",
+                    style = Type.Small.copy(color = Palette.InkSoft))
+                PillButton("Sincronització familiar", Modifier.fillMaxWidth(), background = Control, onClick = { syncSetup = true })
+                PillButton("Calendaris de Google", Modifier.fillMaxWidth(), background = Control, onClick = { calendarSetup = true })
+                PillButton("Wi-Fi", Modifier.fillMaxWidth(), background = Control, onClick = actions.openWifi)
+                PillButton("Opcions d’Android", Modifier.fillMaxWidth(), background = Control, onClick = actions.openSettings)
                 Panel(Modifier.fillMaxWidth()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
-                        PillButton("Wi-Fi", Modifier.fillMaxWidth(), background = Control, onClick = actions.openWifi)
-                        PillButton("Ajustes de Android", Modifier.fillMaxWidth(), background = Control, onClick = actions.openSettings)
-                        // Con calendarios iCal no hay sesión: borra lo descargado y vuelve a pedirlo
-                        PillButton(if (state.ics) "Borrar datos" else "Cerrar sesión", Modifier.fillMaxWidth(), background = Control, onClick = callbacks.onLogout)
-                        PillButton("Apagar o reiniciar", Modifier.fillMaxWidth(), background = Control, onClick = actions.powerMenu)
+                    BrightnessSection(state.brightness, callbacks.onBrightness)
+                    ScheduleSection(state.schedule, callbacks.onSchedule)
+                    LocationSection(state, callbacks)
+                }
+                if (state.ics || state.token != null) {
+                    PillButton(if (state.ics) "Netejar dades del calendari" else "Tancar la sessió",
+                        Modifier.fillMaxWidth(), background = Control, onClick = callbacks.onLogout)
+                }
+                PillButton("Apagar o reiniciar", Modifier.fillMaxWidth(), background = Control, onClick = actions.powerMenu)
+            }
+        } else {
+        ScreenPadding {
+            Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+                Panel(Modifier.weight(1f).fillMaxHeight()) {
+                    LocationSection(state, callbacks)
+                }
+                Panel(Modifier.weight(1f).fillMaxHeight()) {
+                    ScheduleSection(state.schedule, callbacks.onSchedule)
+                }
+                // La columna de la derecha, en dos cajas: brillo y conexión arriba, y los botones abajo
+                Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(28.dp)) {
+                    Panel(Modifier.fillMaxWidth().weight(1f)) {
+                        BrightnessSection(state.brightness, callbacks.onBrightness)
+                        Section("Connexió") { WifiCard() }
+                    }
+                    Panel(Modifier.fillMaxWidth()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
+                            PillButton("Wi-Fi", Modifier.fillMaxWidth(), background = Control, onClick = actions.openWifi)
+                            PillButton("Calendaris de Google", Modifier.fillMaxWidth(), background = Control, onClick = { calendarSetup = true })
+                            PillButton("Sincronització familiar", Modifier.fillMaxWidth(), background = Control, onClick = { syncSetup = true })
+                            PillButton("Opcions d’Android", Modifier.fillMaxWidth(), background = Control, onClick = actions.openSettings)
+                            // Con calendarios iCal no hay sesión: borra lo descargado y vuelve a pedirlo
+                            if (state.ics || state.token != null) {
+                                PillButton(if (state.ics) "Netejar dades del calendari" else "Tancar la sessió", Modifier.fillMaxWidth(), background = Control, onClick = callbacks.onLogout)
+                            }
+                            PillButton("Apagar o reiniciar", Modifier.fillMaxWidth(), background = Control, onClick = actions.powerMenu)
+                        }
                     }
                 }
             }
+        }
         }
     }
 }
@@ -132,16 +179,16 @@ private fun LocationSection(state: UiState, callbacks: SettingsCallbacks) {
         keyboard?.hide()
         callbacks.onSearch(query)
     }
-    Section("Ubicación del tiempo") {
+    Section("Ubicació del temps") {
         Text(
-            state.location?.let { "${it.name} · ${it.detail}" } ?: "Sin ubicación",
+            state.location?.let { "${it.name} · ${it.detail}" } ?: "Sense ubicació",
             style = Type.Body,
             maxLines = 2,
             modifier = Modifier.padding(bottom = 20.dp)
         )
         Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
-            Field(query, { query = it }, "Buscar ciudad", Modifier.fillMaxWidth(), background = Control, imeAction = ImeAction.Search, onAction = search)
-            PillButton(if (state.geoSearching) "Buscando…" else "Buscar", Modifier.fillMaxWidth(), primary = true, enabled = query.isNotBlank(), onClick = search)
+            Field(query, { query = it }, "Cercar ciutat", Modifier.fillMaxWidth(), background = Control, imeAction = ImeAction.Search, onAction = search)
+            PillButton(if (state.geoSearching) "Cercant…" else "Cercar", Modifier.fillMaxWidth(), primary = true, enabled = query.isNotBlank(), onClick = search)
         }
         state.geoResults.take(5).forEach { result ->
             Row(
@@ -171,12 +218,12 @@ private fun LocationSection(state: UiState, callbacks: SettingsCallbacks) {
 
 @Composable
 private fun ScheduleSection(schedule: Schedule, onChange: (Schedule) -> Unit) {
-    Section("Horario de pantalla") {
-        Toggle("Horario de pantalla", schedule.enabled) { onChange(schedule.copy(enabled = it)) }
+    Section("Horari de la pantalla") {
+        Toggle("Horari de la pantalla", schedule.enabled) { onChange(schedule.copy(enabled = it)) }
         if (schedule.enabled) {
-            Toggle("Reloj nocturno", !schedule.screenOff) { onChange(schedule.copy(screenOff = !it)) }
-            WindowRow("Lunes a viernes", schedule.weekdayOn, schedule.weekdayOff) { on, off -> onChange(schedule.copy(weekdayOn = on, weekdayOff = off)) }
-            WindowRow("Sábado y domingo", schedule.weekendOn, schedule.weekendOff) { on, off -> onChange(schedule.copy(weekendOn = on, weekendOff = off)) }
+            Toggle("Rellotge nocturn", !schedule.screenOff) { onChange(schedule.copy(screenOff = !it)) }
+            WindowRow("De dilluns a divendres", schedule.weekdayOn, schedule.weekdayOff) { on, off -> onChange(schedule.copy(weekdayOn = on, weekdayOff = off)) }
+            WindowRow("Dissabte i diumenge", schedule.weekendOn, schedule.weekendOff) { on, off -> onChange(schedule.copy(weekendOn = on, weekendOff = off)) }
         }
     }
 }
@@ -187,11 +234,11 @@ private fun WindowRow(label: String, on: Int, off: Int, onChange: (Int, Int) -> 
     Column(Modifier.padding(top = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(label, style = Type.Body.copy(fontWeight = FontWeight.SemiBold))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Enciende", style = Type.Small, modifier = Modifier.weight(1f))
+            Text("S’encén", style = Type.Small, modifier = Modifier.weight(1f))
             Stepper(on, min = 0, max = off - 15) { onChange(it, off) }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Apaga", style = Type.Small, modifier = Modifier.weight(1f))
+            Text("S’apaga", style = Type.Small, modifier = Modifier.weight(1f))
             Stepper(off, min = on + 15, max = 24 * 60 - 15) { onChange(on, it) }
         }
     }
@@ -212,7 +259,7 @@ private fun BrightnessSection(brightness: Float?, onChange: (Float?) -> Unit) {
     var manual by remember { mutableFloatStateOf(brightness ?: 0.8f) }
     val auto = brightness == null
     // El valor elegido va en el título, para no quitarle ancho al deslizador
-    Section(if (auto) "Brillo · automático" else "Brillo · ${(manual * 100).roundToInt()}%") {
+    Section(if (auto) "Brillantor · automàtica" else "Brillantor · ${(manual * 100).roundToInt()}%") {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             LevelSlider(manual, enabled = !auto, modifier = Modifier.weight(1f)) {
                 manual = it
@@ -282,10 +329,10 @@ private fun WifiCard() {
     val rssi = current?.rssi
     val (quality, color) = when {
         rssi == null -> "" to Palette.InkMuted
-        rssi >= -60 -> "Excelente" to Palette.Online
-        rssi >= -67 -> "Buena" to Palette.Online
+        rssi >= -60 -> "Excel·lent" to Palette.Online
+        rssi >= -67 -> "Bona" to Palette.Online
         rssi >= -75 -> "Regular" to Palette.Warm
-        else -> "Débil" to Palette.Accent
+        else -> "Feble" to Palette.Accent
     }
     Column(
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -303,8 +350,8 @@ private fun WifiCard() {
             )
             Text(
                 when {
-                    current != null -> current.ssid ?: "Conectado"
-                    loaded -> "Sin conexión Wi-Fi"
+                    current != null -> current.ssid ?: "Connectat"
+                    loaded -> "Sense connexió Wi-Fi"
                     else -> "Wi-Fi…"
                 },
                 style = Type.Body.copy(fontWeight = FontWeight.SemiBold),
@@ -321,7 +368,7 @@ private fun WifiCard() {
                 if (level > 0f) Box(Modifier.fillMaxWidth(level).fillMaxHeight().background(color, CircleShape))
             }
             Text(
-                listOfNotNull(rssi?.let { "$it dBm" } ?: "Señal desconocida", current.ip).joinToString("  ·  "),
+                listOfNotNull(rssi?.let { "$it dBm" } ?: "Senyal desconegut", current.ip).joinToString("  ·  "),
                 style = Type.Small,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
@@ -386,8 +433,8 @@ fun Field(
         cursorBrush = SolidColor(Palette.Ink),
         visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
         keyboardOptions = KeyboardOptions(keyboardType = if (password) KeyboardType.Password else keyboardType, imeAction = imeAction),
-        // Solo las acciones que usan los campos: "Siguiente" pasa al campo de abajo; el resto ejecuta onAction.
-        // (KeyboardActions { … } sustituiría también "Siguiente" y el foco se quedaría atascado.)
+        // Solo las acciones que usan los campos: "Següent" pasa al campo de abajo; el resto ejecuta onAction.
+        // (KeyboardActions { … } sustituiría también "Següent" y el foco se quedaría atascado.)
         keyboardActions = KeyboardActions(
             onNext = { focusManager.moveFocus(FocusDirection.Down) },
             onDone = {

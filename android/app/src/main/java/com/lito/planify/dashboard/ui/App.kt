@@ -4,6 +4,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Checklist
+import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Settings
@@ -38,6 +42,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import com.lito.planify.dashboard.data.Event
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import kotlinx.coroutines.launch
+import org.json.JSONObject
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
@@ -60,13 +68,15 @@ import java.time.LocalDate
 import kotlinx.coroutines.delay
 
 enum class Page(val label: String, val icon: ImageVector) {
-    Today("Hoy", Icons.Outlined.Today),
-    Calendar("Calendario", Icons.Outlined.CalendarMonth),
-    Weather("Tiempo", Icons.Outlined.Thermostat),
-    Energy("Energía", Icons.Outlined.Bolt),
-    Home("Casa y energía", Icons.Outlined.Home),
-    Tasks("Tareas", Icons.Outlined.Checklist),
-    Settings("Ajustes", Icons.Outlined.Settings)
+    Today("Avui", Icons.Outlined.Today),
+    Photos("Fotos", Icons.Outlined.PhotoLibrary),
+    Calendar("Calendari", Icons.Outlined.CalendarMonth),
+    Weather("El temps", Icons.Outlined.Thermostat),
+    Energy("Energia", Icons.Outlined.Bolt),
+    Home("Casa i energia", Icons.Outlined.Home),
+    Tasks("Família", Icons.Outlined.Checklist),
+    Reminders("Recordatoris", Icons.Outlined.Checklist),
+    Settings("Opcions", Icons.Outlined.Settings)
 }
 
 /** Nombre corto bajo el icono de la barra lateral. */
@@ -100,7 +110,6 @@ private val RAIL_CLOCK_OVERLAP = (-30).dp
 fun DashboardApp(
     state: UiState,
     actions: DashboardActions,
-    onLogin: (String, String) -> Unit,
     onLoadWeek: (LocalDate) -> Unit,
     onSync: () -> Unit,
     settings: SettingsCallbacks,
@@ -109,13 +118,49 @@ fun DashboardApp(
     home: HomeCallbacks = HomeCallbacks()
 ) {
     var page by remember { mutableStateOf(Page.Today) }
+    // Manté els camps editats en tornar a una pestanya, sense crear una segona còpia de les dades.
+    val pageState = rememberSaveableStateHolder()
+    // Sopars compartits entre la portada i el calendari, desats només al dispositiu.
+    val dinners = rememberDinnerPlan()
+    val family = rememberLocalFamilyStore()
+    val reminders = rememberFamilyReminders()
+    val sync = rememberFamilySync()
+    val coroutineScope = rememberCoroutineScope()
+    // Escolta els canvis locals: en cas de no tenir Internet, queden a la cua del marc.
+    LaunchedEffect(sync, dinners, family, reminders) {
+        sync.attachReminders(reminders)
+        reminders.onMutation = { op -> sync.queue(op) }
+        dinners.onLocalChange = { day, meal ->
+            sync.queue(JSONObject().put("type", "dinner_set")
+                .put("date", day.toString()).put("value", meal))
+        }
+        family.onGroceryMutation = { op -> sync.queue(op) }
+        family.onFamilyMutation = { op -> sync.queue(op) }
+        try {
+            while (true) {
+                sync.synchronize(dinners, family)
+                delay(45_000)
+            }
+        } finally {
+            dinners.onLocalChange = null
+            family.onGroceryMutation = null
+            family.onFamilyMutation = null
+            reminders.onMutation = null
+        }
+    }
+    LaunchedEffect(sync.pendingCount, sync.connected) {
+        if (sync.connected && sync.pendingCount > 0) {
+            delay(1200)
+            sync.synchronize(dinners, family)
+        }
+    }
     var lastTouch by remember { mutableLongStateOf(0L) }
     /** Cita abierta en el aviso ([EventOverlay]); se cierra sola al volver a Hoy por inactividad. */
     var shownEvent by remember { mutableStateOf<Event?>(null) }
 
-    // Tras 2 minutos sin tocar se vuelve a Hoy.
+    // Després de dos minuts sense tocar, tornem a Avui, excepte durant la presentació de fotos.
     LaunchedEffect(page, lastTouch) {
-        if (page == Page.Today) return@LaunchedEffect
+        if (page == Page.Today || page == Page.Photos) return@LaunchedEffect
         delay(IDLE_MILLIS)
         page = Page.Today
     }
@@ -141,11 +186,7 @@ fun DashboardApp(
                 }
             }
     ) {
-        if (state.token == null) {
-            LoginScreen(state, onLogin, actions.openWifi)
-            return@Box
-        }
-        if (state.night) {
+        if (state.night && page != Page.Photos) {
             NightScreen(state, onWake = {
                 page = Page.Today
                 onPeek()
@@ -156,20 +197,27 @@ fun DashboardApp(
             // La barra lateral a la derecha, con el nombre bajo cada icono
             Row(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f).fillMaxHeight()) {
+                    pageState.SaveableStateProvider(page.name) {
                     when (page) {
-                        // Con los calendarios de la familia, la portada nueva (por persona); con Planify, la de Lito
-                        Page.Today -> if (state.ics) FamilyTodayScreen(state, onOpen = { page = it }) else TodayScreen(state, lastTouch)
+                        // La portada familiar funciona sense credencials; el backend antic és opcional.
+                        Page.Today -> if (state.ics || state.token == null) FamilyTodayScreen(state, reminders, family, onOpen = { page = it }) else TodayScreen(state, lastTouch)
+                        Page.Photos -> PhotosScreen(sync)
                         // Con los calendarios de la familia, semanas en vertical como la portada; con Planify, la de Lito
-                        Page.Calendar -> if (state.ics) FamilyCalendarScreen(state) else CalendarScreen(state, onLoadWeek)
+                        Page.Calendar -> if (state.ics || state.token == null) FamilyCalendarScreen(state, reminders, onOpenReminders = { page = Page.Reminders }) else CalendarScreen(state, onLoadWeek)
                         Page.Weather -> WeatherScreen(state)
                         Page.Energy -> EnergyScreen(state)
                         // Prueba: Casa y Energía juntas (EnergyScreen y HomeScreen siguen por si se separan)
                         Page.Home -> HomeEnergyScreen(state, home)
-                        Page.Tasks -> TasksScreen(state, chores)
-                        Page.Settings -> SettingsScreen(state, actions, settings)
+                        Page.Tasks -> LocalFamilyScreen(family, state.now.toLocalDate(), sync.connected, sync.pendingCount, sync.cloudTasks >= 0)
+                        Page.Reminders -> FamilyRemindersScreen(reminders, state.now.toLocalDate())
+                        Page.Settings -> SettingsScreen(state, actions, settings, sync, dinners, family)
+                    }
                     }
                 }
-                Rail(page, state, onSelect = { page = it }, onSync = onSync, onSleep = actions.sleep)
+                Rail(page, state, onSelect = { page = it }, onSync = {
+                    onSync()
+                    coroutineScope.launch { sync.synchronize(dinners, family) }
+                }, onSleep = actions.sleep)
             }
         }
         EventOverlay(shownEvent) { shownEvent = null }
@@ -178,23 +226,27 @@ fun DashboardApp(
 
 @Composable
 private fun Rail(current: Page, state: UiState, onSelect: (Page) -> Unit, onSync: () -> Unit, onSleep: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .width(136.dp)
-            .fillMaxHeight()
-            .background(Palette.Rail)
-            .padding(vertical = 48.dp)
-    ) {
-        // Todos los botones juntos arriba y el reloj abajo del todo
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Page.entries.filter { it != Page.Settings && it.available(state) }.forEach { page -> RailItem(page.shortLabel, page.icon, page == current) { onSelect(page) } }
-            SyncItem(state.syncing, onSync)
-            RailItem(Page.Settings.shortLabel, Page.Settings.icon, current == Page.Settings) { onSelect(Page.Settings) }
-            RailItem("Dormir", Icons.Outlined.Bedtime, false, onClick = onSleep)
+    BoxWithConstraints(Modifier.width(136.dp).fillMaxHeight()) {
+        val compact = maxHeight < 850.dp
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Palette.Rail)
+                .then(if (compact) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                .padding(vertical = if (compact) 12.dp else 48.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 12.dp)) {
+                Page.entries.filter { it != Page.Settings && it.available(state) }.forEach { page ->
+                    RailItem(page.shortLabel, page.icon, page == current) { onSelect(page) }
+                }
+                SyncItem(state.syncing, onSync)
+                RailItem(Page.Settings.shortLabel, Page.Settings.icon, current == Page.Settings) { onSelect(Page.Settings) }
+                RailItem("Dormir", Icons.Outlined.Bedtime, false, onClick = onSleep)
+            }
+            if (compact) Spacer(Modifier.height(18.dp)) else Spacer(Modifier.weight(1f))
+            RailClock(state)
         }
-        Spacer(Modifier.weight(1f))
-        RailClock(state)
     }
 }
 
@@ -258,7 +310,7 @@ private fun RailClock(state: UiState) {
             RollingText(minute, style.copy(color = Palette.InkSoft))
         }
         if (!state.online || !state.connected) {
-            Text("Sin conexión", style = Type.Tiny.copy(color = Palette.Accent), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
+            Text("Sense connexió", style = Type.Tiny.copy(color = Palette.Accent), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }

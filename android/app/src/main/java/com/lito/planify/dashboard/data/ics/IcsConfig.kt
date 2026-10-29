@@ -2,6 +2,8 @@ package com.lito.planify.dashboard.data.ics
 
 import android.util.Base64
 import com.lito.planify.dashboard.BuildConfig
+import com.lito.planify.dashboard.data.PersonalCalendar
+import com.lito.planify.dashboard.data.CalendarColors
 import java.io.InputStreamReader
 import java.util.Properties
 
@@ -27,7 +29,7 @@ class IcsConfig(private val props: Properties) {
         if (raw.isNotEmpty()) InputStreamReader(Base64.decode(raw, Base64.DEFAULT).inputStream(), Charsets.UTF_8).use { load(it) }
     })
 
-    val calendars: List<IcsCalendar> = props.stringPropertyNames()
+    private val builtInCalendars: List<IcsCalendar> = props.stringPropertyNames()
         .mapNotNull { Regex("""calendar\.([^.]+)\.url""").matchEntire(it)?.groupValues?.get(1) }
         .sorted()
         .mapIndexedNotNull { i, key ->
@@ -36,6 +38,23 @@ class IcsConfig(private val props: Properties) {
             if (url.isEmpty() || role == null) null
             else IcsCalendar(i + 1, key, props.getProperty("calendar.$key.name") ?: key, props.getProperty("calendar.$key.color") ?: "#888888", role, url)
         }
+
+    /** Els calendaris introduïts al marc substitueixen els de compilació quan se'n desa algun. */
+    private var personalCalendars: List<IcsCalendar>? = null
+    val calendars: List<IcsCalendar> get() = personalCalendars ?: builtInCalendars
+
+    fun setPersonalCalendars(calendars: List<PersonalCalendar>) {
+        personalCalendars = calendars.take(5).mapIndexed { i, calendar ->
+            IcsCalendar(
+                id = i + 1,
+                key = calendar.id,
+                name = calendar.name.take(50),
+                color = CalendarColors.normalize(calendar.color) ?: CalendarColors.legacy(i),
+                role = CalendarRole.EVENTS,
+                url = calendar.url
+            )
+        }
+    }
 
     /** Color de cada tipo de turno por su nombre (los espacios del nombre van como «_» en el fichero). */
     val shiftColors: Map<String, String> = props.stringPropertyNames()

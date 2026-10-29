@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light"><meta name="theme-color" content="#f7f0e6"><meta name="apple-mobile-web-app-capable" content="yes">
+<title>Marc Familiar · Compra, sopars, tasques i fotos</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#26231e;background:#f7f0e6}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh}
+main{max-width:700px;margin:0 auto;padding:22px 16px 64px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0 22px}
+h1{font-size:25px;margin:0;font-weight:750;letter-spacing:-.7px}
+h2{font-size:20px;margin:0 0 18px}
+p{color:#716a60;line-height:1.55}
+.panel{background:#fff;border-radius:22px;padding:20px;margin-bottom:16px;box-shadow:0 2px 10px #54452e08}
+.row{display:flex;gap:8px;align-items:center}
+.row>*{min-width:0}
+input{min-width:0;flex:1;border:1px solid #e4d6c2;border-radius:12px;font:inherit;padding:12px 13px;background:#fffcf9;color:#26231e}
+button{font:inherit;border:0;border-radius:12px;padding:12px 16px;cursor:pointer;background:#e9dccb;color:#26231e;font-weight:600}
+button.primary{background:#29221d;color:white}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.small{font-size:13px;padding:9px 11px}
+button.ghost{background:transparent;color:#74695c}
+button:focus-visible,input:focus-visible{outline:3px solid #7c9ef1}
+#message{font-size:14px;min-height:20px;margin:0 0 14px}
+#message.error{color:#ac3434}
+#message.good{color:#298252}
+.item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f1ede7}
+.item:last-child{border:0}
+.item input[type=checkbox]{flex:0;min-width:22px;width:22px;height:22px;accent-color:#31865a}
+.item .name{flex:1;overflow-wrap:anywhere}
+.bought{text-decoration:line-through;color:#9c958c}
+.day{display:flex;flex-direction:column;gap:8px;border-top:1px solid #f1ede7;padding:12px 0}
+.day:first-child{border-top:0}
+.day label{font-weight:650}
+.day .row input{width:100%}
+.pill{font-size:12px;background:#faebd3;padding:5px 10px;border-radius:99px;color:#98600e;white-space:nowrap}
+#auth{max-width:470px;margin:14vh auto}
+[hidden]{display:none!important}
+#syncTime{font-size:12px;color:#777}
+.photo-card{border:1px solid #f1ede7;border-radius:12px;padding:12px;margin:8px 0}
+.photo-card img{display:block;max-width:100%;max-height:340px;margin:10px auto;border-radius:10px;object-fit:contain}
+.photo-meta{flex:1;min-width:0;overflow-wrap:anywhere}
+#photoNotice{font-size:14px;min-height:20px}
+#photoNotice.error{color:#ac3434}
+#photoNotice.good{color:#298252}
+#photoInput{border:0;background:transparent;padding-left:0}
+#photoInput::file-selector-button{border:0;background:#e9dccb;border-radius:9px;padding:10px;cursor:pointer}
+.app-nav{position:fixed;bottom:0;left:0;right:0;z-index:20;background:#fffefaf2;backdrop-filter:blur(18px);padding:10px 8px max(10px,env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;border-top:1px solid #eadfce}
+.app-nav button{display:flex;flex-direction:column;gap:5px;align-items:center;justify-content:center;background:transparent;border-radius:14px;font-size:12px;padding:10px 2px;color:#776e62}
+.app-nav button span{font-size:21px}.app-nav button.active{color:#1f2c25;background:#e1eadf}
+#application{padding-bottom:96px}#application>.panel[data-tab]{display:none}#application>.panel[data-tab].active{display:block}
+select{font:inherit;background:#fffcf9;border:1px solid #e4d6c2;color:#26231e}
+#photoPreview{display:none;width:100%;max-height:270px;object-fit:contain;border-radius:12px;margin:12px 0}
+@media(max-width:430px){.row{flex-wrap:wrap}.row input{min-width:160px}.panel{padding:16px}main{padding-top:10px}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>🏡 Marc Familiar</h1>
+    <button class="small ghost" id="disconnect" hidden>Desconnectar</button>
+  </header>
+  <div id="auth" class="panel">
+    <h2>Connectar la família</h2>
+    <p>Escriu la clau privada creada al teu Google Apps Script. No és la contrasenya de Google i no es comparteix per URL.</p>
+    <form id="login" class="row">
+      <input id="secret" type="password" aria-label="Clau familiar" autocomplete="off" required maxlength="64" placeholder="Clau de 64 caràcters" />
+      <button class="primary" type="submit">Entrar</button>
+    </form>
+    <p><small>La clau es recorda només durant aquesta sessió del navegador.</small></p>
+  </div>
+  <div id="application" hidden>
+    <p id="message" aria-live="polite"></p>
+    <section class="panel" data-tab="compra">
+      <div class="row" style="justify-content:space-between;margin-bottom:14px">
+        <h2 style="margin:0">🛒 Llista de la compra</h2>
+        <span class="pill" id="pendingCount">0 pendents</span>
+      </div>
+      <form id="addProduct" class="row">
+        <input id="productName" placeholder="Afegir producte..." required maxlength="80" aria-label="Nou producte"/>
+        <button class="primary" type="submit">Afegir</button>
+      </form>
+      <div id="items" style="margin-top:14px"></div>
+    </section>
+    <section class="panel" data-tab="recordatoris">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+        <h2 style="margin:0">📌 Recordatoris</h2><span class="pill" id="reminderCount">0 pendents</span>
+      </div>
+      <p style="margin:0 0 14px">Pagaments, visites al veterinari, tràmits i coses per fer.</p>
+      <form id="addReminder">
+        <input id="reminderId" type="hidden">
+        <input id="reminderTitle" required maxlength="120" placeholder="Per exemple: Vacunació d'en Llamp" aria-label="Recordatori" style="width:100%">
+        <div class="row" style="margin-top:8px">
+          <input id="reminderDate" type="date" aria-label="Data límit (opcional)" style="flex:1">
+          <input id="reminderNotes" maxlength="240" placeholder="Nota opcional" aria-label="Nota opcional" style="flex:2">
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button id="saveReminder" class="primary" type="submit">Afegir recordatori</button>
+          <button id="cancelReminder" type="button" hidden>Cancel·lar edició</button>
+        </div>
+      </form>
+      <div id="reminderItems" style="margin-top:16px"></div>
+    </section>
+    <section class="panel" data-tab="rai">
+      <div class="row" style="justify-content:space-between;margin-bottom:12px">
+        <h2 style="margin:0">⭐ Tasques i recompenses d'en Rai</h2>
+        <span class="pill" id="raiPoints">Carregant punts…</span>
+      </div>
+      <div id="raiTaskList"></div>
+      <h2 style="margin-top:20px">🎁 Recompenses</h2>
+      <div id="raiRewardList"></div>
+      <h2 style="margin-top:20px">🔐 Peticions pendents</h2>
+      <div id="raiPendingRewards"></div>
+      <form id="raiAddTask" class="row" style="margin-top:18px">
+        <input id="raiTaskTitle" required maxlength="100" placeholder="Nova tasca…" aria-label="Títol de la tasca">
+        <input id="raiTaskPoints" type="number" min="1" max="100" value="5" required aria-label="Punts" style="max-width:90px">
+        <select id="raiTaskFrequency" aria-label="Repetició" style="padding:12px;border-radius:12px">
+          <option value="daily">Cada dia</option><option value="weekdays">Dies concrets</option>
+          <option value="weekly">Cada setmana</option><option value="once">Una vegada</option>
+          <option value="slots">Diverses vegades al dia</option>
+        </select>
+        <button class="primary" type="submit">Afegir</button>
+      </form>
+      <div id="raiDays" hidden style="padding:10px 0">Dies:
+        <label><input type="checkbox" value="1" checked> Dl</label>
+        <label><input type="checkbox" value="2" checked> Dt</label>
+        <label><input type="checkbox" value="3" checked> Dc</label>
+        <label><input type="checkbox" value="4" checked> Dj</label>
+        <label><input type="checkbox" value="5" checked> Dv</label>
+        <label><input type="checkbox" value="6"> Ds</label>
+        <label><input type="checkbox" value="7"> Dg</label>
+      </div>
+      <div id="raiSlots" hidden style="padding:10px 0">Franges:
+        <label><input type="checkbox" value="matí" checked> matí</label>
+        <label><input type="checkbox" value="migdia"> migdia</label>
+        <label><input type="checkbox" value="tarda"> tarda</label>
+        <label><input type="checkbox" value="vespre" checked> vespre</label>
+      </div>
+      <form id="raiAddReward" class="row" style="margin-top:14px">
+        <input id="raiRewardTitle" required maxlength="100" placeholder="Nova recompensa" aria-label="Recompensa">
+        <input id="raiRewardCost" type="number" min="1" max="10000" value="20" required style="max-width:95px" aria-label="Cost del premi">
+        <button type="submit">Afegir premi</button>
+      </form>
+      <p id="raiTaskStatus" role="status" aria-live="polite"></p>
+    </section>
+    <section class="panel" data-tab="fotos">
+      <div class="row" style="justify-content:space-between;margin-bottom:12px">
+        <h2 style="margin:0">📸 Fotografies familiars</h2><span class="pill" id="photoCount">0 fotos</span>
+      </div>
+      <p>Envia JPG, PNG o WebP de fins a 5 MB, com abans. Pots triar-ne fins a 20 per tanda.</p>
+      <form id="uploadPhotos">
+        <input id="photoInput" type="file" accept="image/jpeg,image/png,image/webp" multiple required aria-label="Fotografies">
+        <img id="photoPreview" alt="Vista prèvia de la fotografia">
+        <button id="photoUploadButton" class="primary" type="submit">Enviar fotografies</button>
+      </form>
+      <p id="photoNotice" role="status" aria-live="polite"></p>
+      <div id="photoItems"></div>
+    </section>
+    <nav class="app-nav" aria-label="Seccions de Marc Familiar">
+      <button type="button" data-open="compra"><span>🛒</span>Compra</button>
+      <button type="button" data-open="recordatoris"><span>📌</span>Recordatoris</button>
+      <button type="button" data-open="fotos"><span>📸</span>Fotos</button>
+      <button type="button" data-open="rai"><span>⭐</span>Rai</button>
+    </nav>
+    <div class="row" style="justify-content:space-between">
+      <span id="syncTime">Connectat · Sincronització automàtica</span>
+      <button class="small" id="refresh">Actualitzar ara</button>
+    </div>
+  </div>
+</main>
+<script>
+(function(){
+'use strict';
+let key = "";
+try { key = sessionStorage.getItem("marc-sync-key") || ""; } catch (_) { /* Navegador que bloqueja emmagatzematge de tercers */ }
+let data = {groceries:[], dinners:{}};
+let busy = false;
+let photoBusy = false;
+let photos = [];
+const $ = id => document.getElementById(id);
+function openTab(name){
+  if(!['compra','recordatoris','fotos','rai'].includes(name)) name='compra';
+  document.querySelectorAll('[data-tab]').forEach(el=>el.classList.toggle('active',el.dataset.tab===name));
+  document.querySelectorAll('[data-open]').forEach(el=>{
+    const active=el.dataset.open===name;
+    el.classList.toggle('active',active);
+    el.setAttribute('aria-current',active?'page':'false');
+  });
+  try{sessionStorage.setItem('marc-active-tab',name);}catch(_){}
+  window.scrollTo({top:0,behavior:'instant'});
+}
+document.querySelectorAll('[data-open]').forEach(el=>el.addEventListener('click',()=>openTab(el.dataset.open)));
+try{openTab(sessionStorage.getItem('marc-active-tab')||'compra')}catch(_){openTab('compra')}
+
+function message(text,error) {
+  $('message').textContent=text||'';
+  $('message').className=error?'error':'good';
+}
+function call(ops, onDone) {
+  if(!key || busy) return;
+  busy=true;
+  message('Sincronitzant...',false);
+  google.script.run
+    .withSuccessHandler(function(result){
+      busy=false;
+      if(!result||!result.ok){
+        message((result&&result.error)||'No es pot sincronitzar',true);
+        if(result&&/Clau/.test(result.error||'')) showLogin();
+        return;
+      }
+      data=result.data||{groceries:[],dinners:{}};
+      render();
+      message('',false);
+      $('syncTime').textContent='Actualitzat a les '+new Date().toLocaleTimeString('ca-ES',{hour:'2-digit',minute:'2-digit'});
+      if(onDone)onDone();
+    })
+    .withFailureHandler(function(err){
+      busy=false;
+      message('Sense connexió: '+(err&&err.message||'Error temporal'),true);
+    })
+    .apiAction(key,'sync',{ops:ops||[]});
+}
+function showLogin(){
+  photos=[];renderPhotos();raiSnapshot=null;
+  key='';try { sessionStorage.removeItem('marc-sync-key'); } catch (_) {}
+  $('auth').hidden=false;$('application').hidden=true;$('disconnect').hidden=true;
+}
+function showApp(){
+  $('auth').hidden=true;$('application').hidden=false;$('disconnect').hidden=false;
+  call([]);
+  raiAction("tasks_snapshot");
+  refreshPhotos();
+}
+function makeText(tag,text,cls){
+  const e=document.createElement(tag);e.textContent=text;if(cls)e.className=cls;return e;
+}
+function newId(){
+  if(self.crypto&&crypto.randomUUID)return crypto.randomUUID();
+  return String(Date.now())+'-'+Math.random().toString(36).slice(2);
+}
+function render(){
+  const groceries=(data.groceries||[]).slice().sort((a,b)=>Number(a.bought)-Number(b.bought));
+  const list=$('items');list.replaceChildren();
+  const pending=groceries.filter(x=>!x.bought).length;
+  $('pendingCount').textContent=pending+(pending===1?' pendent':' pendents');
+  if(!groceries.length)list.appendChild(makeText('p','La llista és buida. Afegeix-hi allò que falta a casa.'));
+  groceries.forEach(function(item){
+    const line=makeText('div','','item');
+    const box=document.createElement('input');box.type='checkbox';box.checked=!!item.bought;
+    box.setAttribute('aria-label','Marcar '+item.name+' com a comprat');
+    box.addEventListener('change',()=>call([{type:'grocery_set',id:item.id,name:item.name,bought:box.checked}]));
+    line.appendChild(box);line.appendChild(makeText('span',item.name,'name'+(item.bought?' bought':'')));
+    const del=makeText('button','Treure','small ghost');del.type='button';
+    del.setAttribute('aria-label','Eliminar '+item.name);
+    del.addEventListener('click',()=>call([{type:'grocery_delete',id:item.id}]));
+    line.appendChild(del);list.appendChild(line);
+  });
+  renderReminders();
+}
+// Data límit opcional, estat pendent/fet i edició, sincronitzats al mateix Sheets.
+function reminderDateLabel(value){
+  if(!value)return 'Sense data límit';
+  const parsed=new Date(value+'T12:00:00');
+  return Number.isNaN(parsed.getTime())?value:
+    parsed.toLocaleDateString('ca-ES',{day:'numeric',month:'short',year:'numeric'});
+}
+function resetReminderForm(){
+  $('reminderId').value='';$('reminderTitle').value='';
+  $('reminderDate').value='';$('reminderNotes').value='';
+  $('saveReminder').textContent='Afegir recordatori';$('cancelReminder').hidden=true;
+}
+function renderReminders(){
+  const list=$('reminderItems');list.replaceChildren();
+  const entries=data.reminders||[], pending=entries.filter(x=>!x.done);
+  $('reminderCount').textContent=pending.length+(pending.length===1?' pendent':' pendents');
+  if(!entries.length){
+    list.appendChild(makeText('p','Cap recordatori. Afegeix el primer, amb data o sense.'));return;
+  }
+  const now=new Date();
+  const today=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+
+    '-'+String(now.getDate()).padStart(2,'0');
+  entries.forEach(item=>{
+    const line=makeText('div','','item');
+    const check=document.createElement('input');check.type='checkbox';check.checked=!!item.done;
+    check.setAttribute('aria-label','Marcar com a fet: '+item.title);
+    check.addEventListener('change',()=>call([{type:'reminder_done',id:item.id,done:check.checked}]));
+    const body=document.createElement('div');body.style.flex='1';body.style.minWidth='0';
+    const title=makeText('div',item.title,'name'+(item.done?' bought':''));title.style.fontWeight='650';
+    let label=reminderDateLabel(item.date);
+    if(!item.done&&item.date===today)label='Avui · '+label;
+    if(!item.done&&item.date&&item.date<today)label='Vençut · '+label;
+    if(item.done)label='✓ Fet · '+label;
+    const due=makeText('small',label);
+    due.style.color=(!item.done&&item.date&&item.date<today)?'#ac3434':'#777';
+    body.append(title,due);
+    if(item.notes){
+      const notes=makeText('div',item.notes);notes.style.fontSize='13px';notes.style.color='#716a60';
+      body.appendChild(notes);
+    }
+    const edit=makeText('button','Editar','small');edit.type='button';
+    edit.addEventListener('click',()=>{
+      $('reminderId').value=item.id;$('reminderTitle').value=item.title;
+      $('reminderDate').value=item.date||'';$('reminderNotes').value=item.notes||'';
+      $('saveReminder').textContent='Desar canvis';$('cancelReminder').hidden=false;
+      $('reminderTitle').focus();
+    });
+    const del=makeText('button','Treure','small ghost');del.type='button';
+    del.addEventListener('click',()=>{if(confirm('Eliminar el recordatori «'+item.title+'»?'))
+      call([{type:'reminder_delete',id:item.id}]);});
+    line.append(check,body,edit,del);list.appendChild(line);
+  });
+}
+$('cancelReminder').addEventListener('click',resetReminderForm);
+$('addReminder').addEventListener('submit',e=>{
+  e.preventDefault();
+  const id=$('reminderId').value||newId(),title=$('reminderTitle').value.trim(),
+    date=$('reminderDate').value,notes=$('reminderNotes').value.trim();
+  if(!title)return;
+  call([{type:'reminder_set',id,title:title.slice(0,120),date,notes:notes.slice(0,240)}],
+    resetReminderForm);
+});
+// L'API familiar existent continua sent la font de veritat de dies, franges i premis.
+let raiBusy=false,raiSnapshot=null;
+function raiAction(action,payload={},onDone){
+  if(!key||raiBusy)return;
+  raiBusy=true;$('raiTaskStatus').textContent='Sincronitzant les tasques…';
+  google.script.run.withSuccessHandler(result=>{
+    raiBusy=false;
+    if(!result||!result.ok){
+      $('raiTaskStatus').textContent=(result&&result.error)||'No s’han pogut desar les tasques';return;
+    }
+    raiSnapshot=result.data;renderRai();
+    $('raiTaskStatus').textContent='';
+    // Recarrega només el saldo i la llista en l'altra API, sense modificar punts.
+    if(!busy)call([]);
+    if(onDone)onDone();
+  }).withFailureHandler(err=>{
+    raiBusy=false;$('raiTaskStatus').textContent=err&&err.message||'Error de connexió';
+  }).familyTasksAction(key,action,payload);
+}
+function renderRai(){
+  const snapshot=raiSnapshot;if(!snapshot)return;
+  $('raiPoints').textContent='Saldo: '+snapshot.points+' punts · '+snapshot.today;
+  const completed=new Set(snapshot.done.filter(d=>d.date===snapshot.today)
+    .map(d=>d.taskId+'|'+d.slot));
+  const tasks=snapshot.tasks.filter(t=>t.active&&t.dueToday);
+  const target=$('raiTaskList');target.replaceChildren();
+  if(!tasks.length)target.appendChild(makeText('p','Avui no hi ha tasques programades.'));
+  tasks.forEach(task=>{
+    (task.slots||'única').split(',').forEach(slot=>{
+      const done=completed.has(task.id+'|'+slot);
+      const line=makeText('div','','item');
+      const title=task.title+(slot==='única'?'':' · '+slot)+' · +'+task.points+' punts';
+      line.appendChild(makeText('span',title,'name'+(done?' bought':'')));
+      const toggle=makeText('button',done?'↩ Desfer':'✓ Feta','small');
+      toggle.type='button';toggle.disabled=raiBusy;
+      toggle.addEventListener('click',()=>raiAction(done?'tasks_undo':'tasks_done',{id:task.id,slot}));
+      line.appendChild(toggle);target.appendChild(line);
+    });
+  });
+  const rewards=$('raiRewardList');rewards.replaceChildren();
+  const pending=(snapshot.requests||[]).filter(x=>x.status==='pendent'&&x.kid==='Rai');
+  const reserved=pending.reduce((sum,x)=>sum+(Number(x.cost)||0),0);
+  (snapshot.rewards||[]).filter(r=>r.active).forEach(reward=>{
+    const row=makeText('div','','item'),btn=makeText('button','Demanar','small');
+    btn.type='button';btn.disabled=snapshot.points-reserved<reward.cost;
+    btn.addEventListener('click',()=>{
+      if(confirm('Demanar «'+reward.title+'» per '+reward.cost+' punts?'))
+        raiAction('rewards_claim',{id:reward.id});
+    });
+    row.appendChild(makeText('span',reward.title+' · '+reward.cost+' punts','name'));
+    row.appendChild(btn);rewards.appendChild(row);
+  });
+  if(!snapshot.rewards.some(r=>r.active))rewards.appendChild(makeText('p','Encara no hi ha recompenses.'));
+  const approvals=$('raiPendingRewards');approvals.replaceChildren();
+  if(!pending.length)approvals.appendChild(makeText('p','Cap recompensa pendent.'));
+  pending.forEach(request=>{
+    const reward=snapshot.rewards.find(r=>r.id===request.rewardId);
+    const row=makeText('div','','item');
+    row.appendChild(makeText('span',(reward?reward.title:'Premi')+' · '+request.cost+' punts','name'));
+    const yes=makeText('button','Aprovar','small primary');
+    const no=makeText('button','Rebutjar','small ghost');
+    yes.type=no.type='button';
+    const decide=approve=>{
+      const pin=prompt('PIN adult per '+(approve?'aprovar':'rebutjar')+' la recompensa:');
+      if(pin===null)return;
+      if(!/^[0-9]{4,8}$/.test(pin)){$('raiTaskStatus').textContent='El PIN ha de tenir entre 4 i 8 xifres.';return;}
+      raiAction('rewards_decide',{id:request.id,approve,pin});
+    };
+    yes.addEventListener('click',()=>decide(true));no.addEventListener('click',()=>decide(false));
+    row.append(yes,no);approvals.appendChild(row);
+  });
+}
+$('raiTaskFrequency').addEventListener('change',()=>{
+  const frequency=$('raiTaskFrequency').value;
+  $('raiDays').hidden=!['weekdays','weekly'].includes(frequency);
+  $('raiSlots').hidden=frequency!=='slots';
+});
+$('raiAddTask').addEventListener('submit',e=>{
+  e.preventDefault();
+  const title=$('raiTaskTitle').value.trim(),points=Number($('raiTaskPoints').value);
+  if(!title||!Number.isInteger(points)||points<1||points>100)return;
+  const frequency=$('raiTaskFrequency').value;
+  const days=Array.from(document.querySelectorAll('#raiDays input:checked')).map(el=>el.value).join(',');
+  const slots=Array.from(document.querySelectorAll('#raiSlots input:checked')).map(el=>el.value).join(',');
+  if(['weekdays','weekly'].includes(frequency)&&!days){$('raiTaskStatus').textContent='Tria almenys un dia.';return;}
+  if(frequency==='slots'&&!slots){$('raiTaskStatus').textContent='Tria almenys una franja.';return;}
+  raiAction('tasks_set',{id:newId(),title,points,frequency,days,slots},()=>{$('raiTaskTitle').value='';});
+});
+$('raiAddReward').addEventListener('submit',e=>{
+  e.preventDefault();
+  const title=$('raiRewardTitle').value.trim(),cost=Number($('raiRewardCost').value);
+  if(!title||!Number.isInteger(cost)||cost<1||cost>10000)return;
+  raiAction('rewards_set',{id:newId(),title,cost},()=>{$('raiRewardTitle').value='';});
+});
+// Peticions separades de les de compra: una càrrega de fotos no bloqueja els sopars.
+function photoCall(action,payload) {
+  return new Promise((resolve,reject)=>{
+    google.script.run
+      .withSuccessHandler(result=>{
+        if(!result||!result.ok)reject(new Error(result&&result.error||'No es pot accedir a les fotografies'));
+        else resolve(result);
+      })
+      .withFailureHandler(err=>reject(new Error(err&&err.message||'Error de connexió')))
+      .apiAction(key,action,payload||{});
+  });
+}
+function photoStatus(text,error){
+  $('photoNotice').textContent=text||'';
+  $('photoNotice').className=error?'error':'good';
+}
+function renderPhotos(){
+  $('photoCount').textContent=photos.length+(photos.length===1?' foto':' fotos');
+  const area=$('photoItems');area.replaceChildren();
+  if(!photos.length){area.appendChild(makeText('p','Encara no hi ha fotos compartides.'));return;}
+  photos.forEach(photo=>{
+    const outer=makeText('div','','photo-card');
+    const line=makeText('div','','row');
+    const meta=makeText('div',photo.name||'Fotografia','photo-meta');
+    line.appendChild(meta);
+    const view=makeText('button','Veure','small');
+    view.type='button';
+    view.addEventListener('click',async ()=>{
+      const current=outer.querySelector('img');
+      if(current){current.remove();view.textContent='Veure';return;}
+      view.disabled=true;
+      try{
+        const response=await photoCall('photo_get',{id:photo.id});
+        const img=document.createElement('img');
+        img.alt=photo.name||'Fotografia familiar';
+        img.src='data:'+(response.photo.mimeType||'image/jpeg')+';base64,'+response.photo.base64;
+        outer.appendChild(img);view.textContent='Amagar';
+      }catch(err){photoStatus(err.message,true);}
+      finally{view.disabled=false;}
+    });
+    // El Mobile.html original només podia pujar fotografies.
+    // La galeria nova les pot visualitzar, però no esborra fitxers antics de Drive.
+    line.append(view);outer.appendChild(line);area.appendChild(outer);
+  });
+}
+async function refreshPhotos(){
+  if(!key||photoBusy)return;
+  try{
+    const response=await photoCall('photo_list',{});
+    photos=response.photos||[];renderPhotos();
+  }catch(err){photoStatus(err.message,true);}
+}
+// Manté el comportament de producció: pujada d'originals JPG/PNG/WebP de fins a 5 MB.
+// Utilitza la funció uploadFamilyPhoto() de Fotos.gs, que ja valida la signatura del fitxer.
+let previewUrl='';
+$('photoInput').addEventListener('change',()=>{
+  if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl='';}
+  const files=Array.from($('photoInput').files||[]);
+  const preview=$('photoPreview');preview.style.display=files.length?'block':'none';
+  if(files.length){previewUrl=URL.createObjectURL(files[0]);preview.src=previewUrl;}
+  photoStatus(files.length?files.length+' fotografies seleccionades':'',false);
+});
+function readPhotoOriginal(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onerror=()=>reject(new Error('No s’ha pogut llegir '+file.name));
+    reader.onload=()=>resolve(String(reader.result).split(',')[1]);
+    reader.readAsDataURL(file);
+  });
+}
+function uploadOriginal(file,base64){
+  return new Promise((resolve,reject)=>{
+    google.script.run.withSuccessHandler(result=>{
+      if(result&&result.ok)resolve(result);
+      else reject(new Error(result&&result.error||'Error en pujar '+file.name));
+    }).withFailureHandler(err=>reject(new Error(err&&err.message||'Error de connexió')))
+      .uploadFamilyPhoto(key,{name:file.name,mime:file.type,base64});
+  });
+}
+$('uploadPhotos').addEventListener('submit',async e=>{
+  e.preventDefault();
+  if(photoBusy||!key)return;
+  const files=Array.from($('photoInput').files||[]);
+  if(!files.length){photoStatus('Selecciona almenys una fotografia.',true);return;}
+  if(files.length>20){photoStatus('Selecciona un màxim de 20 fotografies per tanda.',true);return;}
+  const types=['image/jpeg','image/png','image/webp'];
+  if(files.some(f=>!types.includes(f.type)||!f.size||f.size>5*1024*1024)){
+    photoStatus('Les fotos han de ser JPG, PNG o WebP de fins a 5 MB.',true);return;
+  }
+  photoBusy=true;$('photoUploadButton').disabled=true;
+  let uploaded=0;
+  try{
+    for(const file of files){
+      photoStatus('Enviant '+(uploaded+1)+' de '+files.length+'…',false);
+      await uploadOriginal(file,await readPhotoOriginal(file));
+      uploaded++;
+    }
+    $('photoInput').value='';$('photoPreview').style.display='none';
+    if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl='';}
+    photoStatus(uploaded+(uploaded===1?' fotografia enviada':' fotografies enviades')+' correctament.',false);
+    // La galeria es refresca després d'alliberar el bloqueig de la pujada.
+  }catch(err){
+    photoStatus(uploaded+' de '+files.length+' enviades. '+(err.message||'Error temporal')+
+      '. Pots tornar a seleccionar les que faltin.',true);
+  }finally{
+    photoBusy=false;$('photoUploadButton').disabled=false;
+    if(uploaded>0)await refreshPhotos();
+  }
+});
+$('login').addEventListener('submit',e=>{
+  e.preventDefault();
+  const value=$('secret').value.trim();
+  if(!/^[a-f0-9]{64}$/.test(value)){alert('La clau ha de tenir 64 caràcters hexadecimals.');return;}
+  key=value;try { sessionStorage.setItem('marc-sync-key',key); } catch (_) {}
+  showApp();
+});
+$('disconnect').addEventListener('click',showLogin);
+$('addProduct').addEventListener('submit',e=>{
+  e.preventDefault();const name=$('productName').value.trim();
+  if(!name)return;
+  call([{type:'grocery_set',id:newId(),name:name.slice(0,80),bought:false}],()=>$('productName').value='');
+});
+$('refresh').addEventListener('click',()=>{call([]);raiAction('tasks_snapshot');refreshPhotos();});
+if(key)showApp();
+setInterval(()=>{if(key&&!document.hidden){call([]);raiAction("tasks_snapshot");}},45000);
+setInterval(()=>{if(key&&!document.hidden)refreshPhotos()},120000);
+})();
+</script>
+</body>
+</html>

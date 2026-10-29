@@ -63,7 +63,10 @@ class MainActivity : ComponentActivity() {
             onSelectLocation = viewModel::selectLocation,
             onSchedule = viewModel::setSchedule,
             onBrightness = viewModel::setBrightness,
-            onLogout = viewModel::logout
+            onLogout = viewModel::logout,
+            onAddCalendar = viewModel::addPersonalCalendar,
+            onRemoveCalendar = viewModel::removePersonalCalendar,
+            onChangeCalendarColor = viewModel::changePersonalCalendarColor
         )
         val chores = ChoreCallbacks(
             onDone = viewModel::choreDone,
@@ -86,7 +89,7 @@ class MainActivity : ComponentActivity() {
             // Se diseña en píxeles nativos del panel (1920×1200): 1 dp = 1 sp = 1 px.
             CompositionLocalProvider(LocalDensity provides Density(density = 1f, fontScale = 1f)) {
                 ProvideIconClock {
-                    DashboardApp(state, actions, viewModel::login, viewModel::loadWeek, viewModel::syncAll, settings, viewModel::peek, chores, home)
+                    DashboardApp(state, actions, viewModel::loadWeek, viewModel::syncAll, settings, viewModel::peek, chores, home)
                 }
             }
         }
