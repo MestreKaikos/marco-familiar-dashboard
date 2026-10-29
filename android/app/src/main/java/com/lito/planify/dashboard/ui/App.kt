@@ -75,6 +75,7 @@ enum class Page(val label: String, val icon: ImageVector) {
     Energy("Energia", Icons.Outlined.Bolt),
     Home("Casa i energia", Icons.Outlined.Home),
     Tasks("Família", Icons.Outlined.Checklist),
+    Reminders("Recordatoris", Icons.Outlined.Checklist),
     Settings("Opcions", Icons.Outlined.Settings)
 }
 
@@ -122,10 +123,13 @@ fun DashboardApp(
     // Sopars compartits entre la portada i el calendari, desats només al dispositiu.
     val dinners = rememberDinnerPlan()
     val family = rememberLocalFamilyStore()
+    val reminders = rememberFamilyReminders()
     val sync = rememberFamilySync()
     val coroutineScope = rememberCoroutineScope()
     // Escolta els canvis locals: en cas de no tenir Internet, queden a la cua del marc.
-    LaunchedEffect(sync, dinners, family) {
+    LaunchedEffect(sync, dinners, family, reminders) {
+        sync.attachReminders(reminders)
+        reminders.onMutation = { op -> sync.queue(op) }
         dinners.onLocalChange = { day, meal ->
             sync.queue(JSONObject().put("type", "dinner_set")
                 .put("date", day.toString()).put("value", meal))
@@ -141,6 +145,7 @@ fun DashboardApp(
             dinners.onLocalChange = null
             family.onGroceryMutation = null
             family.onFamilyMutation = null
+            reminders.onMutation = null
         }
     }
     LaunchedEffect(sync.pendingCount, sync.connected) {
@@ -195,7 +200,7 @@ fun DashboardApp(
                     pageState.SaveableStateProvider(page.name) {
                     when (page) {
                         // La portada familiar funciona sense credencials; el backend antic és opcional.
-                        Page.Today -> if (state.ics || state.token == null) FamilyTodayScreen(state, dinners, family, onOpen = { page = it }) else TodayScreen(state, lastTouch)
+                        Page.Today -> if (state.ics || state.token == null) FamilyTodayScreen(state, reminders, family, onOpen = { page = it }) else TodayScreen(state, lastTouch)
                         Page.Photos -> PhotosScreen(sync)
                         // Con los calendarios de la familia, semanas en vertical como la portada; con Planify, la de Lito
                         Page.Calendar -> if (state.ics || state.token == null) FamilyCalendarScreen(state, dinners) else CalendarScreen(state, onLoadWeek)
@@ -204,6 +209,7 @@ fun DashboardApp(
                         // Prueba: Casa y Energía juntas (EnergyScreen y HomeScreen siguen por si se separan)
                         Page.Home -> HomeEnergyScreen(state, home)
                         Page.Tasks -> LocalFamilyScreen(family, state.now.toLocalDate(), sync.connected, sync.pendingCount, sync.cloudTasks >= 0)
+                        Page.Reminders -> FamilyRemindersScreen(reminders, state.now.toLocalDate())
                         Page.Settings -> SettingsScreen(state, actions, settings, sync, dinners, family)
                     }
                     }
