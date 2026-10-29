@@ -85,12 +85,24 @@ select{font:inherit;background:#fffcf9;border:1px solid #e4d6c2;color:#26231e}
       </form>
       <div id="items" style="margin-top:14px"></div>
     </section>
-    <section class="panel" data-tab="sopars">
-      <div class="row" style="justify-content:space-between;align-items:start">
-        <div><h2>🍽️ Què sopem?</h2><p style="margin:-8px 0 12px">Planifica els pròxims set dies.</p></div>
-        <span class="pill">7 dies</span>
+    <section class="panel" data-tab="recordatoris">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+        <h2 style="margin:0">📌 Recordatoris</h2><span class="pill" id="reminderCount">0 pendents</span>
       </div>
-      <div id="dinners"></div>
+      <p style="margin:0 0 14px">Pagaments, visites al veterinari, tràmits i coses per fer.</p>
+      <form id="addReminder">
+        <input id="reminderId" type="hidden">
+        <input id="reminderTitle" required maxlength="120" placeholder="Per exemple: Vacunació d'en Llamp" aria-label="Recordatori" style="width:100%">
+        <div class="row" style="margin-top:8px">
+          <input id="reminderDate" type="date" aria-label="Data límit (opcional)" style="flex:1">
+          <input id="reminderNotes" maxlength="240" placeholder="Nota opcional" aria-label="Nota opcional" style="flex:2">
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button id="saveReminder" class="primary" type="submit">Afegir recordatori</button>
+          <button id="cancelReminder" type="button" hidden>Cancel·lar edició</button>
+        </div>
+      </form>
+      <div id="reminderItems" style="margin-top:16px"></div>
     </section>
     <section class="panel" data-tab="rai">
       <div class="row" style="justify-content:space-between;margin-bottom:12px">
@@ -149,7 +161,7 @@ select{font:inherit;background:#fffcf9;border:1px solid #e4d6c2;color:#26231e}
     </section>
     <nav class="app-nav" aria-label="Seccions de Marc Familiar">
       <button type="button" data-open="compra"><span>🛒</span>Compra</button>
-      <button type="button" data-open="sopars"><span>🍽️</span>Sopars</button>
+      <button type="button" data-open="recordatoris"><span>📌</span>Recordatoris</button>
       <button type="button" data-open="fotos"><span>📸</span>Fotos</button>
       <button type="button" data-open="rai"><span>⭐</span>Rai</button>
     </nav>
@@ -170,7 +182,7 @@ let photoBusy = false;
 let photos = [];
 const $ = id => document.getElementById(id);
 function openTab(name){
-  if(!['compra','sopars','fotos','rai'].includes(name)) name='compra';
+  if(!['compra','recordatoris','fotos','rai'].includes(name)) name='compra';
   document.querySelectorAll('[data-tab]').forEach(el=>el.classList.toggle('active',el.dataset.tab===name));
   document.querySelectorAll('[data-open]').forEach(el=>{
     const active=el.dataset.open===name;
@@ -246,25 +258,70 @@ function render(){
     del.addEventListener('click',()=>call([{type:'grocery_delete',id:item.id}]));
     line.appendChild(del);list.appendChild(line);
   });
-  const days=$('dinners');days.replaceChildren();
-  const now=new Date();
-  const names=['Diumenge','Dilluns','Dimarts','Dimecres','Dijous','Divendres','Dissabte'];
-  for(let i=0;i<7;i++){
-    const day=new Date(now.getFullYear(),now.getMonth(),now.getDate()+i);
-    const date=day.getFullYear()+'-'+String(day.getMonth()+1).padStart(2,'0')+'-'+String(day.getDate()).padStart(2,'0');
-    const outer=makeText('div','','day');
-    outer.appendChild(makeText('label',(i===0?'Avui':names[day.getDay()])+' · '+day.getDate()+'/'+(day.getMonth()+1)));
-    const row=makeText('form','','row');
-    const input=document.createElement('input');input.type='text';input.maxLength=180;input.placeholder='Encara sense sopar...';
-    input.value=(data.dinners||{})[date]||'';input.setAttribute('aria-label','Sopar '+date);
-    const save=makeText('button','Desar','small');save.type='submit';
-    row.append(input,save);
-    row.addEventListener('submit',e=>{
-      e.preventDefault();call([{type:'dinner_set',date:date,value:input.value}],()=>{save.textContent='Desat';setTimeout(()=>save.textContent='Desar',1200);});
-    });
-    outer.appendChild(row);days.appendChild(outer);
-  }
+  renderReminders();
 }
+// Data límit opcional, estat pendent/fet i edició, sincronitzats al mateix Sheets.
+function reminderDateLabel(value){
+  if(!value)return 'Sense data límit';
+  const parsed=new Date(value+'T12:00:00');
+  return Number.isNaN(parsed.getTime())?value:
+    parsed.toLocaleDateString('ca-ES',{day:'numeric',month:'short',year:'numeric'});
+}
+function resetReminderForm(){
+  $('reminderId').value='';$('reminderTitle').value='';
+  $('reminderDate').value='';$('reminderNotes').value='';
+  $('saveReminder').textContent='Afegir recordatori';$('cancelReminder').hidden=true;
+}
+function renderReminders(){
+  const list=$('reminderItems');list.replaceChildren();
+  const entries=data.reminders||[], pending=entries.filter(x=>!x.done);
+  $('reminderCount').textContent=pending.length+(pending.length===1?' pendent':' pendents');
+  if(!entries.length){
+    list.appendChild(makeText('p','Cap recordatori. Afegeix el primer, amb data o sense.'));return;
+  }
+  const now=new Date();
+  const today=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+
+    '-'+String(now.getDate()).padStart(2,'0');
+  entries.forEach(item=>{
+    const line=makeText('div','','item');
+    const check=document.createElement('input');check.type='checkbox';check.checked=!!item.done;
+    check.setAttribute('aria-label','Marcar com a fet: '+item.title);
+    check.addEventListener('change',()=>call([{type:'reminder_done',id:item.id,done:check.checked}]));
+    const body=document.createElement('div');body.style.flex='1';body.style.minWidth='0';
+    const title=makeText('div',item.title,'name'+(item.done?' bought':''));title.style.fontWeight='650';
+    let label=reminderDateLabel(item.date);
+    if(!item.done&&item.date===today)label='Avui · '+label;
+    if(!item.done&&item.date&&item.date<today)label='Vençut · '+label;
+    if(item.done)label='✓ Fet · '+label;
+    const due=makeText('small',label);
+    due.style.color=(!item.done&&item.date&&item.date<today)?'#ac3434':'#777';
+    body.append(title,due);
+    if(item.notes){
+      const notes=makeText('div',item.notes);notes.style.fontSize='13px';notes.style.color='#716a60';
+      body.appendChild(notes);
+    }
+    const edit=makeText('button','Editar','small');edit.type='button';
+    edit.addEventListener('click',()=>{
+      $('reminderId').value=item.id;$('reminderTitle').value=item.title;
+      $('reminderDate').value=item.date||'';$('reminderNotes').value=item.notes||'';
+      $('saveReminder').textContent='Desar canvis';$('cancelReminder').hidden=false;
+      $('reminderTitle').focus();
+    });
+    const del=makeText('button','Treure','small ghost');del.type='button';
+    del.addEventListener('click',()=>{if(confirm('Eliminar el recordatori «'+item.title+'»?'))
+      call([{type:'reminder_delete',id:item.id}]);});
+    line.append(check,body,edit,del);list.appendChild(line);
+  });
+}
+$('cancelReminder').addEventListener('click',resetReminderForm);
+$('addReminder').addEventListener('submit',e=>{
+  e.preventDefault();
+  const id=$('reminderId').value||newId(),title=$('reminderTitle').value.trim(),
+    date=$('reminderDate').value,notes=$('reminderNotes').value.trim();
+  if(!title)return;
+  call([{type:'reminder_set',id,title:title.slice(0,120),date,notes:notes.slice(0,240)}],
+    resetReminderForm);
+});
 // L'API familiar existent continua sent la font de veritat de dies, franges i premis.
 let raiBusy=false,raiSnapshot=null;
 function raiAction(action,payload={},onDone){
