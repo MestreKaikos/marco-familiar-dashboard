@@ -23,6 +23,6 @@ El projecte Apps Script del propietari ja té un fitxer **`Fotos.gs`** funcional
 
 ## Privadesa
 
-La carpeta continua privada. Les fotografies es transfereixen per Apps Script amb la clau al cos de la petició, mai com a URL pública. Les persones que coneixen la clau familiar poden accedir a totes les fotografies i eliminar-ne; no hi ha permisos diferents per membre en aquesta primera versió. No es publiquen claus, IDs privats ni fotos personals al repositori.
+La carpeta continua privada. La clau familiar permet llegir les fotografies i pujar-ne de noves, però **la galeria mòbil no ofereix cap botó d'esborrar**. La nova API `photo_delete` rebutja explícitament els fitxers originals i els procedents de la pujada antiga, i només permet eliminar els fitxers creats pel nou `photo_upload`. No hi ha permisos diferents per membre en aquesta primera versió. No es publiquen claus, IDs privats ni fotos personals al repositori.
 
 Consulta també [la guia unificada](MARC-FAMILIAR-UNIFICAT.md) i [la compatibilitat amb l'Apps Script actual](COMPATIBILITAT-APPS-SCRIPT-ACTUAL.md).
