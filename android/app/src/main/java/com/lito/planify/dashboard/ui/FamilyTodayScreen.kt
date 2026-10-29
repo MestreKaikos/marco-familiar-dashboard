@@ -51,8 +51,7 @@ private const val WEEK_DAYS = 7
  * - abajo, tres resúmenes que llevan a su pestaña: tareas de los niños, compra, y luz y coche.
  */
 @Composable
-fun FamilyTodayScreen(state: UiState, dinners: DinnerPlan, family: LocalFamilyStore, onOpen: (Page) -> Unit) {
-    var editingDinner by remember { mutableStateOf<LocalDate?>(null) }
+fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalFamilyStore, onOpen: (Page) -> Unit) {
     val now = state.now
     val today = now.toLocalDate()
     val events = state.content?.events.orEmpty()
@@ -81,26 +80,20 @@ fun FamilyTodayScreen(state: UiState, dinners: DinnerPlan, family: LocalFamilySt
                     day, today, now,
                     events.filter { it.at.toLocalDate() == day },
                     shifts.filter { it.at.toLocalDate() == day },
-                    dinners[day],
+                    reminders.dueOn(day).take(2).joinToString(" · ") { it.title }.ifBlank { null },
                     Modifier.weight(1f).fillMaxHeight(),
-                    onDinnerClick = { editingDinner = day }
+                    onDinnerClick = { onOpen(Page.Reminders) },
+                    footerTitle = "📌 RECORDATORIS"
                 )
             }
         }
         Row(Modifier.fillMaxWidth().weight(0.22f), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             LocalShoppingTile(family, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Tasks) }
             LocalRaiTile(family, today, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Tasks) }
-            DinnerTile(dinners, today, Modifier.weight(1.25f).fillMaxHeight()) { editingDinner = today }
+            ReminderTile(reminders, today, Modifier.weight(1.25f).fillMaxHeight()) { onOpen(Page.Reminders) }
         }
     }
-    editingDinner?.let { day ->
-        DinnerEditor(
-            date = day,
-            initial = dinners[day],
-            onDismiss = { editingDinner = null },
-            onSave = { meal -> dinners.save(day, meal); editingDinner = null }
-        )
-    }
+
 }
 
 // --- Arriba ---
@@ -141,7 +134,8 @@ internal fun WeekDay(
     day: LocalDate, today: LocalDate, now: LocalDateTime, events: List<Event>, shifts: List<Event>, dinner: String?, modifier: Modifier,
     onDinnerClick: () -> Unit = {},
     forecast: com.lito.planify.dashboard.data.Forecast? = null,
-    small: Boolean = false
+    small: Boolean = false,
+    footerTitle: String = "🍽️ SOPAR"
 ) {
     val isToday = day == today
     Column(modifier.background(if (isToday) Palette.Card else Palette.Card.copy(alpha = 0.6f), RoundedCornerShape(24.dp)).padding(horizontal = 14.dp, vertical = 14.dp).alpha(if (day < today) 0.55f else 1f)) {
@@ -188,22 +182,22 @@ internal fun WeekDay(
             if (events.isEmpty()) Text("—", style = Type.Small.copy(color = Palette.InkMuted))
             events.forEach { e -> EventTapTarget(e) { WeekItem(e, past = e.isPast(now), small = small) } }
         }
-        DinnerPill(dinner, Modifier.padding(top = 8.dp), onDinnerClick, small)
+        DinnerPill(dinner, Modifier.padding(top = 8.dp), onDinnerClick, small, footerTitle)
     }
 }
 
 /** El sopar previst, sempre editable tocant la pastilla de cada dia. */
 @Composable
-private fun DinnerPill(dinner: String?, modifier: Modifier, onClick: () -> Unit, small: Boolean) {
+private fun DinnerPill(dinner: String?, modifier: Modifier, onClick: () -> Unit, small: Boolean, footerTitle: String) {
     Column(
         modifier.fillMaxWidth()
             .background(Palette.Warm.copy(alpha = 0.13f), RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 7.dp)
     ) {
-        Text("🍽️ SOPAR", style = Type.Tiny.copy(color = Palette.InkSoft, fontWeight = FontWeight.SemiBold, fontSize = 15.sp))
+        Text(footerTitle, style = Type.Tiny.copy(color = Palette.InkSoft, fontWeight = FontWeight.SemiBold, fontSize = 15.sp))
         Text(
-            dinner ?: "＋ Afegir sopar",
+            dinner ?: if(footerTitle.contains("RECORDATORIS")) "Sense recordatoris" else "＋ Afegir sopar",
             style = Type.Tiny.copy(
                 color = if (dinner == null) Palette.InkMuted else Palette.Ink,
                 fontSize = if (small) 17.sp else 19.sp,
@@ -283,6 +277,28 @@ private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Mo
             style = Type.Tiny.copy(color = if (awaiting > 0) Palette.Accent else Palette.InkMuted),
             modifier = Modifier.padding(top = 6.dp)
         )
+    }
+}
+
+/** Recordatoris de casa, visibles a la portada sense entrar al mòbil. */
+@Composable
+private fun ReminderTile(store: FamilyReminders, today: LocalDate, modifier: Modifier, onClick: () -> Unit) {
+    val pending = store.pending()
+    val urgent = pending.filter { it.deadline != null && !it.deadline.isAfter(today) }
+    val description = when {
+        urgent.isNotEmpty() -> urgent.take(2).joinToString(" · ") { it.title }
+        pending.isNotEmpty() -> pending.take(2).joinToString(" · ") { it.title }
+        else -> "Tot al dia!"
+    }
+    Tile("Recordatoris", "📌", Palette.Warm, modifier, onClick) {
+        Text(if (urgent.isNotEmpty()) "⚠ " + urgent.size + " vençuts o per avui"
+             else pending.size.toString() + " pendents",
+             style = Type.Body.copy(fontWeight = FontWeight.SemiBold,
+                 color = if(urgent.isNotEmpty()) Palette.Accent else Palette.Ink),
+             maxLines = 1, modifier = Modifier.padding(top = 8.dp))
+        Text(description, style = Type.Tiny.copy(color = Palette.InkSoft),
+             maxLines = 2, overflow = TextOverflow.Ellipsis,
+             modifier = Modifier.padding(top = 6.dp))
     }
 }
 
