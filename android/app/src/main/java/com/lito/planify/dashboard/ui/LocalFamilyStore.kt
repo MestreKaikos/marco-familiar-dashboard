@@ -108,7 +108,7 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
             val reward = remoteRewards.optJSONObject(i) ?: continue
             if (reward.optString("id").isNotBlank() && reward.optString("title").isNotBlank()) {
                 newRewards.add(LocalReward(reward.getString("id"),reward.getString("title").take(100),
-                    reward.optInt("cost", 1).coerceIn(1, 999)))
+                    reward.optInt("cost", 1).coerceIn(1, 10000)))
             }
         }
         chores.clear()
@@ -175,7 +175,7 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
                 repeat(arr.length()) { i ->
                     val item = arr.optJSONObject(i) ?: return@repeat
                     val title = item.optString("title").trim()
-                    if (title.isNotBlank()) rewards.add(LocalReward(item.optString("id", newId()), title, item.optInt("cost", 5).coerceIn(1, 999)))
+                    if (title.isNotBlank()) rewards.add(LocalReward(item.optString("id", newId()), title, item.optInt("cost", 5).coerceIn(1, 10000)))
                 }
             }
             stars = root.optInt("stars").coerceAtLeast(0)
