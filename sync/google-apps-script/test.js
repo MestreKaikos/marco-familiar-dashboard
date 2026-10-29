@@ -333,4 +333,54 @@ assert.equal(oldCalls,3);
 // No s'han escrit mai claus ni PIN en el Sheets.
 assert.ok(!Array.from(tabs.values()).some(t=>t.rows.flat().includes(secret)));
 
+
+// Compatibilitat amb les interaccions de la pàgina Mobile.html REAL.
+const pointsBeforeSlots=context.familyTasksSnapshot_().points;
+assert.equal(context.familyTasksAction(secret,'tasks_done',{id:'legacy_slots',slot:'matí'}).ok,true);
+assert.equal(context.familyTasksSnapshot_().points,pointsBeforeSlots+2);
+assert.equal(context.familyTasksAction(secret,'tasks_done',{id:'legacy_slots',slot:'matí'}).ok,true);
+assert.equal(context.familyTasksSnapshot_().points,pointsBeforeSlots+2,
+  'Una franja repetida avui no ha de donar més punts');
+assert.equal(context.familyTasksAction(secret,'tasks_done',{id:'legacy_slots',slot:'vespre'}).ok,true);
+assert.equal(context.familyTasksSnapshot_().points,pointsBeforeSlots+4);
+assert.equal(context.familyTasksAction(secret,'tasks_undo',{id:'legacy_slots',slot:'matí'}).ok,true);
+assert.equal(context.familyTasksSnapshot_().points,pointsBeforeSlots+2);
+assert.equal(context.familyTasksAction(secret,'tasks_undo',{id:'legacy_slots',slot:'vespre'}).ok,true);
+assert.equal(context.familyTasksSnapshot_().points,pointsBeforeSlots);
+
+assert.equal(context.familyTasksAction(secret,'rewards_set',{
+  id:'cheap_reward',title:'Premi senzill',cost:1
+}).ok,true);
+const legacyClaim=context.familyTasksAction(secret,'rewards_claim',{id:'cheap_reward'});
+assert.equal(legacyClaim.ok,true,legacyClaim.error);
+assert.ok(legacyClaim.data.requests.some(x=>x.rewardId==='cheap_reward'&&x.status==='pendent'));
+const req=legacyClaim.data.requests.find(x=>x.rewardId==='cheap_reward'&&x.status==='pendent');
+assert.equal(context.familyTasksAction(secret,'rewards_decide',{
+  id:req.id,approve:false,pin:'3479'
+}).ok,true);
+assert.equal(context.familyTasksSnapshot_().points,pointsBeforeSlots,
+  'Denegar una petició no descompta punts');
+
+const mobileSource=fs.readFileSync(path.join(__dirname,'Mobile.html'),'utf8');
+for(const section of ['compra','sopars','fotos','rai']){
+  assert.match(mobileSource,new RegExp('data-tab="'+section+'"'),'Falta la pestanya '+section);
+  assert.match(mobileSource,new RegExp('data-open="'+section+'"'),'Falta navegació a '+section);
+}
+for(const id of ['raiTaskFrequency','raiDays','raiSlots','raiTaskList',
+  'raiRewardList','raiPendingRewards','raiAddTask','raiAddReward','photoInput','photoPreview',
+  'photoItems','photoNotice']){
+  assert.ok(mobileSource.includes('id="'+id+'"'),'Falta element original: '+id);
+}
+assert.ok(mobileSource.includes("familyTasksAction(key,action,payload)"),
+  'Les tasques del mòbil han de conservar el servei real');
+assert.ok(mobileSource.includes(".uploadFamilyPhoto(key,"),
+  'La pujada de 5 MB ha de continuar passant per Fotos.gs');
+assert.ok(mobileSource.includes('5*1024*1024'));
+assert.ok(mobileSource.includes('files.length>20'));
+for(const action of ['tasks_set','tasks_done','tasks_undo','rewards_set','rewards_claim','rewards_decide']){
+  assert.ok(mobileSource.includes("'"+action+"'"),'Falta la capacitat del mòbil: '+action);
+}
+assert.ok(!mobileSource.includes('compactJpeg(file)'),
+  'No substituir l’enviament original per JPEG comprimit');
+
 console.log("OK · Tasques.gs real: freqüències, dies, franges, PIN, recompenses pendents, dos secrets i fotos de Drive.");
