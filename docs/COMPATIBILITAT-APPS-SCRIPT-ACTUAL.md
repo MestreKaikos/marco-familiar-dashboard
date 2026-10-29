@@ -18,7 +18,7 @@
 - Les fotografies són fitxers de Drive, no registres d'una pestanya `Fotos`. No s'ha de crear ni indexar cap foto en un Sheets.
 - L'API antiga `photoApiAction_` accepta JPEG, PNG i WebP, fins a **5 MiB** i un màxim de 300 fitxers. La nova API respecta aquests formats i llegeix les fotos directament de la carpeta; la nova pàgina mòbil manté la pujada d'originals JPG, PNG i WebP fins a 5 MB i 20 imatges per tanda amb `uploadFamilyPhoto`.
 - L'Android unificat mostra com a màxim 120 fotos compartides per no omplir el dispositiu i desa les descarregades en memòria privada.
-- La nova API `photo_get` valida que l'ID sol·licitat és realment dins de la carpeta; no pot llegir fitxers arbitraris de Drive.
+- La nova API `photo_get` valida que l'ID sol·licitat és realment dins de la carpeta; no pot llegir fitxers arbitraris de Drive. La nova API de baixa no pot esborrar els fitxers antics: la galeria del mòbil és de lectura i la pujada original conserva tots els fitxers.
 - `prepararFotosFamiliars()` només consulta i compta les fotos compatibles: **no crea carpetes, no toca Sheets, no modifica les claus**.
 
 ## Tasques.gs revisat · esquema real i seguretat
