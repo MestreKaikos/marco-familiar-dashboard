@@ -399,18 +399,9 @@ function renderPhotos(){
       }catch(err){photoStatus(err.message,true);}
       finally{view.disabled=false;}
     });
-    const remove=makeText('button','Eliminar','small ghost');
-    remove.type='button';
-    remove.addEventListener('click',async ()=>{
-      if(!confirm('Vols eliminar aquesta fotografia del Drive familiar?'))return;
-      remove.disabled=true;
-      try{
-        const response=await photoCall('photo_delete',{id:photo.id});
-        photos=response.photos||[];renderPhotos();
-        photoStatus('Fotografia eliminada.',false);
-      }catch(err){photoStatus(err.message,true);remove.disabled=false;}
-    });
-    line.append(view,remove);outer.appendChild(line);area.appendChild(outer);
+    // El Mobile.html original només podia pujar fotografies.
+    // La galeria nova les pot visualitzar, però no esborra fitxers antics de Drive.
+    line.append(view);outer.appendChild(line);area.appendChild(outer);
   });
 }
 async function refreshPhotos(){
@@ -468,12 +459,14 @@ $('uploadPhotos').addEventListener('submit',async e=>{
     $('photoInput').value='';$('photoPreview').style.display='none';
     if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl='';}
     photoStatus(uploaded+(uploaded===1?' fotografia enviada':' fotografies enviades')+' correctament.',false);
-    // La galeria nova consulta la mateixa carpeta de Fotos.gs sense moure res.
-    await refreshPhotos();
+    // La galeria es refresca després d'alliberar el bloqueig de la pujada.
   }catch(err){
     photoStatus(uploaded+' de '+files.length+' enviades. '+(err.message||'Error temporal')+
       '. Pots tornar a seleccionar les que faltin.',true);
-  }finally{photoBusy=false;$('photoUploadButton').disabled=false;}
+  }finally{
+    photoBusy=false;$('photoUploadButton').disabled=false;
+    if(uploaded>0)await refreshPhotos();
+  }
 });
 $('login').addEventListener('submit',e=>{
   e.preventDefault();
