@@ -406,13 +406,17 @@ assert.equal(rem.data.dinners['2026-11-03'],'Arròs amb verdures',
   'Els sopars històrics no s’esborren');
 
 const mobileSource=fs.readFileSync(path.join(__dirname,'Mobile.html'),'utf8');
-for(const section of ['avui','recordatoris','fotos','rai']){
+for(const section of ['avui','compra','recordatoris','fotos','rai']){
   assert.match(mobileSource,new RegExp('data-tab="'+section+'"'),'Falta la pestanya '+section);
   assert.match(mobileSource,new RegExp('data-open="'+section+'"'),'Falta navegació a '+section);
 }
 // La nova pàgina de portada uneix les dues llistes sense alterar els IDs ni les crides.
-assert.ok(!mobileSource.includes('data-tab="compra"'), 'La compra no ha de tenir una pestanya duplicada');
-assert.ok(mobileSource.includes('class="subpanel shopping-section"'), "La compra ha d'estar dins de Pendents");
+assert.equal((mobileSource.match(/<section class="panel" data-tab="compra">/g)||[]).length,1,
+  'Compra ha de tenir una pestanya pròpia');
+assert.ok(!mobileSource.includes('class="subpanel shopping-section"'),
+  'Compra no ha d’aparèixer dins Recordatoris');
+assert.ok(mobileSource.includes('class="summary-card grocery-summary" type="button" data-go="compra"'),
+  "La targeta Compra d’Avui ha d'obrir Compra");
 assert.ok(mobileSource.includes('id="overviewReminders"'));
 assert.ok(mobileSource.includes('id="overviewGroceries"'));
 assert.ok(mobileSource.includes('id="overviewRai"'));
