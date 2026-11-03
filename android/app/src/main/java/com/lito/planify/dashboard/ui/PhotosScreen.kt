@@ -32,6 +32,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import java.io.File
 
 private data class LocalPhoto(val uri: Uri, val name: String)
@@ -85,12 +87,17 @@ fun PhotosScreen(sync: FamilySync) {
     }
 
     // La connexió familiar es fa des d'Opcions; aquesta pantalla només consulta fotos.
-    LaunchedEffect(sync.connected) {
-        shared.refresh(sync)
-        while (sync.connected) {
-            delay(90_000)
-            shared.refresh(sync)
+    LaunchedEffect(sync.connected, sync.photoIntervalMinutes) {
+        if (!sync.connected) return@LaunchedEffect
+        shared.refresh(sync, minAgeMillis = 5 * 60_000L)
+        while (true) {
+            delay(60_000L)
+            shared.refresh(sync, minAgeMillis = sync.photoIntervalMinutes * 60_000L)
         }
+    }
+    // En tornar a la galeria, comprova si hi ha fotos noves només si fa més de 5 minuts.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        scope.launch { shared.refresh(sync, minAgeMillis = 5 * 60_000L) }
     }
 
     val photos = localPhotos.map { GalleryPhoto(it.name, uri = it.uri) } +
