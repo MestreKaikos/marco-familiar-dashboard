@@ -13,6 +13,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -37,6 +40,7 @@ import kotlinx.coroutines.launch
  * desats en el dispositiu mentre es copia cadascun des d'una altra aplicació.
  * En pantalles estretes els controls es disposen en una sola columna desplaçable.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun FamilySyncSettings(sync: FamilySync, dinners: DinnerPlan, family: LocalFamilyStore, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
@@ -50,6 +54,21 @@ fun FamilySyncSettings(sync: FamilySync, dinners: DinnerPlan, family: LocalFamil
         ) {
             Text("Estat de la connexió", style = Type.Large.copy(fontWeight = FontWeight.SemiBold))
             Text(sync.status, style = Type.Small.copy(color = if (sync.connected) Palette.Online else Palette.InkSoft))
+            Text("Freqüència de les dades", style = Type.Small)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FamilySync.DATA_INTERVALS.forEach { minutes ->
+                    FilterChip(selected = sync.dataIntervalMinutes == minutes,
+                        onClick = { sync.setDataInterval(minutes) }, label = { Text("$minutes min") })
+                }
+            }
+            Text("Freqüència de les fotografies", style = Type.Small)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FamilySync.PHOTO_INTERVALS.forEach { minutes ->
+                    FilterChip(selected = sync.photoIntervalMinutes == minutes,
+                        onClick = { sync.setPhotoInterval(minutes) }, label = { Text("$minutes min") })
+                }
+            }
+            Text("Els canvis locals s'envien de seguida. En tornar a l'app s'actualitza si fa més de 5 minuts. Pots actualitzar manualment en qualsevol moment.", style = Type.Tiny)
             if (sync.connected) {
                 Text("Productes al núvol: " + (sync.cloudGroceries.takeIf { it >= 0 }?.toString() ?: "—"),
                     style = Type.Small)
@@ -65,7 +84,7 @@ fun FamilySyncSettings(sync: FamilySync, dinners: DinnerPlan, family: LocalFamil
                     onClick = { scope.launch { sync.synchronize(dinners, family) } },
                     enabled = !sync.busy,
                     modifier = Modifier.fillMaxWidth()
-                ) { Text(if (sync.busy) "Sincronitzant..." else "Sincronitzar ara") }
+                ) { Text(if (sync.busy) "Sincronitzant..." else "Actualitzar ara") }
                 Text("La compra, els recordatoris, les tasques, les estrelles i els premis es comparteixen. Els premis requereixen el PIN adult del servei.",
                     style = Type.Small.copy(color = Palette.InkSoft))
                 OutlinedButton(onClick = { confirmDisconnect = true }, modifier = Modifier.fillMaxWidth()) {

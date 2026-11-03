@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -42,8 +43,7 @@ class FamilyPhotoCache(context: Context) {
     private var lastSuccessfulCheckAt = prefs.getLong("last_photo_check_epoch", 0L)
     private fun shouldCheck(maxAgeMillis: Long): Boolean {
         val now = System.currentTimeMillis()
-        return lastSuccessfulCheckAt <= 0L || now < lastSuccessfulCheckAt ||
-            now - lastSuccessfulCheckAt >= maxAgeMillis
+        return SyncTiming.isStale(lastSuccessfulCheckAt, now, maxAgeMillis)
     }
 
     private data class RemotePhoto(val id: String, val name: String)
@@ -72,7 +72,10 @@ class FamilyPhotoCache(context: Context) {
         photos = items
     }
 
-    suspend fun refresh(sync: FamilySync, minAgeMillis: Long = 0L) = mutex.withLock {
+    suspend fun refresh(sync: FamilySync, minAgeMillis: Long = 0L) {
+        val requestedAt = System.currentTimeMillis()
+        mutex.withLock {
+        if (lastSuccessfulCheckAt >= requestedAt) return@withLock
         if (!sync.connected) {
             message = if (photos.isEmpty()) "Activa la sincronització familiar per rebre fotografies." else null
             return@withLock
@@ -139,6 +142,7 @@ class FamilyPhotoCache(context: Context) {
                     }
                     downloaded++
                 } catch (error: Exception) {
+                    if (error is CancellationException) throw error
                     if (firstError == null) firstError = error.message ?: "No s'ha pogut descarregar una foto"
                 }
             }
@@ -160,11 +164,13 @@ class FamilyPhotoCache(context: Context) {
                 else -> null
             }
         } catch (error: Exception) {
+            if (error is CancellationException) throw error
             // Sense Internet, conservar i mostrar la còpia de les fotos ja descarregades.
             message = "No es poden actualitzar les fotos. Mostrem les que ja tenim desades."
         } finally {
             refreshing = false
         }
+    }
     }
 }
 

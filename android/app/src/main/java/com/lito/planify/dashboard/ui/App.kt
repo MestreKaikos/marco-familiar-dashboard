@@ -34,6 +34,7 @@ import androidx.compose.material.icons.outlined.Today
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -163,10 +164,10 @@ fun DashboardApp(
             sync.synchronize(dinners, family, minAgeMillis = 5 * 60_000L)
         }
     }
-    LaunchedEffect(sync.pendingCount, sync.connected) {
-        if (sync.connected && sync.pendingCount > 0) {
-            delay(1200)
-            sync.synchronize(dinners, family)
+    LaunchedEffect(sync.connected) {
+        if (!sync.connected) return@LaunchedEffect
+        snapshotFlow { sync.pendingRevision }.collect {
+            if (sync.pendingCount > 0) sync.synchronize(dinners, family, minAgeMillis = 1L)
         }
     }
     var lastTouch by remember { mutableLongStateOf(0L) }

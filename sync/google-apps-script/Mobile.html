@@ -297,6 +297,16 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
       <button type="button" data-open="fotos"><span>📸</span>Fotos</button>
       <button type="button" data-open="rai"><span>⭐</span>Rai</button>
     </nav>
+    <details class="panel" id="syncSettings">
+      <summary>Ajustos de sincronització</summary>
+      <p><label>Dades <select id="dataInterval" aria-label="Interval de dades">
+        <option value="5">5 minuts</option><option value="15">15 minuts</option><option value="30">30 minuts</option><option value="60">60 minuts</option>
+      </select></label></p>
+      <p><label>Fotografies <select id="photoInterval" aria-label="Interval de fotografies">
+        <option value="10">10 minuts</option><option value="30">30 minuts</option><option value="60">60 minuts</option><option value="120">120 minuts</option>
+      </select></label></p>
+      <p>Només consulta automàticament mentre la web és visible. Els canvis s'envien de seguida. En tornar, actualitza si fa més de 5 minuts.</p>
+    </details>
     <div class="row" style="justify-content:space-between">
       <span id="syncTime">Connectat · Sincronització automàtica</span>
       <button class="small" id="refresh">Actualitzar ara</button>
@@ -312,6 +322,24 @@ let data = {groceries:[], dinners:{}};
 let busy = false;
 let photoBusy = false;
 let photos = [];
+let lastDataAt=0,lastRaiAt=0,lastPhotosAt=0,photoFlight=null,dataFlight=null,raiFlight=null;
+let pendingOps=[],queueStorageKey='',callbacks=[];
+const readStored=(name,fallback)=>{try{return JSON.parse(localStorage.getItem(name))??fallback;}catch(_){return fallback;}};
+const writeStored=(name,value)=>{try{localStorage.setItem(name,JSON.stringify(value));return true;}catch(_){return false;}};
+let intervals=readStored('marc-sync-intervals',{});
+if(![5,15,30,60].includes(intervals.data))intervals.data=15;
+if(![10,30,60,120].includes(intervals.photos))intervals.photos=30;
+const stale=(at,minutes)=>!at||Date.now()<at||Date.now()-at>=minutes*60000;
+function saveQueue(){
+  if(!writeStored(queueStorageKey,pendingOps))message('No es poden desar els canvis al dispositiu. Mantén aquesta pàgina oberta fins que es sincronitzi.',true);
+}
+async function prepareQueue(){
+  // Namespace privat per família, sense desar la clau al registre de canvis.
+  const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(key));
+  queueStorageKey='marc-pending-'+Array.from(new Uint8Array(hash),x=>x.toString(16).padStart(2,'0')).join('');
+  pendingOps=readStored(queueStorageKey,[]);
+  if(!Array.isArray(pendingOps))pendingOps=[];
+}
 const $ = id => document.getElementById(id);
 // Un únic contracte per a Google Apps Script i per a la futura PWA allotjada.
 function serverCall(method,...args){
@@ -342,6 +370,7 @@ function openTab(name){
     el.classList.toggle('active',active);
     el.setAttribute('aria-current',active?'page':'false');
   });
+  if(name==='fotos'&&key&&queueStorageKey)refreshPhotos(5);
   try{sessionStorage.setItem('marc-active-tab',name);}catch(_){}
   window.scrollTo({top:0,behavior:'instant'});
 }
@@ -353,35 +382,44 @@ function message(text,error) {
   $('message').textContent=text||'';
   $('message').className=error?'error':'good';
 }
-function call(ops, onDone) {
-  if(!key || busy) return;
-  busy=true;
-  message('Sincronitzant...',false);
-  serverCall('apiAction',key,'sync',{ops:ops||[]})
-    .then(function(result){
-      busy=false;
-      if(!result||!result.ok){
-        message((result&&result.error)||'No es pot sincronitzar',true);
-        if(result&&/Clau/.test(result.error||'')) showLogin();
-        return;
-      }
-      data=result.data||{groceries:[],dinners:{},reminders:[]};
-      render();
-      message('',false);
+function call(ops=[], onDone, minAgeMinutes=0) {
+  if(!key||!queueStorageKey)return Promise.resolve();
+  if(ops.length){
+    pendingOps.push(...ops.map(op=>({...op,mutationId:newId()})));
+    saveQueue();
+    if(onDone)onDone();
+  }
+  if(dataFlight)return dataFlight;
+  if(!pendingOps.length&&minAgeMinutes&& !stale(lastDataAt,minAgeMinutes))return Promise.resolve();
+  const requestKey=key;
+  busy=true;message('Sincronitzant...',false);
+  dataFlight=(async()=>{
+    try{
+      do{
+        const batch=pendingOps.slice(0,60);
+        const result=await serverCall('apiAction',requestKey,'sync',{ops:batch});
+        if(key!==requestKey)return;
+        if(!result||!result.ok)throw new Error(result&&result.error||'No es pot sincronitzar');
+        const ack=new Set(batch.map(op=>op.mutationId));
+        pendingOps=pendingOps.filter(op=>!ack.has(op.mutationId));saveQueue();
+        data=result.data||{groceries:[],dinners:{},reminders:[]};
+        lastDataAt=Date.now();
+      }while(pendingOps.length);
+      render();message('',false);
       $('syncTime').textContent='Actualitzat a les '+new Date().toLocaleTimeString('ca-ES',{hour:'2-digit',minute:'2-digit'});
-      if(onDone)onDone();
-    })
-    .catch(function(err){
-      busy=false;
-      message('Sense connexió: '+(err&&err.message||'Error temporal'),true);
-    });
+    }catch(err){
+      message('Canvis pendents: '+pendingOps.length+'. '+(err.message||'Sense connexió'),true);
+    }finally{busy=false;dataFlight=null;}
+  })();
+  return dataFlight;
 }
 function showLogin(){
   photos=[];renderPhotos();raiSnapshot=null;
   key='';try { sessionStorage.removeItem('marc-sync-key'); } catch (_) {}
   $('auth').hidden=false;$('application').hidden=true;$('disconnect').hidden=true;
 }
-function showApp(){
+async function showApp(){
+  await prepareQueue();
   $('auth').hidden=true;$('application').hidden=false;$('disconnect').hidden=false;
   call([]);
   raiAction("tasks_snapshot");
@@ -508,20 +546,25 @@ $('addReminder').addEventListener('submit',e=>{
 // L'API familiar existent continua sent la font de veritat de dies, franges i premis.
 let raiBusy=false,raiSnapshot=null;
 function raiAction(action,payload={},onDone){
-  if(!key||raiBusy)return;
+  if(!key)return Promise.resolve();
+  if(raiFlight){
+    if(action==='tasks_snapshot')return raiFlight;
+    return raiFlight.then(()=>raiAction(action,payload,onDone));
+  }
   raiBusy=true;$('raiTaskStatus').textContent='Sincronitzant les tasques…';
-  serverCall('familyTasksAction',key,action,payload).then(result=>{
+  raiFlight=serverCall('familyTasksAction',key,action,payload).then(result=>{
     raiBusy=false;
     if(!result||!result.ok){
       $('raiTaskStatus').textContent=(result&&result.error)||'No s’han pogut desar les tasques';return;
     }
-    raiSnapshot=result.data;renderRai();renderOverview();
+    lastRaiAt=Date.now();raiSnapshot=result.data;renderRai();renderOverview();
     $('raiTaskStatus').textContent='';
-    if(!busy)call([]);
+    if(action!=='tasks_snapshot')call([]);
     if(onDone)onDone();
   }).catch(err=>{
     raiBusy=false;$('raiTaskStatus').textContent=err&&err.message||'Error de connexió';
-  });
+  }).finally(()=>{raiFlight=null;});
+  return raiFlight;
 }
 function renderRai(){
   const snapshot=raiSnapshot;if(!snapshot)return;
@@ -638,12 +681,18 @@ function renderPhotos(){
     line.append(view);outer.appendChild(line);area.appendChild(outer);
   });
 }
-async function refreshPhotos(){
-  if(!key||photoBusy)return;
-  try{
-    const response=await photoCall('photo_list',{});
-    photos=response.photos||[];renderPhotos();renderOverview();
-  }catch(err){photoStatus(err.message,true);}
+function refreshPhotos(minAgeMinutes=0){
+  if(!key||photoBusy)return Promise.resolve();
+  if(photoFlight)return photoFlight;
+  if(minAgeMinutes&&!stale(lastPhotosAt,minAgeMinutes))return Promise.resolve();
+  photoFlight=(async()=>{
+    try{
+      const response=await photoCall('photo_list',{});
+      photos=response.photos||[];lastPhotosAt=Date.now();renderPhotos();renderOverview();
+    }catch(err){photoStatus(err.message,true);}
+    finally{photoFlight=null;}
+  })();
+  return photoFlight;
 }
 // Manté el comportament de producció: pujada d'originals JPG/PNG/WebP de fins a 5 MB.
 // Utilitza la funció uploadFamilyPhoto() de Fotos.gs, que ja valida la signatura del fitxer.
@@ -734,10 +783,32 @@ $('addProduct').addEventListener('submit',e=>{
   if(!name)return;
   call([{type:'grocery_set',id:newId(),name:name.slice(0,80),bought:false}],()=>$('productName').value='');
 });
-$('refresh').addEventListener('click',()=>{call([]);raiAction('tasks_snapshot');refreshPhotos();});
+function refreshAll(minAgeMinutes=0){
+  if(!key||!queueStorageKey)return;
+  call([],null,minAgeMinutes);
+  if(!minAgeMinutes||stale(lastRaiAt,minAgeMinutes))raiAction('tasks_snapshot');
+  refreshPhotos(minAgeMinutes);
+}
+$('dataInterval').value=String(intervals.data);
+$('photoInterval').value=String(intervals.photos);
+for(const [id,field,allowed] of [['dataInterval','data',[5,15,30,60]],['photoInterval','photos',[10,30,60,120]]]){
+  $(id).addEventListener('change',()=>{
+    const value=Number($(id).value);if(!allowed.includes(value))return;
+    intervals[field]=value;writeStored('marc-sync-intervals',intervals);
+  });
+}
+$('refresh').addEventListener('click',()=>refreshAll());
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshAll(5);});
+window.addEventListener('pageshow',()=>{if(!document.hidden)refreshAll(5);});
+window.addEventListener('focus',()=>{if(!document.hidden)refreshAll(5);});
+window.addEventListener('online',()=>{if(!document.hidden)refreshAll(5);});
 if(key)showApp();
-setInterval(()=>{if(key&&!document.hidden){call([]);raiAction("tasks_snapshot");}},45000);
-setInterval(()=>{if(key&&!document.hidden)refreshPhotos()},120000);
+setInterval(()=>{
+  if(!key||document.hidden||!queueStorageKey)return;
+  call([],null,intervals.data);
+  if(stale(lastRaiAt,intervals.data))raiAction('tasks_snapshot');
+  refreshPhotos(intervals.photos);
+},60000);
 })();
 </script>
 </body>

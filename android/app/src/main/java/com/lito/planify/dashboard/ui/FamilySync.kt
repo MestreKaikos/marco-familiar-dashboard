@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -30,11 +31,6 @@ import java.util.concurrent.TimeUnit
  * Les feines d'en Rai i el PIN parental NO es pugen al núvol en aquesta fase.
  */
 class FamilySync internal constructor(context: Context) {
-    companion object {
-        val DATA_INTERVALS = listOf(5, 15, 30, 60)
-        val PHOTO_INTERVALS = listOf(10, 30, 60, 120)
-    }
-
     private val prefs: SharedPreferences = context.applicationContext
         .getSharedPreferences("marc_family_sync", Context.MODE_PRIVATE)
     private val client = OkHttpClient.Builder()
@@ -51,6 +47,8 @@ class FamilySync internal constructor(context: Context) {
     var status by mutableStateOf(if (connected) "Connectat · sincronització pendent" else "Sense sincronització")
         private set
     var lastUpdate by mutableStateOf(prefs.getString("last_sync", null))
+        private set
+    var pendingRevision by mutableIntStateOf(0)
         private set
     var pendingCount by mutableIntStateOf(readQueue().size)
         private set
@@ -76,8 +74,7 @@ class FamilySync internal constructor(context: Context) {
 
     private fun isStale(maxAgeMs: Long): Boolean {
         val now = System.currentTimeMillis()
-        return lastSuccessfulSyncAt <= 0L || now < lastSuccessfulSyncAt ||
-            now - lastSuccessfulSyncAt >= maxAgeMs
+        return SyncTiming.isStale(lastSuccessfulSyncAt, now, maxAgeMs)
     }
 
     // Esborrany persistent: permet enganxar l'URL i la clau en moments diferents
@@ -116,6 +113,9 @@ class FamilySync internal constructor(context: Context) {
     private val key: String get() = prefs.getString("key", "").orEmpty()
 
     companion object {
+        val DATA_INTERVALS = listOf(5, 15, 30, 60)
+        val PHOTO_INTERVALS = listOf(10, 30, 60, 120)
+
         fun validUrl(input: String): Boolean {
             val uri = runCatching { Uri.parse(input.trim()) }.getOrNull() ?: return false
             return uri.scheme == "https" && uri.host == "script.google.com" &&
@@ -154,6 +154,7 @@ class FamilySync internal constructor(context: Context) {
             )
         }
         putQueue(compacted + op)
+        pendingRevision++
         status = "Canvis pendents de sincronitzar"
     }
 
@@ -197,6 +198,7 @@ class FamilySync internal constructor(context: Context) {
             updateSuccess(latest)
             true
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             status = messageForError(e)
             false
         } finally {
@@ -226,7 +228,10 @@ class FamilySync internal constructor(context: Context) {
         status = "Desconnectat · la compra i els sopars continuen al marc"
     }
 
-    suspend fun synchronize(dinners: DinnerPlan, family: LocalFamilyStore, minAgeMillis: Long = 0L) = mutex.withLock {
+    suspend fun synchronize(dinners: DinnerPlan, family: LocalFamilyStore, minAgeMillis: Long = 0L) {
+        val requestedAt = System.currentTimeMillis()
+        mutex.withLock {
+        if (pendingCount == 0 && lastSuccessfulSyncAt >= requestedAt) return@withLock
         if (!connected || busy || (pendingCount == 0 && minAgeMillis > 0L && !isStale(minAgeMillis)))
             return@withLock
         busy = true
@@ -249,10 +254,13 @@ class FamilySync internal constructor(context: Context) {
             }
             status = "Hi ha canvis pendents: es tornaran a enviar"
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             status = messageForError(e)
         } finally {
             busy = false
         }
+    }
+
     }
 
     private fun messageForError(ex: Exception): String {
