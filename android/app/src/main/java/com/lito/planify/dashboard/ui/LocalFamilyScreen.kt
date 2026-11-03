@@ -2,6 +2,8 @@ package com.lito.planify.dashboard.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,11 +62,9 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
         adultAction = action
     }
 
-    Row(
-        Modifier.fillMaxSize().padding(horizontal = 30.dp, vertical = 26.dp),
-        horizontalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
-        FamilyPanel(Modifier.weight(1.12f).fillMaxHeight()) {
+    // Els dos panells es mostren de costat en un marc ample i apilats en un mòbil vertical.
+    val choresPanel: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit = {
+
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("✅ Feines d’en Rai", style = Type.Large.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
                 Button(onClick = { addChore = true }) { Text("+ Nova feina") }
@@ -126,9 +126,9 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
                     }
                 }
             }
-        }
+    }
+    val rewardsPanel: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit = {
 
-        FamilyPanel(Modifier.weight(0.95f).fillMaxHeight()) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("🎁 Recompenses", style = Type.Large.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
                 Button(onClick = { addReward = true }) { Text("+ Premi") }
@@ -194,6 +194,25 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
                 }
             }
             Text(if (tasksShared) "Saldo i premis del Google Sheets" else "Punts i premis locals", style = Type.Tiny.copy(color = Palette.InkMuted), modifier = Modifier.padding(top = 12.dp))
+    }
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+        if (maxWidth >= 830.dp) {
+            Row(
+                Modifier.fillMaxSize().padding(horizontal = 30.dp, vertical = 26.dp),
+                horizontalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                FamilyPanel(Modifier.weight(1.12f).fillMaxHeight(), choresPanel)
+                FamilyPanel(Modifier.weight(0.95f).fillMaxHeight(), rewardsPanel)
+            }
+        } else {
+            Column(
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                    .padding(horizontal = 18.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                FamilyPanel(Modifier.fillMaxWidth().height(540.dp), choresPanel)
+                FamilyPanel(Modifier.fillMaxWidth().height(480.dp), rewardsPanel)
+            }
         }
     }
 
