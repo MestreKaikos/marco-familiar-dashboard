@@ -327,9 +327,13 @@ let pendingOps=[],queueStorageKey='',callbacks=[];
 const readStored=(name,fallback)=>{try{return JSON.parse(localStorage.getItem(name))??fallback;}catch(_){return fallback;}};
 const writeStored=(name,value)=>{try{localStorage.setItem(name,JSON.stringify(value));return true;}catch(_){return false;}};
 let intervals=readStored('marc-sync-intervals',{});
+if(!intervals||typeof intervals!=='object'||Array.isArray(intervals))intervals={};
 if(![5,15,30,60].includes(intervals.data))intervals.data=15;
 if(![10,30,60,120].includes(intervals.photos))intervals.photos=30;
 const stale=(at,minutes)=>!at||Date.now()<at||Date.now()-at>=minutes*60000;
+function saveSessionSnapshot(){
+  try{sessionStorage.setItem(queueStorageKey+'-snapshot',JSON.stringify({data,raiSnapshot,photos,lastDataAt,lastRaiAt,lastPhotosAt}));}catch(_){}
+}
 function saveQueue(){
   if(!writeStored(queueStorageKey,pendingOps))message('No es poden desar els canvis al dispositiu. Mantén aquesta pàgina oberta fins que es sincronitzi.',true);
 }
@@ -339,6 +343,14 @@ async function prepareQueue(){
   queueStorageKey='marc-pending-'+Array.from(new Uint8Array(hash),x=>x.toString(16).padStart(2,'0')).join('');
   pendingOps=readStored(queueStorageKey,[]);
   if(!Array.isArray(pendingOps))pendingOps=[];
+  try{
+    const saved=JSON.parse(sessionStorage.getItem(queueStorageKey+'-snapshot'));
+    if(saved){
+      data=saved.data;raiSnapshot=saved.raiSnapshot;photos=saved.photos||[];
+      lastDataAt=saved.lastDataAt||0;lastRaiAt=saved.lastRaiAt||0;lastPhotosAt=saved.lastPhotosAt||0;
+    }
+  }catch(_){}
+
 }
 const $ = id => document.getElementById(id);
 // Un únic contracte per a Google Apps Script i per a la futura PWA allotjada.
@@ -403,7 +415,7 @@ function call(ops=[], onDone, minAgeMinutes=0) {
         const ack=new Set(batch.map(op=>op.mutationId));
         pendingOps=pendingOps.filter(op=>!ack.has(op.mutationId));saveQueue();
         data=result.data||{groceries:[],dinners:{},reminders:[]};
-        lastDataAt=Date.now();
+        lastDataAt=Date.now();saveSessionSnapshot();
       }while(pendingOps.length);
       render();message('',false);
       $('syncTime').textContent='Actualitzat a les '+new Date().toLocaleTimeString('ca-ES',{hour:'2-digit',minute:'2-digit'});
@@ -415,15 +427,15 @@ function call(ops=[], onDone, minAgeMinutes=0) {
 }
 function showLogin(){
   photos=[];renderPhotos();raiSnapshot=null;
+  data={groceries:[],dinners:{}};lastDataAt=lastRaiAt=lastPhotosAt=0;queueStorageKey='';
   key='';try { sessionStorage.removeItem('marc-sync-key'); } catch (_) {}
   $('auth').hidden=false;$('application').hidden=true;$('disconnect').hidden=true;
 }
 async function showApp(){
   await prepareQueue();
   $('auth').hidden=true;$('application').hidden=false;$('disconnect').hidden=false;
-  call([]);
-  raiAction("tasks_snapshot");
-  refreshPhotos();
+  render();renderPhotos();if(raiSnapshot)renderRai();renderOverview();
+  refreshAll(5);
 }
 function makeText(tag,text,cls){
   const e=document.createElement(tag);e.textContent=text;if(cls)e.className=cls;return e;
@@ -557,7 +569,7 @@ function raiAction(action,payload={},onDone){
     if(!result||!result.ok){
       $('raiTaskStatus').textContent=(result&&result.error)||'No s’han pogut desar les tasques';return;
     }
-    lastRaiAt=Date.now();raiSnapshot=result.data;renderRai();renderOverview();
+    lastRaiAt=Date.now();raiSnapshot=result.data;saveSessionSnapshot();renderRai();renderOverview();
     $('raiTaskStatus').textContent='';
     if(action!=='tasks_snapshot')call([]);
     if(onDone)onDone();
@@ -688,7 +700,7 @@ function refreshPhotos(minAgeMinutes=0){
   photoFlight=(async()=>{
     try{
       const response=await photoCall('photo_list',{});
-      photos=response.photos||[];lastPhotosAt=Date.now();renderPhotos();renderOverview();
+      photos=response.photos||[];lastPhotosAt=Date.now();saveSessionSnapshot();renderPhotos();renderOverview();
     }catch(err){photoStatus(err.message,true);}
     finally{photoFlight=null;}
   })();
@@ -767,7 +779,7 @@ $('uploadPhotos').addEventListener('submit',async e=>{
       '. Pots tornar a seleccionar les que faltin.',true);
   }finally{
     photoBusy=false;$('photoUploadButton').disabled=false;
-    if(uploaded>0)await refreshPhotos();
+    if(uploaded>0){if(photoFlight)await photoFlight;await refreshPhotos();}
   }
 });
 $('login').addEventListener('submit',e=>{

@@ -18,11 +18,17 @@ test('Manifest instal·lable i service worker sense cache de dades',()=>{
   assert.match(sw,/request\.method!=='GET'/);
 });
 test('Conserva les seccions i formularis de producció',()=>{
-  for(const tab of ['avui','recordatoris','fotos','rai'])
+  for(const tab of ['avui','compra','recordatoris','fotos','rai'])
     assert.ok(html.includes('data-tab="'+tab+'"'));
   for(const id of ['addProduct','addReminder','raiAddTask','raiAddReward','uploadPhotos','overviewReminders'])
     assert.ok(html.includes('id="'+id+'"'));
-  assert.ok(!html.includes('data-tab="compra"'));
+  assert.equal((html.match(/<section class="panel" data-tab="compra">/g)||[]).length,1);
+  assert.equal((html.match(/<section class="panel" data-tab="recordatoris">/g)||[]).length,1);
+  assert.ok(html.includes('data-open="compra"'));
+  assert.ok(html.includes('data-open="recordatoris"'));
+  assert.ok(html.includes('class="summary-card grocery-summary" type="button" data-go="compra"'));
+  assert.ok(!html.includes('class="subpanel shopping-section"'));
+  assert.equal((html.match(/id="addProduct"/g)||[]).length,1);
   const js=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(x=>x[1]);
   js.forEach(source=>assert.doesNotThrow(()=>new Script(source)));
 });

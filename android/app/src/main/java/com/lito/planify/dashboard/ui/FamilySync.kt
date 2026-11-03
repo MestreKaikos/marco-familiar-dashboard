@@ -39,6 +39,7 @@ class FamilySync internal constructor(context: Context) {
         .followRedirects(true)
         .build()
     private val mutex = Mutex()
+    private var syncGeneration = 0
 
     var connected by mutableStateOf(prefs.getBoolean("ready", false))
         private set
@@ -229,9 +230,9 @@ class FamilySync internal constructor(context: Context) {
     }
 
     suspend fun synchronize(dinners: DinnerPlan, family: LocalFamilyStore, minAgeMillis: Long = 0L) {
-        val requestedAt = System.currentTimeMillis()
+        val requestedGeneration = syncGeneration
         mutex.withLock {
-        if (pendingCount == 0 && lastSuccessfulSyncAt >= requestedAt) return@withLock
+        if (pendingCount == 0 && syncGeneration != requestedGeneration) return@withLock
         if (!connected || busy || (pendingCount == 0 && minAgeMillis > 0L && !isStale(minAgeMillis)))
             return@withLock
         busy = true
@@ -283,6 +284,7 @@ class FamilySync internal constructor(context: Context) {
         cloudReminders = snapshot.optJSONObject("data")?.optJSONArray("reminders")?.length() ?: -1
         lastUpdate = now
         lastSuccessfulSyncAt = System.currentTimeMillis()
+        syncGeneration++
         prefs.edit().putString("last_sync", now)
             .putLong("last_sync_epoch", lastSuccessfulSyncAt)
             .putInt("cloud_grocery_count", cloudGroceries)

@@ -30,6 +30,7 @@ class FamilyPhotoCache(context: Context) {
     private val prefs = app.getSharedPreferences("marc_cached_photos", Context.MODE_PRIVATE)
     private val folder = File(app.filesDir, "marc_fotos_compartides")
     private val mutex = Mutex()
+    private var photoGeneration = 0
     private val validId = Regex("^[a-zA-Z0-9_-]{1,80}$")
     private val photoMaxBytes = 5L * 1024L * 1024L // Fotos.gs permet fins a 5 MB.
 
@@ -73,9 +74,9 @@ class FamilyPhotoCache(context: Context) {
     }
 
     suspend fun refresh(sync: FamilySync, minAgeMillis: Long = 0L) {
-        val requestedAt = System.currentTimeMillis()
+        val requestedGeneration = photoGeneration
         mutex.withLock {
-        if (lastSuccessfulCheckAt >= requestedAt) return@withLock
+        if (photoGeneration != requestedGeneration) return@withLock
         if (!sync.connected) {
             message = if (photos.isEmpty()) "Activa la sincronització familiar per rebre fotografies." else null
             return@withLock
@@ -157,6 +158,7 @@ class FamilyPhotoCache(context: Context) {
             }
             writeIndex(valid)
             lastSuccessfulCheckAt = System.currentTimeMillis()
+            photoGeneration++
             prefs.edit().putLong("last_photo_check_epoch", lastSuccessfulCheckAt).apply()
             message = when {
                 firstError != null -> "Algunes fotos no s'han pogut baixar. Es tornarà a provar."
