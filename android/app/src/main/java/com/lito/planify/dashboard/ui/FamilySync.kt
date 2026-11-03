@@ -30,6 +30,11 @@ import java.util.concurrent.TimeUnit
  * Les feines d'en Rai i el PIN parental NO es pugen al núvol en aquesta fase.
  */
 class FamilySync internal constructor(context: Context) {
+    companion object {
+        val DATA_INTERVALS = listOf(5, 15, 30, 60)
+        val PHOTO_INTERVALS = listOf(10, 30, 60, 120)
+    }
+
     private val prefs: SharedPreferences = context.applicationContext
         .getSharedPreferences("marc_family_sync", Context.MODE_PRIVATE)
     private val client = OkHttpClient.Builder()
@@ -49,6 +54,31 @@ class FamilySync internal constructor(context: Context) {
         private set
     var pendingCount by mutableIntStateOf(readQueue().size)
         private set
+
+    /** Intervals locals i configurables; els valors per defecte eviten consultes constants a Sheets. */
+    var dataIntervalMinutes by mutableIntStateOf(prefs.getInt("sync_interval_min", 15).takeIf { it in DATA_INTERVALS } ?: 15)
+        private set
+    var photoIntervalMinutes by mutableIntStateOf(prefs.getInt("photo_interval_min", 30).takeIf { it in PHOTO_INTERVALS } ?: 30)
+        private set
+    private var lastSuccessfulSyncAt = prefs.getLong("last_sync_epoch", 0L)
+
+    fun setDataInterval(minutes: Int) {
+        if (minutes !in DATA_INTERVALS) return
+        dataIntervalMinutes = minutes
+        prefs.edit().putInt("sync_interval_min", minutes).apply()
+    }
+
+    fun setPhotoInterval(minutes: Int) {
+        if (minutes !in PHOTO_INTERVALS) return
+        photoIntervalMinutes = minutes
+        prefs.edit().putInt("photo_interval_min", minutes).apply()
+    }
+
+    private fun isStale(maxAgeMs: Long): Boolean {
+        val now = System.currentTimeMillis()
+        return lastSuccessfulSyncAt <= 0L || now < lastSuccessfulSyncAt ||
+            now - lastSuccessfulSyncAt >= maxAgeMs
+    }
 
     // Esborrany persistent: permet enganxar l'URL i la clau en moments diferents
     // i tornar a Opcions sense perdre el que s'ha escrit. Mai no es publica al núvol.
@@ -177,7 +207,7 @@ class FamilySync internal constructor(context: Context) {
     /** La desconexió conserva les dades locals, però no es poden enviar nous canvis. */
     fun disconnect() {
         prefs.edit().remove("url").remove("key").remove("last_sync")
-            .remove("queue").remove("draft_url").remove("draft_key")
+             .remove("queue").remove("draft_url").remove("draft_key").remove("last_sync_epoch")
             .remove("cloud_grocery_count").remove("cloud_dinner_count")
             .remove("cloud_task_count").remove("cloud_reward_count")
             .remove("cloud_reminder_count")
@@ -192,11 +222,13 @@ class FamilySync internal constructor(context: Context) {
         connected = false
         pendingCount = 0
         lastUpdate = null
+        lastSuccessfulSyncAt = 0L
         status = "Desconnectat · la compra i els sopars continuen al marc"
     }
 
-    suspend fun synchronize(dinners: DinnerPlan, family: LocalFamilyStore) = mutex.withLock {
-        if (!connected || busy) return@withLock
+    suspend fun synchronize(dinners: DinnerPlan, family: LocalFamilyStore, minAgeMillis: Long = 0L) = mutex.withLock {
+        if (!connected || busy || (pendingCount == 0 && minAgeMillis > 0L && !isStale(minAgeMillis)))
+            return@withLock
         busy = true
         try {
             // Les mutacions s'envien una sola vegada i per ordre. Són idempotents:
@@ -242,7 +274,9 @@ class FamilySync internal constructor(context: Context) {
         cloudRewards = snapshot.optJSONObject("data")?.optJSONArray("rewards")?.length() ?: -1
         cloudReminders = snapshot.optJSONObject("data")?.optJSONArray("reminders")?.length() ?: -1
         lastUpdate = now
+        lastSuccessfulSyncAt = System.currentTimeMillis()
         prefs.edit().putString("last_sync", now)
+            .putLong("last_sync_epoch", lastSuccessfulSyncAt)
             .putInt("cloud_grocery_count", cloudGroceries)
             .putInt("cloud_dinner_count", cloudDinners)
             .putInt("cloud_task_count", cloudTasks)
