@@ -153,36 +153,42 @@ private fun RemindersPanel(store: FamilyReminders, today: LocalDate, modifier: M
                 Text(store.pending().size.toString() + " pendents · Els vençuts apareixen destacats",
                     style = Type.Small.copy(color = Palette.InkSoft))
             }
-            Button(onClick = { creating = true }) { Text("+ Recordatori") }
+            Button(onClick = { creating = true }) { Text("+ Afegir") }
         }
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(top = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(store.items, key = { it.id }) { reminder ->
                 val expired = !reminder.done && reminder.deadline?.isBefore(today) == true
                 val dueToday = !reminder.done && reminder.deadline == today
-                Row(Modifier.fillMaxWidth().background(Palette.Highlight, RoundedCornerShape(18.dp)).padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Checkbox(checked = reminder.done, onCheckedChange = { store.toggle(reminder.id, it) })
-                    Column(Modifier.weight(1f)) {
-                        Text(reminder.title, style = Type.Body.copy(
-                            color = if(reminder.done) Palette.InkMuted else Palette.Ink,
-                            fontWeight = FontWeight.SemiBold))
-                        val dueLabel = when {
-                            reminder.done -> "✓ Fet"
-                            expired -> "Vençut"
-                            dueToday -> "Avui"
-                            reminder.date.isBlank() -> "Sense data límit"
-                            else -> "Data límit"
+                Column(
+                    Modifier.fillMaxWidth().background(Palette.Highlight, RoundedCornerShape(18.dp))
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                ) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = reminder.done, onCheckedChange = { store.toggle(reminder.id, it) })
+                        Column(Modifier.weight(1f)) {
+                            Text(reminder.title, style = Type.Body.copy(
+                                color = if (reminder.done) Palette.InkMuted else Palette.Ink,
+                                fontWeight = FontWeight.SemiBold))
+                            val dueLabel = when {
+                                reminder.done -> "✓ Fet"
+                                expired -> "Vençut"
+                                dueToday -> "Avui"
+                                reminder.date.isBlank() -> "Sense data límit"
+                                else -> "Data límit"
+                            }
+                            val formatted = reminder.deadline?.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                            Text(if (formatted == null) dueLabel else "$dueLabel · $formatted",
+                                style = Type.Small.copy(color = if (expired) Palette.Accent else Palette.InkSoft))
+                            if (reminder.notes.isNotBlank())
+                                Text(reminder.notes,
+                                    style = Type.Tiny.copy(color = Palette.InkMuted), maxLines = 2)
                         }
-                        val formatted = reminder.deadline?.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                        Text(if (formatted == null) dueLabel else dueLabel + " · " + formatted,
-                            style = Type.Small.copy(color = if(expired) Palette.Accent else Palette.InkSoft))
-                        if (reminder.notes.isNotBlank())
-                            Text(reminder.notes, style = Type.Tiny.copy(color = Palette.InkMuted), maxLines = 2)
                     }
-                    OutlinedButton(onClick = { editing = reminder }) { Text("Editar") }
-                    TextButton(onClick = { store.delete(reminder.id) }) { Text("✕") }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { editing = reminder }) { Text("Editar") }
+                        TextButton(onClick = { store.delete(reminder.id) }) { Text("Treure") }
+                    }
                 }
             }
         }
