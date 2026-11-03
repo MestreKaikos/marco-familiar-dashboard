@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light"><meta name="theme-color" content="#f7f0e6"><meta name="apple-mobile-web-app-capable" content="yes">
-<title>Marc Familiar · Compra, sopars, tasques i fotos</title>
+<meta name="color-scheme" content="light"><meta name="theme-color" content="#f5f6f1"><meta name="apple-mobile-web-app-capable" content="yes">
+<title>Marc Familiar · La casa al dia</title>
 <style>
 :root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#26231e;background:#f7f0e6}
 *{box-sizing:border-box}
@@ -55,13 +55,101 @@ button:focus-visible,input:focus-visible{outline:3px solid #7c9ef1}
 select{font:inherit;background:#fffcf9;border:1px solid #e4d6c2;color:#26231e}
 #photoPreview{display:none;width:100%;max-height:270px;object-fit:contain;border-radius:12px;margin:12px 0}
 @media(max-width:430px){.row{flex-wrap:wrap}.row input{min-width:160px}.panel{padding:16px}main{padding-top:10px}}
+
+/* Marc Familiar 2.0 · llenguatge visual càlid, accessible i mòbil primer */
+:root{--bg:#f5f6f1;--surface:#ffffff;--ink:#1c3029;--muted:#66776f;--border:#e4eae4;--green:#214c3c;--green2:#326f55;--lime:#e5f1e8;--shadow:0 12px 38px #263c2b0b;background:var(--bg);color:var(--ink)}
+html{scroll-behavior:smooth}
+body{background:radial-gradient(ellipse at 110% -10%,#e6eee8 0%,transparent 32%),var(--bg);padding-bottom:env(safe-area-inset-bottom);-webkit-font-smoothing:antialiased}
+main{max-width:960px;padding:16px 20px 112px}
+h1,h2,h3{color:var(--ink);letter-spacing:-.04em}
+h1{font-size:24px;line-height:1.12;font-weight:800}
+h2{font-size:21px;font-weight:780}
+p{color:var(--muted)}
+.app-header{padding:10px 0 28px}
+.brand{display:flex;align-items:center;gap:13px}.brand-mark{height:47px;width:47px;display:grid;place-items:center;border-radius:17px;background:var(--green);color:#fff;font-size:38px;line-height:1;box-shadow:0 8px 18px #214c3c25}
+.brand-subtitle{display:block;margin-top:5px;font-size:12px;font-weight:520;color:var(--muted)}
+.panel{border:1px solid var(--border);padding:23px;border-radius:25px;background:var(--surface);box-shadow:var(--shadow)}
+#auth{margin:10vh auto;max-width:500px;padding:30px}
+#auth h2{font-size:29px}
+#auth p{font-size:14px}
+#auth .row{align-items:stretch}
+input,select,textarea{background:#fafcf9!important;border:1px solid #d9e3dc!important;border-radius:14px!important;color:var(--ink)!important;min-height:45px;transition:border-color .15s,box-shadow .15s}
+input:focus,select:focus,textarea:focus{border-color:#4a9970!important;box-shadow:0 0 0 3px #2d835322}
+button{border-radius:13px;background:#e9f0e8;color:var(--ink);font-weight:650;transition:transform .15s,background .15s}
+button:active{transform:scale(.98)}
+button.primary{background:var(--green);color:white;box-shadow:0 4px 13px #224d3d25}
+button.primary:hover{background:var(--green2)}
+button.ghost{color:var(--green);background:#e9f0e7}
+button.small{padding:9px 13px;font-size:12px}
+.disconnect-button{font-size:12px}
+.pill{background:#e7f1e7;color:#26583d;font-weight:700;font-size:12px}
+#message{margin:0 0 10px}
+#syncTime{display:flex;align-items:center;gap:6px;color:var(--green2);font-weight:550;font-size:12px}
+#syncTime:before{content:"";display:inline-block;height:7px;width:7px;border-radius:50%;background:#55a86b}
+#application{padding-bottom:100px}
+#application>.panel[data-tab]{display:none;border:0;box-shadow:none;background:transparent;padding:0;margin:0}
+#application>.panel[data-tab].active{display:block}
+.welcome-hero{position:relative;overflow:hidden;background:linear-gradient(115deg,#214c3c,#35674f 80%);color:#fff;min-height:198px;border-radius:28px;padding:28px 30px;box-shadow:0 15px 28px #214c3c25}
+.welcome-hero h2{color:white;font-size:38px;margin:12px 0 6px;font-weight:810;letter-spacing:-.055em}
+.welcome-hero p{color:#d7ecdc;font-size:14px;margin:0;text-transform:capitalize}
+.eyebrow{color:#cae8d0;font-size:10px;letter-spacing:.2em;font-weight:850}
+.hero-accent{position:absolute;right:8px;bottom:-60px;font-size:240px;line-height:1;opacity:.09;pointer-events:none;transform:rotate(-11deg)}
+.overview-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:28px 2px 14px}
+.overview-heading h2{margin:0;font-size:22px}
+.live-dot{font-size:11px;color:#407e54;font-weight:650;background:#e7f2e8;border-radius:50px;padding:8px 11px}
+.summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.summary-card{background:#fff;border:1px solid var(--border);min-height:155px;border-radius:23px;padding:19px;text-align:left;display:flex;flex-direction:column;align-items:flex-start;box-shadow:var(--shadow)}
+.summary-icon{font-size:27px;display:block}
+.summary-label{color:#6a786f;font-size:13px;margin-top:10px}
+.summary-card strong{font-size:35px;line-height:1.15;font-weight:830;color:var(--ink);margin-top:2px}
+.summary-card small{color:#78867d;font-size:11px;margin-top:6px}
+.reminder-summary{background:#eaf1e8}.grocery-summary{background:#fff2e6}.rai-summary{background:#f5edfb}.photos-summary{background:#ecf3f8}
+.overview-next{background:#fff;border:1px solid var(--border);padding:20px 22px;border-radius:24px;margin-top:17px}
+.overview-next h2{margin:0;font-size:20px}
+.upcoming-item{padding:12px 0;border-bottom:1px solid #e9eee8;display:flex;gap:12px;align-items:center}
+.upcoming-item:last-child{border-bottom:0}
+.upcoming-dot{font-size:19px}
+.upcoming-content{display:flex;flex-direction:column;gap:5px;min-width:0}
+.upcoming-content strong{font-size:14px;font-weight:650;overflow-wrap:anywhere}
+.upcoming-content small{font-size:12px;color:var(--muted)}
+.upcoming-content small.urgent{color:#b34b31;font-weight:750}
+.section-divider{display:flex;align-items:center;gap:14px;color:#78877d;font-size:12px;font-weight:670;margin:25px 0}
+.section-divider:before,.section-divider:after{content:"";height:1px;background:#dfe6df;flex:1}
+#application>.panel[data-tab="recordatoris"]{background:white;padding:24px;border-radius:26px;border:1px solid var(--border);box-shadow:var(--shadow)}
+#application>.panel[data-tab="recordatoris"]>h2{font-size:25px}
+.subpanel{background:#f5f8f3;border:1px solid #e6eee5;padding:20px;border-radius:23px;margin-bottom:0}
+#reminderItems>.item,#items>.item{padding:15px 4px}
+.item{border-color:var(--border);gap:12px;flex-wrap:wrap}
+.item .name{font-size:14px;line-height:1.4;font-weight:570}
+.item input[type=checkbox]{accent-color:var(--green2);width:22px;height:22px;min-height:22px;cursor:pointer}
+.item small{line-height:1.6}
+.item button{flex-shrink:0}
+#application>.panel[data-tab="rai"],#application>.panel[data-tab="fotos"]{background:white;border:1px solid var(--border);border-radius:25px;padding:24px;box-shadow:var(--shadow)}
+.photo-card{border:1px solid var(--border);padding:14px;background:#fbfcfa;border-radius:16px}
+.photo-card img{border-radius:15px}
+.app-nav{max-width:530px;left:50%;transform:translateX(-50%);right:auto;bottom:12px;width:calc(100% - 24px);padding:7px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid #e0e9df;border-radius:23px;box-shadow:0 12px 38px #172f241f;background:#fffffff2}
+.app-nav button{min-height:58px;gap:1px;border-radius:17px;font-size:11px;color:#77877b;background:transparent;font-weight:650}
+.app-nav button span{font-size:24px}
+.app-nav button.active{background:#e5f0e6;color:#1e533a}
+#application>.row:last-child{padding:18px 4px;gap:12px}
+#application>.row:last-child button{white-space:nowrap}
+#raiAddTask,#raiAddReward{border-top:1px solid #e7eee5;padding-top:16px}
+#photoInput::file-selector-button{background:#e4efe5;color:var(--green);font-weight:750}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #4da975;outline-offset:2px}
+@media(min-width:720px){.summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.summary-card{min-height:170px}.summary-card strong{font-size:42px}.app-header{padding-top:18px}.welcome-hero{padding:36px;min-height:220px}}
+@media(max-width:480px){main{padding:12px 14px 100px}.app-header{padding:8px 2px 20px}.brand-mark{width:43px;height:43px;font-size:34px}.brand h1{font-size:22px}.panel{padding:17px;border-radius:22px}#application>.panel[data-tab="recordatoris"],#application>.panel[data-tab="rai"],#application>.panel[data-tab="fotos"]{padding:17px}.welcome-hero{padding:26px 23px;min-height:180px}.welcome-hero h2{font-size:34px}.summary-card{min-height:142px;padding:17px}.summary-card strong{font-size:34px}.section-divider{margin:20px 0}.subpanel{padding:16px}.app-nav{bottom:8px}.app-nav button{min-height:57px}.item button.small{padding:8px 11px}.row input{min-width:0}#addProduct input{min-width:120px!important}#addReminder input{width:100%}#auth{margin:6vh auto;padding:22px}#auth .row{flex-wrap:wrap}#auth .row>*{width:100%;min-width:0}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
+
 </style>
 </head>
 <body>
 <main>
-  <header>
-    <h1>🏡 Marc Familiar</h1>
-    <button class="small ghost" id="disconnect" hidden>Desconnectar</button>
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">⌂</span>
+      <div><h1>Marc Familiar</h1><span class="brand-subtitle">La casa, una mica més fàcil.</span></div>
+    </div>
+    <button class="small ghost disconnect-button" id="disconnect" hidden>Sortir <span aria-hidden="true">↗</span></button>
   </header>
   <div id="auth" class="panel">
     <h2>Connectar la família</h2>
@@ -74,16 +162,36 @@ select{font:inherit;background:#fffcf9;border:1px solid #e4d6c2;color:#26231e}
   </div>
   <div id="application" hidden>
     <p id="message" aria-live="polite"></p>
-    <section class="panel" data-tab="compra">
-      <div class="row" style="justify-content:space-between;margin-bottom:14px">
-        <h2 style="margin:0">🛒 Llista de la compra</h2>
-        <span class="pill" id="pendingCount">0 pendents</span>
+    <section class="panel overview-page" data-tab="avui">
+      <div class="welcome-hero">
+        <span class="eyebrow">EL NOSTRE DIA A DIA</span>
+        <h2 id="welcomeTitle">Bon dia! <span aria-hidden="true">☀️</span></h2>
+        <p id="todayDate">Tot el que importa a casa, en un sol lloc.</p>
+        <div class="hero-accent" aria-hidden="true">✦</div>
       </div>
-      <form id="addProduct" class="row">
-        <input id="productName" placeholder="Afegir producte..." required maxlength="80" aria-label="Nou producte"/>
-        <button class="primary" type="submit">Afegir</button>
-      </form>
-      <div id="items" style="margin-top:14px"></div>
+      <div class="overview-heading"><h2>Un cop d'ull</h2><span class="live-dot">Compartit en família</span></div>
+      <div class="summary-grid">
+        <button class="summary-card reminder-summary" type="button" data-go="recordatoris">
+          <span class="summary-icon">📌</span><span class="summary-label">Recordatoris</span>
+          <strong id="overviewReminders">—</strong><small id="overviewRemindersDetail">Pendents</small>
+        </button>
+        <button class="summary-card grocery-summary" type="button" data-go="recordatoris">
+          <span class="summary-icon">🛒</span><span class="summary-label">Compra</span>
+          <strong id="overviewGroceries">—</strong><small>Productes pendents</small>
+        </button>
+        <button class="summary-card rai-summary" type="button" data-go="rai">
+          <span class="summary-icon">⭐</span><span class="summary-label">En Rai</span>
+          <strong id="overviewRai">—</strong><small id="overviewRaiDetail">Feines d'avui</small>
+        </button>
+        <button class="summary-card photos-summary" type="button" data-go="fotos">
+          <span class="summary-icon">📷</span><span class="summary-label">Fotos</span>
+          <strong id="overviewPhotos">—</strong><small>Records compartits</small>
+        </button>
+      </div>
+      <div class="overview-next">
+        <div class="row" style="justify-content:space-between"><h2>📅 El més proper</h2><button type="button" class="small ghost" data-go="recordatoris">Veure tots →</button></div>
+        <div id="overviewUpcoming" class="upcoming-list"></div>
+      </div>
     </section>
     <section class="panel" data-tab="recordatoris">
       <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -103,6 +211,18 @@ select{font:inherit;background:#fffcf9;border:1px solid #e4d6c2;color:#26231e}
         </div>
       </form>
       <div id="reminderItems" style="margin-top:16px"></div>
+      <div class="section-divider"><span>També per tenir-ho tot a punt</span></div>
+      <section class="subpanel shopping-section">
+            <div class="row" style="justify-content:space-between;margin-bottom:14px">
+              <h2 style="margin:0">🛒 Llista de la compra</h2>
+              <span class="pill" id="pendingCount">0 pendents</span>
+            </div>
+            <form id="addProduct" class="row">
+              <input id="productName" placeholder="Què falta a casa?" required maxlength="80" aria-label="Nou producte"/>
+              <button class="primary" type="submit">Afegir</button>
+            </form>
+            <div id="items" style="margin-top:14px"></div>
+          </section>
     </section>
     <section class="panel" data-tab="rai">
       <div class="row" style="justify-content:space-between;margin-bottom:12px">
@@ -160,8 +280,8 @@ select{font:inherit;background:#fffcf9;border:1px solid #e4d6c2;color:#26231e}
       <div id="photoItems"></div>
     </section>
     <nav class="app-nav" aria-label="Seccions de Marc Familiar">
-      <button type="button" data-open="compra"><span>🛒</span>Compra</button>
-      <button type="button" data-open="recordatoris"><span>📌</span>Recordatoris</button>
+      <button type="button" data-open="avui"><span>⌂</span>Avui</button>
+      <button type="button" data-open="recordatoris"><span>📌</span>Pendents</button>
       <button type="button" data-open="fotos"><span>📸</span>Fotos</button>
       <button type="button" data-open="rai"><span>⭐</span>Rai</button>
     </nav>
@@ -182,7 +302,7 @@ let photoBusy = false;
 let photos = [];
 const $ = id => document.getElementById(id);
 function openTab(name){
-  if(!['compra','recordatoris','fotos','rai'].includes(name)) name='compra';
+  if(!['avui','recordatoris','fotos','rai'].includes(name)) name='avui';
   document.querySelectorAll('[data-tab]').forEach(el=>el.classList.toggle('active',el.dataset.tab===name));
   document.querySelectorAll('[data-open]').forEach(el=>{
     const active=el.dataset.open===name;
@@ -193,8 +313,9 @@ function openTab(name){
   window.scrollTo({top:0,behavior:'instant'});
 }
 document.querySelectorAll('[data-open]').forEach(el=>el.addEventListener('click',()=>openTab(el.dataset.open)));
-try{openTab(sessionStorage.getItem('marc-active-tab')||'compra')}catch(_){openTab('compra')}
+try{openTab(sessionStorage.getItem('marc-active-tab')||'avui')}catch(_){openTab('compra')}
 
+document.querySelectorAll('[data-go]').forEach(el=>el.addEventListener('click',()=>openTab(el.dataset.go)));
 function message(text,error) {
   $('message').textContent=text||'';
   $('message').className=error?'error':'good';
@@ -259,6 +380,36 @@ function render(){
     line.appendChild(del);list.appendChild(line);
   });
   renderReminders();
+  renderOverview();
+}
+function renderOverview(){
+  const now=new Date(),today=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
+  const hour=now.getHours();
+  $('welcomeTitle').textContent=hour<12?'Bon dia! ☀️':hour<20?'Bona tarda! 🌿':'Bona nit! 🌙';
+  $('todayDate').textContent=now.toLocaleDateString('ca-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const pendingRem=(data.reminders||[]).filter(x=>!x.done),overdue=pendingRem.filter(x=>x.date&&x.date<today);
+  const dueToday=pendingRem.filter(x=>x.date===today);
+  $('overviewReminders').textContent=pendingRem.length;
+  $('overviewRemindersDetail').textContent=overdue.length?overdue.length+' vençuts · prioritari':dueToday.length?dueToday.length+' per avui':'Per fer';
+  $('overviewGroceries').textContent=(data.groceries||[]).filter(x=>!x.bought).length;
+  $('overviewPhotos').textContent=photos.length;
+  if(raiSnapshot){
+    const completed=new Set((raiSnapshot.done||[]).filter(d=>d.date===raiSnapshot.today).map(d=>d.taskId+'|'+d.slot));
+    const due=(raiSnapshot.tasks||[]).filter(t=>t.active&&t.dueToday);
+    const open=due.reduce((n,t)=>n+(t.slots||'única').split(',').filter(slot=>!completed.has(t.id+'|'+slot)).length,0);
+    $('overviewRai').textContent=open;
+    $('overviewRaiDetail').textContent=(raiSnapshot.points||0)+' punts disponibles';
+  }
+  const items=pendingRem.slice().sort((a,b)=>(a.date||'9999-99-99').localeCompare(b.date||'9999-99-99')).slice(0,4);
+  const list=$('overviewUpcoming');list.replaceChildren();
+  if(!items.length){list.appendChild(makeText('p','Tot al dia! No hi ha recordatoris pendents.'));return;}
+  items.forEach(rem=>{
+    const row=makeText('div','','upcoming-item'),badge=makeText('span','📌','upcoming-dot');
+    const content=makeText('div','','upcoming-content');
+    const heading=makeText('strong',rem.title),date=makeText('small',rem.date?(rem.date<today?'Vençut · ':rem.date===today?'Avui · ':'')+reminderDateLabel(rem.date):'Sense data límit');
+    if(rem.date&&rem.date<=today)date.classList.add('urgent');
+    content.append(heading,date);row.append(badge,content);list.appendChild(row);
+  });
 }
 // Data límit opcional, estat pendent/fet i edició, sincronitzats al mateix Sheets.
 function reminderDateLabel(value){
@@ -332,7 +483,7 @@ function raiAction(action,payload={},onDone){
     if(!result||!result.ok){
       $('raiTaskStatus').textContent=(result&&result.error)||'No s’han pogut desar les tasques';return;
     }
-    raiSnapshot=result.data;renderRai();
+    raiSnapshot=result.data;renderRai();renderOverview();
     $('raiTaskStatus').textContent='';
     // Recarrega només el saldo i la llista en l'altra API, sense modificar punts.
     if(!busy)call([]);
@@ -465,7 +616,7 @@ async function refreshPhotos(){
   if(!key||photoBusy)return;
   try{
     const response=await photoCall('photo_list',{});
-    photos=response.photos||[];renderPhotos();
+    photos=response.photos||[];renderPhotos();renderOverview();
   }catch(err){photoStatus(err.message,true);}
 }
 // Manté el comportament de producció: pujada d'originals JPG/PNG/WebP de fins a 5 MB.
