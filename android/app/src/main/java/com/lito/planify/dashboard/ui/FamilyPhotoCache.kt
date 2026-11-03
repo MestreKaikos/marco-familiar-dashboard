@@ -73,10 +73,11 @@ class FamilyPhotoCache(context: Context) {
     }
 
     suspend fun refresh(sync: FamilySync, minAgeMillis: Long = 0L) = mutex.withLock {
-        if (!sync.connected || (minAgeMillis > 0L && !shouldCheck(minAgeMillis))) {
+        if (!sync.connected) {
             message = if (photos.isEmpty()) "Activa la sincronització familiar per rebre fotografies." else null
             return@withLock
         }
+        if (minAgeMillis > 0L && !shouldCheck(minAgeMillis)) return@withLock
         refreshing = true
         try {
             val response = sync.photoAction("photo_list")
