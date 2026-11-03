@@ -477,3 +477,6 @@ assert.equal(syncCal([{type:"calendar_import",calendars:[secondCal]}]).data.cale
 assert.equal(syncCal([{type:"calendar_import",calendars:[secondCal]}]).data.calendars.length,1);
 assert.equal(syncCal([{...secondCal,name:"Rai",enabled:false}]).data.calendars[0].name,"Rai");
 console.log("OK · Calendaris privats: validació, fusió, colors, activació i eliminacions persistents.");
+
+assert.equal(syncCal([{...calOp,id:"re-added"}]).ok,true,"Es pot tornar a afegir un calendari eliminat expressament");
+assert.equal(syncCal([{...calOp,id:"re-added-duplicate"}]).ok,false,"Una fila eliminada no ha d'amagar duplicats actius");

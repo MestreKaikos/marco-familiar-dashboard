@@ -109,10 +109,10 @@ function calendarSet_(op, importing) {
   if(!/^#[0-9A-F]{6}$/.test(color))throw new Error("Color de calendari invàlid");
   if(typeof op.enabled!=="boolean")throw new Error("Estat de calendari invàlid");
   const records=calendarRecords_(),tab=calendarSheet_();
-  const index=records.findIndex(c=>c.id===id),duplicate=records.find(c=>c.url===url&&c.id!==id);
+  const index=records.findIndex(c=>c.id===id),duplicate=records.find(c=>c.url===url&&c.id!==id&&!c.deleted);
   // Una importació antiga no reactiva calendaris eliminats ni sobreescriu els de la web.
   if(importing&&(index>=0||records.some(c=>c.url===url)))return;
-  if(duplicate&&!duplicate.deleted)throw new Error("Aquest calendari ja està afegit");
+  if(duplicate)throw new Error("Aquest calendari ja està afegit");
   if((index<0||records[index].deleted)&&records.filter(c=>!c.deleted).length>=MAX_CALENDARS)
     throw new Error("Límit de deu calendaris");
   const row=[id,name,url,color,op.enabled,false];
