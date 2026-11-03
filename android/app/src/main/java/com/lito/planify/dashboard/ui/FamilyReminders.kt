@@ -3,6 +3,8 @@ package com.lito.planify.dashboard.ui
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -112,11 +114,39 @@ fun rememberFamilyReminders(): FamilyReminders {
     }
 }
 
+/** Recordatoris i compra conviuen a la mateixa pantalla; Família només gestiona en Rai. */
 @Composable
-fun FamilyRemindersScreen(store: FamilyReminders, today: LocalDate) {
+fun FamilyRemindersScreen(
+    store: FamilyReminders,
+    today: LocalDate,
+    family: LocalFamilyStore,
+    connected: Boolean,
+    pending: Int
+) {
+    androidx.compose.foundation.layout.BoxWithConstraints(
+        Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 20.dp)
+    ) {
+        if (maxWidth >= 850.dp) {
+            Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                RemindersPanel(store, today, Modifier.weight(1.1f).fillMaxHeight())
+                FamilyShoppingPanel(family, connected, pending, Modifier.weight(1f).fillMaxHeight())
+            }
+        } else {
+            // Un únic apartat de menú, amb els dos panells apilats al mòbil vertical.
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                RemindersPanel(store, today, Modifier.fillMaxWidth().height(490.dp))
+                FamilyShoppingPanel(family, connected, pending, Modifier.fillMaxWidth().height(500.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun RemindersPanel(store: FamilyReminders, today: LocalDate, modifier: Modifier) {
     var editing by remember { mutableStateOf<FamilyReminder?>(null) }
     var creating by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize().padding(30.dp)) {
+    Column(modifier.background(Palette.Card, RoundedCornerShape(28.dp)).padding(20.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("📌 Recordatoris", style = Type.Large.copy(fontWeight = FontWeight.Bold))
@@ -125,12 +155,12 @@ fun FamilyRemindersScreen(store: FamilyReminders, today: LocalDate) {
             }
             Button(onClick = { creating = true }) { Text("+ Recordatori") }
         }
-        LazyColumn(Modifier.fillMaxSize().padding(top = 18.dp),
+        LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(top = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(store.items, key = { it.id }) { reminder ->
                 val expired = !reminder.done && reminder.deadline?.isBefore(today) == true
                 val dueToday = !reminder.done && reminder.deadline == today
-                Row(Modifier.fillMaxWidth().background(Palette.Card, RoundedCornerShape(18.dp)).padding(14.dp),
+                Row(Modifier.fillMaxWidth().background(Palette.Highlight, RoundedCornerShape(18.dp)).padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Checkbox(checked = reminder.done, onCheckedChange = { store.toggle(reminder.id, it) })
