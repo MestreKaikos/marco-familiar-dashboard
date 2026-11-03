@@ -10,16 +10,16 @@ function harness(path,stored=new Map()){
  let source=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].at(-1)[1];
  const nodes=new Map(),events={},timers=[],requests=[];let now=10_000_000;
  const storage={getItem:k=>stored.get(k)||null,setItem:(k,v)=>stored.set(k,v),removeItem:k=>stored.delete(k)};
- const get=id=>{if(!nodes.has(id))nodes.set(id,{value:'',addEventListener:(name,fn)=>events[id+':'+name]=fn,classList:{toggle(){}},setAttribute(){},replaceChildren(){},appendChild(){},style:{}});return nodes.get(id);};
+ const get=id=>{if(!nodes.has(id))nodes.set(id,{value:'',addEventListener:(name,fn)=>events[id+':'+name]=fn,classList:{toggle(){}},setAttribute(){},children:[],replaceChildren(){this.children=[];},appendChild(node){this.children.push(node);},append(...nodes){this.children.push(...nodes);},style:{}});return nodes.get(id);};
  source=source.replace(/\}\)\(\);\s*$/,`render=renderRai=renderPhotos=renderOverview=()=>{};
  serverCall=(method,...args)=>new Promise((resolve,reject)=>requests.push({method,args,resolve,reject}));
- globalThis.api={call,refreshPhotos,refreshAll,raiAction,prepareQueue,stale,intervals,
+ globalThis.api={calendarPayload,renderCalendars,setData:value=>{data=value;},call,refreshPhotos,refreshAll,raiAction,prepareQueue,stale,intervals,
  start:async()=>{key='a'.repeat(64);await prepareQueue();},
  state:()=>({pendingOps,busy,lastDataAt,lastPhotosAt,lastRaiAt}),
  stamp:()=>{lastDataAt=lastRaiAt=lastPhotosAt=Date.now();}};
  })();`);
  const FakeDate=class extends Date{static now(){return now;}};
- const context={requests,document:{hidden:false,getElementById:get,querySelectorAll:()=>[],addEventListener:(n,f)=>events[n]=f},window:{scrollTo(){},addEventListener:(n,f)=>events[n]=f},sessionStorage:storage,localStorage:storage,crypto:webcrypto,TextEncoder,self:{crypto:webcrypto},Date:FakeDate,setInterval:fn=>timers.push(fn),console};
+ const context={requests,document:{hidden:false,getElementById:get,querySelectorAll:()=>[],createElement:tag=>get('created-'+nodes.size),addEventListener:(n,f)=>events[n]=f},window:{scrollTo(){},addEventListener:(n,f)=>events[n]=f},sessionStorage:storage,localStorage:storage,crypto:webcrypto,TextEncoder,self:{crypto:webcrypto},Date:FakeDate,setInterval:fn=>timers.push(fn),console};
  vm.runInNewContext(source,context);
  return {api:context.api,requests,events,timers,stored,context,nodes,advance:ms=>now+=ms};
 }
@@ -60,6 +60,20 @@ for(const path of paths){
   const h=harness(path);h.nodes.get('dataInterval').value='60';h.events['dataInterval:change']();
   const next=harness(path,h.stored);assert.equal(next.api.intervals.data,60);assert.equal(next.api.intervals.photos,30);
   h.stored.set('marc-sync-intervals',JSON.stringify({data:-1,photos:2}));const invalid=harness(path,h.stored);assert.equal(invalid.api.intervals.data,15);assert.equal(invalid.api.intervals.photos,30);
+ });
+ test(label+': calendaris validats, enllaç ocult i servei antic compatible',async()=>{
+  const h=harness(path);await h.api.start();
+  const values={name:'Família',url:'https://calendar.google.com/calendar/ical/fixture/private-test/basic.ics',color:'#36a070',enabled:true};
+  const op=h.api.calendarPayload(values);assert.equal(op.color,'#36A070');assert.equal(op.enabled,true);
+  for(const url of ['http://localhost/basic.ics','https://calendar.google.com.evil.test/calendar/ical/a/basic.ics',values.url+'?x=1'])
+    assert.throws(()=>h.api.calendarPayload({...values,url}));
+  h.api.renderCalendars();assert.equal(h.nodes.get('calendarSave').disabled,true);
+  h.events['calendarForm:submit']({preventDefault(){}});assert.equal(h.requests.length,0,'el backend antic no rep accions noves');
+  h.api.setData({calendars:[op]});h.api.renderCalendars();assert.equal(h.nodes.get('calendarSave').disabled,false);
+  const text=node=>(node.textContent||'')+(node.children||[]).map(text).join('');
+  assert.ok(!text(h.nodes.get('calendarItems')).includes(values.url));
+  const first=h.api.call([op]);h.requests[0].reject(new Error('offline'));await first;
+  const reloaded=harness(path,h.stored);await reloaded.api.start();assert.equal(reloaded.api.state().pendingOps[0].type,'calendar_set');
  });
  test(label+': accions Rai simultànies s’envien en ordre',async()=>{
   const h=harness(path);await h.api.start();const a=h.api.raiAction('tasks_done',{id:'a'});const b=h.api.raiAction('tasks_done',{id:'b'});
