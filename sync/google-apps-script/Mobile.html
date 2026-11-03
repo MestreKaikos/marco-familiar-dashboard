@@ -140,6 +140,18 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 @media(max-width:480px){main{padding:12px 14px 100px}.app-header{padding:8px 2px 20px}.brand-mark{width:43px;height:43px;font-size:34px}.brand h1{font-size:22px}.panel{padding:17px;border-radius:22px}#application>.panel[data-tab="recordatoris"],#application>.panel[data-tab="rai"],#application>.panel[data-tab="fotos"]{padding:17px}.welcome-hero{padding:26px 23px;min-height:180px}.welcome-hero h2{font-size:34px}.summary-card{min-height:142px;padding:17px}.summary-card strong{font-size:34px}.section-divider{margin:20px 0}.subpanel{padding:16px}.app-nav{bottom:8px}.app-nav button{min-height:57px}.item button.small{padding:8px 11px}.row input{min-width:0}#addProduct input{min-width:120px!important}#addReminder input{width:100%}#auth{margin:6vh auto;padding:22px}#auth .row{flex-wrap:wrap}#auth .row>*{width:100%;min-width:0}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
 
+
+/* Compra i Recordatoris separats en aquesta app web. */
+#application>.panel[data-tab="compra"]{background:white;padding:24px;border-radius:26px;border:1px solid var(--border);box-shadow:var(--shadow)}
+.app-nav{grid-template-columns:repeat(5,minmax(0,1fr));gap:3px;max-width:570px}
+.app-nav button{font-size:10px;padding:8px 1px}
+.app-nav button span{font-size:22px}
+@media(max-width:480px){
+  #application>.panel[data-tab="compra"]{padding:17px}
+  .app-nav{gap:0;padding:6px 4px}
+  .app-nav button{font-size:10px;min-width:0}
+  .app-nav button span{font-size:21px}
+}
 </style>
 </head>
 <body>
@@ -175,7 +187,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
           <span class="summary-icon">📌</span><span class="summary-label">Recordatoris</span>
           <strong id="overviewReminders">—</strong><small id="overviewRemindersDetail">Pendents</small>
         </button>
-        <button class="summary-card grocery-summary" type="button" data-go="recordatoris">
+        <button class="summary-card grocery-summary" type="button" data-go="compra">
           <span class="summary-icon">🛒</span><span class="summary-label">Compra</span>
           <strong id="overviewGroceries">—</strong><small>Productes pendents</small>
         </button>
@@ -192,6 +204,17 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
         <div class="row" style="justify-content:space-between"><h2>📅 El més proper</h2><button type="button" class="small ghost" data-go="recordatoris">Veure tots →</button></div>
         <div id="overviewUpcoming" class="upcoming-list"></div>
       </div>
+    </section>
+    <section class="panel" data-tab="compra">
+      <div class="row" style="justify-content:space-between;margin-bottom:14px">
+      <h2 style="margin:0">🛒 Llista de la compra</h2>
+      <span class="pill" id="pendingCount">0 pendents</span>
+      </div>
+      <form id="addProduct" class="row">
+      <input id="productName" placeholder="Què falta a casa?" required maxlength="80" aria-label="Nou producte"/>
+      <button class="primary" type="submit">Afegir</button>
+      </form>
+      <div id="items" style="margin-top:14px"></div>
     </section>
     <section class="panel" data-tab="recordatoris">
       <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -211,18 +234,6 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
         </div>
       </form>
       <div id="reminderItems" style="margin-top:16px"></div>
-      <div class="section-divider"><span>També per tenir-ho tot a punt</span></div>
-      <section class="subpanel shopping-section">
-            <div class="row" style="justify-content:space-between;margin-bottom:14px">
-              <h2 style="margin:0">🛒 Llista de la compra</h2>
-              <span class="pill" id="pendingCount">0 pendents</span>
-            </div>
-            <form id="addProduct" class="row">
-              <input id="productName" placeholder="Què falta a casa?" required maxlength="80" aria-label="Nou producte"/>
-              <button class="primary" type="submit">Afegir</button>
-            </form>
-            <div id="items" style="margin-top:14px"></div>
-          </section>
     </section>
     <section class="panel" data-tab="rai">
       <div class="row" style="justify-content:space-between;margin-bottom:12px">
@@ -281,7 +292,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
     </section>
     <nav class="app-nav" aria-label="Seccions de Marc Familiar">
       <button type="button" data-open="avui"><span>⌂</span>Avui</button>
-      <button type="button" data-open="recordatoris"><span>📌</span>Pendents</button>
+      <button type="button" data-open="compra"><span>🛒</span>Compra</button>
+      <button type="button" data-open="recordatoris"><span>📌</span>Recordatoris</button>
       <button type="button" data-open="fotos"><span>📸</span>Fotos</button>
       <button type="button" data-open="rai"><span>⭐</span>Rai</button>
     </nav>
@@ -323,7 +335,7 @@ function serverCall(method,...args){
 }
 
 function openTab(name){
-  if(!['avui','recordatoris','fotos','rai'].includes(name)) name='avui';
+  if(!['avui','compra','recordatoris','fotos','rai'].includes(name)) name='avui';
   document.querySelectorAll('[data-tab]').forEach(el=>el.classList.toggle('active',el.dataset.tab===name));
   document.querySelectorAll('[data-open]').forEach(el=>{
     const active=el.dataset.open===name;
