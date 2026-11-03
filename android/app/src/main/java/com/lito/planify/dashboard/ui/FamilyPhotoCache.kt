@@ -39,6 +39,13 @@ class FamilyPhotoCache(context: Context) {
     var message by mutableStateOf<String?>(null)
         private set
 
+    private var lastSuccessfulCheckAt = prefs.getLong("last_photo_check_epoch", 0L)
+    private fun shouldCheck(maxAgeMillis: Long): Boolean {
+        val now = System.currentTimeMillis()
+        return lastSuccessfulCheckAt <= 0L || now < lastSuccessfulCheckAt ||
+            now - lastSuccessfulCheckAt >= maxAgeMillis
+    }
+
     private data class RemotePhoto(val id: String, val name: String)
 
     private fun cachedFile(id: String) = File(folder, "$id.jpg")
@@ -65,8 +72,8 @@ class FamilyPhotoCache(context: Context) {
         photos = items
     }
 
-    suspend fun refresh(sync: FamilySync) = mutex.withLock {
-        if (!sync.connected) {
+    suspend fun refresh(sync: FamilySync, minAgeMillis: Long = 0L) = mutex.withLock {
+        if (!sync.connected || (minAgeMillis > 0L && !shouldCheck(minAgeMillis))) {
             message = if (photos.isEmpty()) "Activa la sincronització familiar per rebre fotografies." else null
             return@withLock
         }
@@ -144,6 +151,8 @@ class FamilyPhotoCache(context: Context) {
                 }
             }
             writeIndex(valid)
+            lastSuccessfulCheckAt = System.currentTimeMillis()
+            prefs.edit().putLong("last_photo_check_epoch", lastSuccessfulCheckAt).apply()
             message = when {
                 firstError != null -> "Algunes fotos no s'han pogut baixar. Es tornarà a provar."
                 valid.size < remote.size -> "Baixant fotos noves · ${valid.size} de ${remote.size}"
