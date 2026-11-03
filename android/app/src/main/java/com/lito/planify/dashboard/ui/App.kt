@@ -66,6 +66,9 @@ import com.lito.planify.dashboard.ui.theme.Palette
 import com.lito.planify.dashboard.ui.theme.Type
 import java.time.LocalDate
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.awaitCancellation
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 
 enum class Page(val label: String, val icon: ImageVector) {
     Today("Avui", Icons.Outlined.Today),
@@ -137,15 +140,27 @@ fun DashboardApp(
         family.onGroceryMutation = { op -> sync.queue(op) }
         family.onFamilyMutation = { op -> sync.queue(op) }
         try {
-            while (true) {
-                sync.synchronize(dinners, family)
-                delay(45_000)
-            }
+            awaitCancellation()
         } finally {
             dinners.onLocalChange = null
             family.onGroceryMutation = null
             family.onFamilyMutation = null
             reminders.onMutation = null
+        }
+    }
+    // En obrir el marc: si fa més de 5 minuts, consulta les dades.
+    // Després comprova el rellotge cada minut, però només fa una petició quan toca.
+    LaunchedEffect(sync.connected, sync.dataIntervalMinutes) {
+        if (!sync.connected) return@LaunchedEffect
+        sync.synchronize(dinners, family, minAgeMillis = 5 * 60_000L)
+        while (true) {
+            delay(60_000L)
+            sync.synchronize(dinners, family, minAgeMillis = sync.dataIntervalMinutes * 60_000L)
+        }
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        coroutineScope.launch {
+            sync.synchronize(dinners, family, minAgeMillis = 5 * 60_000L)
         }
     }
     LaunchedEffect(sync.pendingCount, sync.connected) {
