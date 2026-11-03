@@ -35,16 +35,43 @@ jobs:
         run: sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0"
       - name: Configura Gradle
         uses: gradle/actions/setup-gradle@v4
-      - name: Compila la versió debug
+      - name: Recupera la clau estable de signatura
+        env:
+          MARC_KEYSTORE_B64: ${{ secrets.MARC_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          KEYSTORE_B64="${MARC_KEYSTORE_B64:-$ANDROID_KEYSTORE_B64}"
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::Falta la JKS privada als secrets de GitHub. No es crearà cap APK amb signatura aleatòria."
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > android/marc-familiar-signing.jks
+          chmod 600 android/marc-familiar-signing.jks
+      - name: Compila l'APK amb la signatura estable
+        env:
+          MARC_SIGNING_PASSWORD: ${{ secrets.MARC_SIGNING_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+          MARC_SIGNING_ALIAS: ${{ secrets.MARC_SIGNING_ALIAS || secrets.KEY_ALIAS }}
+          MARC_SIGNING_KEY_PASSWORD: ${{ secrets.MARC_SIGNING_KEY_PASSWORD || secrets.KEY_PASSWORD }}
         working-directory: android
         run: |
+          set -euo pipefail
+          if [ -z "$MARC_SIGNING_PASSWORD" ] || [ -z "$MARC_SIGNING_ALIAS" ] || [ -z "$MARC_SIGNING_KEY_PASSWORD" ]; then
+            echo "::error::Falten secrets de signatura. No es generarà cap APK debug no actualitzable."
+            exit 1
+          fi
           chmod +x ./gradlew
           ./gradlew :app:assembleDebug :app:testDebugUnitTest --no-daemon --stacktrace
+          # La compilació ha de portar la signatura real, mai la debug aleatòria.
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/debug/app-debug.apk
+      - name: Esborra la JKS temporal
+        if: always()
+        run: rm -f android/marc-familiar-signing.jks
       - name: Desa l'APK de prova
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: marc-familiar-android-debug
+          name: marc-familiar-mobil-signat-testqr
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
