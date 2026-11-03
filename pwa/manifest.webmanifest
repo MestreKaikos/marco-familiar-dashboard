@@ -1,0 +1,34 @@
+{
+  "id": "/",
+  "name": "Marc Familiar",
+  "short_name": "Marc Familiar",
+  "description": "La casa al dia: recordatoris, compra, fotos i feines d'en Rai.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "standalone"
+  ],
+  "orientation": "any",
+  "background_color": "#f5f6f1",
+  "theme_color": "#214c3c",
+  "lang": "ca",
+  "categories": [
+    "lifestyle",
+    "productivity"
+  ],
+  "icons": [
+    {
+      "src": "/api/icon?size=192",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/api/icon?size=512",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
+}
