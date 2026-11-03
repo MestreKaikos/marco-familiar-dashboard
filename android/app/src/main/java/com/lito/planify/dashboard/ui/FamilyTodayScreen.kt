@@ -47,8 +47,8 @@ private const val WEEK_DAYS = 7
  * - arriba, un bloque ancho con la hora, la fecha y el tiempo de hoy y de los próximos días, y a la derecha lo
  *   siguiente que toca (con cuánto falta);
  * - en el centro, la semana: hoy y los 6 días siguientes, cada uno con los turnos (Shifter) en una pastilla, todas las
- *   citas (familia, fútbol, Barça…), como la pestaña Calendario, i al peu el sopar previst, editable tocant cada dia;
- * - abajo, tres resúmenes que llevan a su pestaña: tareas de los niños, compra, y luz y coche.
+ *   cites familiars i recordatoris amb data límit;
+ * - a baix, recordatoris urgents, compra pendent i feines d'en Rai, amb accés al panell adequat.
  */
 @Composable
 fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalFamilyStore, onOpen: (Page) -> Unit) {
@@ -87,10 +87,10 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
                 )
             }
         }
-        Row(Modifier.fillMaxWidth().weight(0.22f), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            LocalShoppingTile(family, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Tasks) }
-            LocalRaiTile(family, today, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Tasks) }
-            ReminderTile(reminders, today, Modifier.weight(1.25f).fillMaxHeight()) { onOpen(Page.Reminders) }
+        Row(Modifier.fillMaxWidth().weight(0.24f), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            ReminderTile(reminders, today, Modifier.weight(1.3f).fillMaxHeight()) { onOpen(Page.Reminders) }
+            LocalShoppingTile(family, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Reminders) }
+            LocalRaiTile(family, today, Modifier.weight(1.1f).fillMaxHeight()) { onOpen(Page.Tasks) }
         }
     }
 
@@ -264,7 +264,9 @@ private fun LocalShoppingTile(store: LocalFamilyStore, modifier: Modifier, onCli
 private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Modifier, onClick: () -> Unit) {
     val tasks = store.chores.filter { it.owner == "Rai" }
     val awaiting = tasks.count { store.status(it, today) == "pending" }
-    val remaining = tasks.count { store.status(it, today) == "todo" }
+    val remaining = tasks.count { store.status(it, today) in setOf("todo", "slots") }
+    val nextTasks = tasks.filter { store.status(it, today) in setOf("todo", "slots") }
+        .take(2).joinToString(" · ") { it.title }
     Tile("Feines d'en Rai", "⭐", Palette.Warm, modifier, onClick) {
         Text(
             if (tasks.isEmpty()) "Afegir feines per a en Rai" else "⭐ ${store.stars} disponibles · $remaining pendents",
@@ -273,8 +275,14 @@ private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Mo
             modifier = Modifier.padding(top = 8.dp)
         )
         Text(
-            if (awaiting > 0) "${awaiting} feina${if (awaiting == 1) "" else "s"} per validar" else "Tasques i recompenses",
+            when {
+                awaiting > 0 -> "${awaiting} feina${if (awaiting == 1) "" else "s"} per validar"
+                nextTasks.isNotBlank() -> nextTasks
+                tasks.isNotEmpty() -> "Tot fet per avui · Recompenses disponibles"
+                else -> "Crea feines i recompenses a Família"
+            },
             style = Type.Tiny.copy(color = if (awaiting > 0) Palette.Accent else Palette.InkMuted),
+            maxLines = 2, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 6.dp)
         )
     }
@@ -284,44 +292,30 @@ private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Mo
 @Composable
 private fun ReminderTile(store: FamilyReminders, today: LocalDate, modifier: Modifier, onClick: () -> Unit) {
     val pending = store.pending()
-    val urgent = pending.filter { reminder ->
-        val deadline = reminder.deadline
-        deadline != null && !deadline.isAfter(today)
-    }
-    val description = when {
-        urgent.isNotEmpty() -> urgent.take(2).joinToString(" · ") { it.title }
-        pending.isNotEmpty() -> pending.take(2).joinToString(" · ") { it.title }
+    val overdue = pending.filter { it.deadline?.isBefore(today) == true }
+    val todayReminders = pending.filter { it.date == today.toString() }
+    val upcoming = pending.filter { it.date.isNotBlank() && it.date > today.toString() }.sortedBy { it.date }
+    val withoutDate = pending.filter { it.date.isBlank() }
+    // Primer allò que ja ha vençut, després el que toca avui, després el futur.
+    val priority = (overdue + todayReminders + upcoming + withoutDate).take(3)
+    val headline = when {
+        overdue.isNotEmpty() -> "⚠ ${overdue.size} vençut${if (overdue.size == 1) "" else "s"}"
+        todayReminders.isNotEmpty() -> "📅 ${todayReminders.size} per avui"
+        upcoming.isNotEmpty() -> "${pending.size} pendents · Proper: ${upcoming.first().deadline?.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM"))}"
+        pending.isNotEmpty() -> "${pending.size} pendents sense data"
         else -> "Tot al dia!"
     }
+    val description = if (priority.isEmpty()) "Toca per afegir un recordatori"
+                      else priority.joinToString(" · ") { it.title }
     Tile("Recordatoris", "📌", Palette.Warm, modifier, onClick) {
-        Text(if (urgent.isNotEmpty()) "⚠ " + urgent.size + " vençuts o per avui"
-             else pending.size.toString() + " pendents",
-             style = Type.Body.copy(fontWeight = FontWeight.SemiBold,
-                 color = if(urgent.isNotEmpty()) Palette.Accent else Palette.Ink),
-             maxLines = 1, modifier = Modifier.padding(top = 8.dp))
+        Text(headline,
+            style = Type.Body.copy(fontWeight = FontWeight.SemiBold,
+                color = if(overdue.isNotEmpty()) Palette.Accent else Palette.Ink),
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 8.dp))
         Text(description, style = Type.Tiny.copy(color = Palette.InkSoft),
-             maxLines = 2, overflow = TextOverflow.Ellipsis,
-             modifier = Modifier.padding(top = 6.dp))
-    }
-}
-
-/** Resum discret a la portada, sense canviar-ne la distribució. */
-@Composable
-private fun DinnerTile(dinners: DinnerPlan, today: LocalDate, modifier: Modifier, onClick: () -> Unit) {
-    Tile("Què sopem avui?", "🍽️", Palette.Warm, modifier, onClick) {
-        Text(
-            dinners[today] ?: "Toca per decidir el sopar",
-            style = Type.Body.copy(fontWeight = FontWeight.SemiBold),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 8.dp)
-        )
-        Text(
-            "Toca per editar · també pots planificar la setmana",
-            style = Type.Tiny.copy(color = Palette.InkMuted),
-            maxLines = 2,
-            modifier = Modifier.padding(top = 6.dp)
-        )
+            maxLines = 2, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 6.dp))
     }
 }
 
