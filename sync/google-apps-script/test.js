@@ -412,7 +412,7 @@ for(const section of ['avui','recordatoris','fotos','rai']){
 }
 // La nova pàgina de portada uneix les dues llistes sense alterar els IDs ni les crides.
 assert.ok(!mobileSource.includes('data-tab="compra"'), 'La compra no ha de tenir una pestanya duplicada');
-assert.ok(mobileSource.includes('class="subpanel shopping-section"'), 'La compra ha d'estar dins de Pendents');
+assert.ok(mobileSource.includes('class="subpanel shopping-section"'), "La compra ha d'estar dins de Pendents");
 assert.ok(mobileSource.includes('id="overviewReminders"'));
 assert.ok(mobileSource.includes('id="overviewGroceries"'));
 assert.ok(mobileSource.includes('id="overviewRai"'));
@@ -429,9 +429,9 @@ for(const id of ['addReminder','reminderTitle','reminderDate','reminderNotes','r
   'photoItems','photoNotice']){
   assert.ok(mobileSource.includes('id="'+id+'"'),'Falta element original: '+id);
 }
-assert.ok(mobileSource.includes("familyTasksAction(key,action,payload)"),
+assert.ok(mobileSource.includes("serverCall('familyTasksAction',key,action,payload)"),
   'Les tasques del mòbil han de conservar el servei real');
-assert.ok(mobileSource.includes(".uploadFamilyPhoto(key,"),
+assert.ok(mobileSource.includes("serverCall('uploadFamilyPhoto',key,"),
   'La pujada de 5 MB ha de continuar passant per Fotos.gs');
 assert.ok(mobileSource.includes('5*1024*1024'));
 assert.ok(mobileSource.includes('files.length>20'));
