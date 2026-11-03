@@ -301,6 +301,27 @@ let busy = false;
 let photoBusy = false;
 let photos = [];
 const $ = id => document.getElementById(id);
+// Un únic contracte per a Google Apps Script i per a la futura PWA allotjada.
+function serverCall(method,...args){
+  if(window.MARC_PWA_MODE){
+    return fetch('/api/relay',{
+      method:'POST',credentials:'same-origin',cache:'no-store',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({method,args})
+    }).then(async response=>{
+      const result=await response.json().catch(()=>null);
+      if(!response.ok)throw new Error(result&&result.error||'Servidor no disponible');
+      return result;
+    });
+  }
+  return new Promise((resolve,reject)=>{
+    try{
+      const runner=google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
+      runner[method](...args);
+    }catch(error){reject(error);}
+  });
+}
+
 function openTab(name){
   if(!['avui','recordatoris','fotos','rai'].includes(name)) name='avui';
   document.querySelectorAll('[data-tab]').forEach(el=>el.classList.toggle('active',el.dataset.tab===name));
@@ -324,25 +345,24 @@ function call(ops, onDone) {
   if(!key || busy) return;
   busy=true;
   message('Sincronitzant...',false);
-  google.script.run
-    .withSuccessHandler(function(result){
+  serverCall('apiAction',key,'sync',{ops:ops||[]})
+    .then(function(result){
       busy=false;
       if(!result||!result.ok){
         message((result&&result.error)||'No es pot sincronitzar',true);
         if(result&&/Clau/.test(result.error||'')) showLogin();
         return;
       }
-      data=result.data||{groceries:[],dinners:{}};
+      data=result.data||{groceries:[],dinners:{},reminders:[]};
       render();
       message('',false);
       $('syncTime').textContent='Actualitzat a les '+new Date().toLocaleTimeString('ca-ES',{hour:'2-digit',minute:'2-digit'});
       if(onDone)onDone();
     })
-    .withFailureHandler(function(err){
+    .catch(function(err){
       busy=false;
       message('Sense connexió: '+(err&&err.message||'Error temporal'),true);
-    })
-    .apiAction(key,'sync',{ops:ops||[]});
+    });
 }
 function showLogin(){
   photos=[];renderPhotos();raiSnapshot=null;
@@ -478,19 +498,18 @@ let raiBusy=false,raiSnapshot=null;
 function raiAction(action,payload={},onDone){
   if(!key||raiBusy)return;
   raiBusy=true;$('raiTaskStatus').textContent='Sincronitzant les tasques…';
-  google.script.run.withSuccessHandler(result=>{
+  serverCall('familyTasksAction',key,action,payload).then(result=>{
     raiBusy=false;
     if(!result||!result.ok){
       $('raiTaskStatus').textContent=(result&&result.error)||'No s’han pogut desar les tasques';return;
     }
     raiSnapshot=result.data;renderRai();renderOverview();
     $('raiTaskStatus').textContent='';
-    // Recarrega només el saldo i la llista en l'altra API, sense modificar punts.
     if(!busy)call([]);
     if(onDone)onDone();
-  }).withFailureHandler(err=>{
+  }).catch(err=>{
     raiBusy=false;$('raiTaskStatus').textContent=err&&err.message||'Error de connexió';
-  }).familyTasksAction(key,action,payload);
+  });
 }
 function renderRai(){
   const snapshot=raiSnapshot;if(!snapshot)return;
@@ -569,14 +588,9 @@ $('raiAddReward').addEventListener('submit',e=>{
 });
 // Peticions separades de les de compra: una càrrega de fotos no bloqueja els sopars.
 function photoCall(action,payload) {
-  return new Promise((resolve,reject)=>{
-    google.script.run
-      .withSuccessHandler(result=>{
-        if(!result||!result.ok)reject(new Error(result&&result.error||'No es pot accedir a les fotografies'));
-        else resolve(result);
-      })
-      .withFailureHandler(err=>reject(new Error(err&&err.message||'Error de connexió')))
-      .apiAction(key,action,payload||{});
+  return serverCall('apiAction',key,action,payload||{}).then(result=>{
+    if(!result||!result.ok)throw new Error(result&&result.error||'No es pot accedir a les fotografies');
+    return result;
   });
 }
 function photoStatus(text,error){
@@ -637,13 +651,31 @@ function readPhotoOriginal(file){
     reader.readAsDataURL(file);
   });
 }
+async function compressedPhotoForPwa(file){
+  const picture=await createImageBitmap(file);
+  try{
+    let scale=Math.min(1,1600/Math.max(picture.width,picture.height));
+    for(let attempt=0;attempt<8;attempt++){
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.max(1,Math.round(picture.width*scale));
+      canvas.height=Math.max(1,Math.round(picture.height*scale));
+      const context=canvas.getContext('2d');
+      context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);
+      context.drawImage(picture,0,0,canvas.width,canvas.height);
+      const encoded=canvas.toDataURL('image/jpeg',0.85-attempt*0.07).split(',')[1];
+      if(encoded.length<1400000)return encoded;
+      scale*=0.76;
+    }
+    throw new Error('No s’ha pogut reduir aquesta fotografia');
+  }finally{picture.close();}
+}
 function uploadOriginal(file,base64){
-  return new Promise((resolve,reject)=>{
-    google.script.run.withSuccessHandler(result=>{
-      if(result&&result.ok)resolve(result);
-      else reject(new Error(result&&result.error||'Error en pujar '+file.name));
-    }).withFailureHandler(err=>reject(new Error(err&&err.message||'Error de connexió')))
-      .uploadFamilyPhoto(key,{name:file.name,mime:file.type,base64});
+  return serverCall('uploadFamilyPhoto',key,{
+    name:file.name,mime:window.MARC_PWA_MODE?'image/jpeg':file.type,
+    base64,id:newId()
+  }).then(result=>{
+    if(!result||!result.ok)throw new Error(result&&result.error||'Error en pujar '+file.name);
+    return result;
   });
 }
 $('uploadPhotos').addEventListener('submit',async e=>{
@@ -661,7 +693,8 @@ $('uploadPhotos').addEventListener('submit',async e=>{
   try{
     for(const file of files){
       photoStatus('Enviant '+(uploaded+1)+' de '+files.length+'…',false);
-      await uploadOriginal(file,await readPhotoOriginal(file));
+      await uploadOriginal(file,window.MARC_PWA_MODE
+        ? await compressedPhotoForPwa(file) : await readPhotoOriginal(file));
       uploaded++;
     }
     $('photoInput').value='';$('photoPreview').style.display='none';
