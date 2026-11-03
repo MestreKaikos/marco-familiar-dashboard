@@ -47,11 +47,9 @@ import com.lito.planify.dashboard.ui.theme.Palette
 import com.lito.planify.dashboard.ui.theme.Type
 import java.time.LocalDate
 
-/** Una pantalla: compra, feines i recompenses. Dades del núvol si el servei és nou. */
+/** Família és exclusivament l’espai de les feines i recompenses d’en Rai. */
 @Composable
 fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Boolean = false, pending: Int = 0, tasksShared: Boolean = false) {
-    var groceryName by rememberSaveable { mutableStateOf("") }
-    var editGrocery by remember { mutableStateOf<LocalGrocery?>(null) }
     var addChore by remember { mutableStateOf(false) }
     var addReward by remember { mutableStateOf(false) }
     var adultAction by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -66,72 +64,9 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
         Modifier.fillMaxSize().padding(horizontal = 30.dp, vertical = 26.dp),
         horizontalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        FamilyPanel(Modifier.weight(1f).fillMaxHeight()) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("🛒 Llista de la compra", style = Type.Large.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
-                Text("${store.groceries.count { !it.bought }} ${if (store.groceries.count { !it.bought } == 1) "pendent" else "pendents"}", style = Type.Tiny)
-            }
-            Spacer(Modifier.height(16.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = groceryName,
-                    onValueChange = { groceryName = it.take(80) },
-                    placeholder = { Text("Afegir un producte", style = Type.Tiny) },
-                    singleLine = true,
-                    textStyle = Type.Small,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { store.addGrocery(groceryName); groceryName = "" }),
-                    modifier = Modifier.weight(1f)
-                )
-                Button(onClick = { store.addGrocery(groceryName); groceryName = "" }, enabled = groceryName.isNotBlank()) {
-                    Text("Afegir")
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            if (store.groceries.isEmpty()) {
-                Text("La llista és buida. Afegeix allò que falta a casa.", style = Type.Small.copy(color = Palette.InkSoft), modifier = Modifier.padding(top = 24.dp))
-                Text("Idees per començar", style = Type.Tiny.copy(color = Palette.InkMuted), modifier = Modifier.padding(top = 22.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("Llet", "Fruita", "Pa").forEach { name ->
-                        OutlinedButton(onClick = { store.addGrocery(name) }) { Text("+ $name") }
-                    }
-                }
-            } else {
-                LazyColumn(Modifier.weight(1f)) {
-                    items(store.groceries.sortedWith(compareBy<LocalGrocery> { it.bought }), key = { it.id }) { item ->
-                        Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = item.bought, onCheckedChange = { store.toggleGrocery(item.id) })
-                            Text(
-                                item.name, style = Type.Small.copy(
-                                    color = if (item.bought) Palette.InkMuted else Palette.Ink,
-                                    textDecoration = if (item.bought) TextDecoration.LineThrough else TextDecoration.None
-                                ),
-                                modifier = Modifier.weight(1f).clickable { store.toggleGrocery(item.id) },
-                                maxLines = 2, overflow = TextOverflow.Ellipsis
-                            )
-                            TextButton(onClick = { editGrocery = item }) { Text("Editar") }
-                            TextButton(onClick = { store.removeGrocery(item.id) }) { Text("✕") }
-                        }
-                    }
-                }
-                if (store.groceries.any { it.bought }) {
-                    OutlinedButton(onClick = { store.clearBought() }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Treure els productes comprats")
-                    }
-                }
-            }
-            Text(
-                if (!connected) "Només es desa en aquest dispositiu"
-                else if (pending > 0) "$pending canvi(s) pendent(s) de sincronitzar"
-                else "Compra compartida · dades del marc i dels mòbils",
-                style = Type.Tiny.copy(color = Palette.InkMuted),
-                modifier = Modifier.padding(top = 12.dp)
-            )
-        }
-
         FamilyPanel(Modifier.weight(1.12f).fillMaxHeight()) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("✅ Feines de casa", style = Type.Large.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
+                Text("✅ Feines d’en Rai", style = Type.Large.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
                 Button(onClick = { addChore = true }) { Text("+ Nova feina") }
             }
             Spacer(Modifier.height(12.dp))
@@ -145,7 +80,7 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
             )
             Spacer(Modifier.height(14.dp))
             if (store.chores.isEmpty()) {
-                Text("Encara no hi ha feines. Pots crear-ne per a en Rai o per a tota la família.", style = Type.Small.copy(color = Palette.InkSoft), modifier = Modifier.padding(top = 16.dp))
+                Text("Encara no hi ha feines d’en Rai. Pots crear-les aquí.", style = Type.Small.copy(color = Palette.InkSoft), modifier = Modifier.padding(top = 16.dp))
                 Text("Idees de feines", style = Type.Tiny, modifier = Modifier.padding(top = 24.dp))
                 listOf("Parar taula", "Recollir l'habitació", "Preparar la motxilla").forEach { name ->
                     OutlinedButton(
@@ -262,12 +197,6 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
         }
     }
 
-    editGrocery?.let { item ->
-        TextEntryDialog("Editar producte", item.name, "Producte", onDismiss = { editGrocery = null }) { name ->
-            store.renameGrocery(item.id, name)
-            editGrocery = null
-        }
-    }
     if (addChore) {
         ChoreCreator(cloud = tasksShared, onDismiss = { addChore = false }) { title, owner, daily, stars ->
             protect("Afegir feina") { store.addChore(title, owner, daily, stars) }
@@ -293,6 +222,86 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
                 } else false
             }
         )
+    }
+}
+
+/** La mateixa llista de compra i les mateixes mutacions, ara al costat dels Recordatoris. */
+@Composable
+fun FamilyShoppingPanel(
+    store: LocalFamilyStore,
+    connected: Boolean,
+    pending: Int,
+    modifier: Modifier = Modifier
+) {
+    var groceryName by rememberSaveable { mutableStateOf("") }
+    var editGrocery by remember { mutableStateOf<LocalGrocery?>(null) }
+        FamilyPanel(modifier) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("🛒 Llista de la compra", style = Type.Large.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
+                Text("${store.groceries.count { !it.bought }} ${if (store.groceries.count { !it.bought } == 1) "pendent" else "pendents"}", style = Type.Tiny)
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = groceryName,
+                    onValueChange = { groceryName = it.take(80) },
+                    placeholder = { Text("Afegir un producte", style = Type.Tiny) },
+                    singleLine = true,
+                    textStyle = Type.Small,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { store.addGrocery(groceryName); groceryName = "" }),
+                    modifier = Modifier.weight(1f)
+                )
+                Button(onClick = { store.addGrocery(groceryName); groceryName = "" }, enabled = groceryName.isNotBlank()) {
+                    Text("Afegir")
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            if (store.groceries.isEmpty()) {
+                Text("La llista és buida. Afegeix allò que falta a casa.", style = Type.Small.copy(color = Palette.InkSoft), modifier = Modifier.padding(top = 24.dp))
+                Text("Idees per començar", style = Type.Tiny.copy(color = Palette.InkMuted), modifier = Modifier.padding(top = 22.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Llet", "Fruita", "Pa").forEach { name ->
+                        OutlinedButton(onClick = { store.addGrocery(name) }) { Text("+ $name") }
+                    }
+                }
+            } else {
+                LazyColumn(Modifier.weight(1f)) {
+                    items(store.groceries.sortedWith(compareBy<LocalGrocery> { it.bought }), key = { it.id }) { item ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = item.bought, onCheckedChange = { store.toggleGrocery(item.id) })
+                            Text(
+                                item.name, style = Type.Small.copy(
+                                    color = if (item.bought) Palette.InkMuted else Palette.Ink,
+                                    textDecoration = if (item.bought) TextDecoration.LineThrough else TextDecoration.None
+                                ),
+                                modifier = Modifier.weight(1f).clickable { store.toggleGrocery(item.id) },
+                                maxLines = 2, overflow = TextOverflow.Ellipsis
+                            )
+                            TextButton(onClick = { editGrocery = item }) { Text("Editar") }
+                            TextButton(onClick = { store.removeGrocery(item.id) }) { Text("✕") }
+                        }
+                    }
+                }
+                if (store.groceries.any { it.bought }) {
+                    OutlinedButton(onClick = { store.clearBought() }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Treure els productes comprats")
+                    }
+                }
+            }
+            Text(
+                if (!connected) "Només es desa en aquest dispositiu"
+                else if (pending > 0) "$pending canvi(s) pendent(s) de sincronitzar"
+                else "Compra compartida · dades del marc i dels mòbils",
+                style = Type.Tiny.copy(color = Palette.InkMuted),
+                modifier = Modifier.padding(top = 12.dp)
+            )
+        }
+    editGrocery?.let { item ->
+        TextEntryDialog("Editar producte", item.name, "Producte", onDismiss = { editGrocery = null }) { name ->
+            store.renameGrocery(item.id, name)
+            editGrocery = null
+        }
     }
 }
 
