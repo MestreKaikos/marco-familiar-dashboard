@@ -406,10 +406,23 @@ assert.equal(rem.data.dinners['2026-11-03'],'Arròs amb verdures',
   'Els sopars històrics no s’esborren');
 
 const mobileSource=fs.readFileSync(path.join(__dirname,'Mobile.html'),'utf8');
-for(const section of ['compra','recordatoris','fotos','rai']){
+for(const section of ['avui','recordatoris','fotos','rai']){
   assert.match(mobileSource,new RegExp('data-tab="'+section+'"'),'Falta la pestanya '+section);
   assert.match(mobileSource,new RegExp('data-open="'+section+'"'),'Falta navegació a '+section);
 }
+// La nova pàgina de portada uneix les dues llistes sense alterar els IDs ni les crides.
+assert.ok(!mobileSource.includes('data-tab="compra"'), 'La compra no ha de tenir una pestanya duplicada');
+assert.ok(mobileSource.includes('class="subpanel shopping-section"'), 'La compra ha d'estar dins de Pendents');
+assert.ok(mobileSource.includes('id="overviewReminders"'));
+assert.ok(mobileSource.includes('id="overviewGroceries"'));
+assert.ok(mobileSource.includes('id="overviewRai"'));
+assert.ok(mobileSource.includes('id="overviewPhotos"'));
+assert.ok(mobileSource.includes('function renderOverview()'));
+assert.ok(mobileSource.includes('data-open="avui"'));
+const inlineJs=mobileSource.match(/<script>([\s\S]*?)<\/script>/);
+assert.ok(inlineJs, "El JavaScript de Mobile.html ha d'existir");
+assert.doesNotThrow(()=>new vm.Script(inlineJs[1]), 'El JavaScript del mòbil ha de ser sintàcticament vàlid');
+
 for(const id of ['addReminder','reminderTitle','reminderDate','reminderNotes','reminderItems','reminderCount',
   'raiTaskFrequency','raiDays','raiSlots','raiTaskList',
   'raiRewardList','raiPendingRewards','raiAddTask','raiAddReward','photoInput','photoPreview',
