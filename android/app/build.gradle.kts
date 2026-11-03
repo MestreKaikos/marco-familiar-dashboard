@@ -41,6 +41,22 @@ android {
         buildConfigField("String", "DASHBOARD_CONFIG", "\"$dashboardConfig\"")
     }
 
+    // Clau privada estable del Marc Familiar, facilitada només per Secrets de GitHub.
+    // Sense aquest fitxer la CI refusa publicar una APK actualitzable.
+    val signedKeystore = rootProject.file("marc-familiar-signing.jks")
+    val signedPassword = System.getenv("MARC_SIGNING_PASSWORD")
+    val signedAlias = System.getenv("MARC_SIGNING_ALIAS")
+    val signedKeyPassword = System.getenv("MARC_SIGNING_KEY_PASSWORD")
+    if (signedKeystore.isFile && !signedPassword.isNullOrBlank() &&
+        !signedAlias.isNullOrBlank() && !signedKeyPassword.isNullOrBlank()) {
+        signingConfigs.create("marcFamiliar") {
+            storeFile = signedKeystore
+            storePassword = signedPassword
+            keyAlias = signedAlias
+            keyPassword = signedKeyPassword
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -51,6 +67,10 @@ android {
             signingConfig = signingConfigs.getByName("debug") // Instalación local por ADB, como la app
         }
         debug {
+            // Mateix identificador de l'APK de proves estable instal·lada abans.
+            applicationIdSuffix = ".testqr"
+            versionNameSuffix = "-qr-proves"
+            signingConfigs.findByName("marcFamiliar")?.let { signingConfig = it }
             buildConfigField("String", "BASE_URL", "\"$debugBaseUrl\"")
             manifestPlaceholders["cleartext"] = cleartext(debugBaseUrl)
         }
