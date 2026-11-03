@@ -85,6 +85,60 @@ function safeText_(value, max) {
   return /^[=+\-@\t\r]/.test(text) ? "'" + text : text;
 }
 
+// Configuració privada; les cites continuen descarregant-se dels iCal originals.
+const MAX_CALENDARS = 10;
+function calendarSheet_() {
+  return sheet_("Calendaris", ["id","nom","url","color","actiu","eliminat"]);
+}
+function validCalendarUrl_(value) {
+  return typeof value === "string" && value.length <= 2048 &&
+    /^https:\/\/(calendar\.google\.com|www\.google\.com)\/calendar\/ical\/[^?#\s\\]+\/basic\.ics$/.test(value);
+}
+function calendarRecords_() {
+  return rows_(calendarSheet_(),6).filter(r=>r[0]).map(r=>({
+    id:String(r[0]),name:String(r[1]),url:String(r[2]),color:String(r[3]),
+    enabled:active_(r[4]),deleted:active_(r[5])
+  }));
+}
+function readCalendars_() { return calendarRecords_().filter(c=>!c.deleted); }
+function calendarSet_(op, importing) {
+  const id=validateId_(op.id), url=String(op.url||"").trim();
+  if(!validCalendarUrl_(url))throw new Error("Copia un enllaç iCal de Google Calendar vàlid");
+  const name=safeText_(op.name,50),color=String(op.color||"#3977CB").toUpperCase();
+  if(!name)throw new Error("Falta el nom del calendari");
+  if(!/^#[0-9A-F]{6}$/.test(color))throw new Error("Color de calendari invàlid");
+  if(typeof op.enabled!=="boolean")throw new Error("Estat de calendari invàlid");
+  const records=calendarRecords_(),tab=calendarSheet_();
+  const index=records.findIndex(c=>c.id===id),duplicate=records.find(c=>c.url===url&&c.id!==id);
+  // Una importació antiga no reactiva calendaris eliminats ni sobreescriu els de la web.
+  if(importing&&(index>=0||records.some(c=>c.url===url)))return;
+  if(duplicate&&!duplicate.deleted)throw new Error("Aquest calendari ja està afegit");
+  if((index<0||records[index].deleted)&&records.filter(c=>!c.deleted).length>=MAX_CALENDARS)
+    throw new Error("Límit de deu calendaris");
+  const row=[id,name,url,color,op.enabled,false];
+  if(index<0)tab.appendRow(row);else tab.getRange(index+2,1,1,6).setValues([row]);
+}
+function calendarChange_(op) {
+  const id=validateId_(op.id),records=calendarRecords_(),index=records.findIndex(c=>c.id===id);
+  if(index<0||records[index].deleted)return; // Reintents d'eliminació: no ressuscitar registres.
+  const tab=calendarSheet_();
+  if(op.type==="calendar_delete")tab.getRange(index+2,6,1,1).setValues([[true]]);
+  if(op.type==="calendar_enabled"){
+    if(typeof op.enabled!=="boolean")throw new Error("Estat de calendari invàlid");
+    tab.getRange(index+2,5,1,1).setValues([[op.enabled]]);
+  }
+  if(op.type==="calendar_color"){
+    const color=String(op.color||"").toUpperCase();
+    if(!/^#[0-9A-F]{6}$/.test(color))throw new Error("Color de calendari invàlid");
+    tab.getRange(index+2,4,1,1).setValues([[color]]);
+  }
+}
+function calendarImport_(op) {
+  if(!Array.isArray(op.calendars)||op.calendars.length>MAX_CALENDARS)
+    throw new Error("Importació de calendaris incorrecta");
+  op.calendars.forEach(c=>calendarSet_(c,true));
+}
+
 function readSnapshot_() {
   const groceries = rows_(sheet_(COMPRA, ["id", "producte", "comprat"]), 3)
     .filter(function (r) { return r[0] && r[1]; })
@@ -95,7 +149,7 @@ function readSnapshot_() {
       dinners[r[0]] = String(r[1]);
     }
   });
-  return Object.assign({ groceries: groceries, dinners: dinners, reminders: readReminders_() }, readFamily_());
+  return Object.assign({ groceries: groceries, dinners: dinners, reminders: readReminders_(), calendars: readCalendars_(), calendarsConfigured: calendarRecords_().length>0 }, readFamily_());
 }
 
 function validateId_(id) {
@@ -360,6 +414,9 @@ function perform_(ops) {
   ops.forEach(function (op) {
     if (!op || typeof op !== "object") throw new Error("Canvi incorrecte");
     switch (op.type) {
+      case "calendar_set": calendarSet_(op,false); break;
+      case "calendar_import": calendarImport_(op); break;
+      case "calendar_delete": case "calendar_enabled": case "calendar_color": calendarChange_(op); break;
       case "grocery_set": upsertProduct_(shopping, op); break;
       case "grocery_delete": deleteProduct_(shopping, op); break;
       case "dinner_set": setDinner_(dinnerTab, op); break;

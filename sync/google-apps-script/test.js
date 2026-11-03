@@ -454,3 +454,26 @@ assert.ok(!mobileSource.includes("photoCall('photo_delete'"),
   'El Mobile original no permetia esborrar fotos: la galeria no ho ha de fer');
 
 console.log("OK · Tasques.gs real: freqüències, dies, franges, PIN, recompenses pendents, dos secrets i fotos de Drive.");
+
+// Calendaris: autenticar, fusionar, desactivar i conservar eliminacions entre dispositius.
+const calUrl="https://calendar.google.com/calendar/ical/test%40example.com/private-fixture/basic.ics";
+const calOp={type:"calendar_set",id:"calendar-one",name:"Família",url:calUrl,color:"#3977CB",enabled:true};
+const syncCal=ops=>context.apiAction(secret,"sync",{ops});
+assert.equal(syncCal([calOp]).ok,true);
+assert.equal(syncCal([]).data.calendars.length,1);
+assert.equal(context.apiAction("0".repeat(64),"sync",{}).ok,false);
+assert.equal(syncCal([{...calOp,id:"duplicate"}]).ok,false);
+for(const bad of ["http://calendar.google.com/calendar/ical/a/basic.ics","https://calendar.google.com.evil.test/calendar/ical/a/basic.ics","https://localhost/calendar/ical/a/basic.ics","https://calendar.google.com@evil.test/calendar/ical/a/basic.ics",calUrl+"?redirect=1"])
+  assert.equal(syncCal([{...calOp,id:"bad",url:bad}]).ok,false);
+assert.equal(syncCal([{...calOp,color:"red;injected"}]).ok,false);
+assert.equal(syncCal([{type:"calendar_enabled",id:calOp.id,enabled:false}]).data.calendars[0].enabled,false);
+assert.equal(syncCal([{type:"calendar_color",id:calOp.id,color:"#36A070"}]).data.calendars[0].color,"#36A070");
+assert.equal(syncCal([{type:"calendar_import",calendars:[calOp]}]).data.calendars[0].enabled,false,"La importació no trepitja la configuració compartida");
+assert.equal(syncCal([{type:"calendar_delete",id:calOp.id}]).data.calendars.length,0);
+assert.equal(syncCal([{type:"calendar_import",calendars:[calOp,{...calOp,id:"another-device"}]}]).data.calendars.length,0,"Una importació antiga no ressuscita eliminats");
+assert.equal(syncCal([]).data.calendarsConfigured,true,"Una llista buida explícita es conserva");
+const secondCal={...calOp,id:"calendar-two",url:calUrl.replace('test%40','rai%40')};
+assert.equal(syncCal([{type:"calendar_import",calendars:[secondCal]}]).data.calendars.length,1);
+assert.equal(syncCal([{type:"calendar_import",calendars:[secondCal]}]).data.calendars.length,1);
+assert.equal(syncCal([{...secondCal,name:"Rai",enabled:false}]).data.calendars[0].name,"Rai");
+console.log("OK · Calendaris privats: validació, fusió, colors, activació i eliminacions persistents.");

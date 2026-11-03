@@ -4,6 +4,7 @@ import android.util.Base64
 import com.lito.planify.dashboard.BuildConfig
 import com.lito.planify.dashboard.data.PersonalCalendar
 import com.lito.planify.dashboard.data.CalendarColors
+import com.lito.planify.dashboard.data.CalendarFeedPolicy
 import java.io.InputStreamReader
 import java.util.Properties
 
@@ -44,7 +45,7 @@ class IcsConfig(private val props: Properties) {
     val calendars: List<IcsCalendar> get() = personalCalendars ?: builtInCalendars
 
     fun setPersonalCalendars(calendars: List<PersonalCalendar>) {
-        personalCalendars = calendars.take(5).mapIndexed { i, calendar ->
+        personalCalendars = calendars.take(CalendarFeedPolicy.MAX).filterNot { it.disabled }.mapIndexed { i, calendar ->
             IcsCalendar(
                 id = i + 1,
                 key = calendar.id,

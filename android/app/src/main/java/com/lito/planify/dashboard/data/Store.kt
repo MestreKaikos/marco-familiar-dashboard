@@ -24,7 +24,8 @@ data class PersonalCalendar(
     val name: String,
     val url: String,
     // Nullable per migrar els calendaris ja guardats sense color (Gson pot deixar un camp absent a null).
-    val color: String? = null
+    val color: String? = null,
+    val disabled: Boolean = false
 )
 
 /** Sesión y ajustes del dispositivo (SharedPreferences). Los datos descargados van en DiskCache. */
@@ -50,10 +51,12 @@ class Store(context: Context) {
         set(value) = prefs.edit { putString("email", value) }
 
     /** Calendari(s) privats del marc, desats exclusivament dins les preferències de l'APK. */
+    val calendarConfigured: Boolean get() = prefs.contains("calendar_feeds")
+
     var calendarFeeds: List<PersonalCalendar>
         get() = runCatching {
             val saved = gson.fromJson(prefs.getString("calendar_feeds", "[]"), Array<PersonalCalendar>::class.java)
-                ?.filter { it.name.isNotBlank() && it.url.isNotBlank() }?.take(5)?.toList().orEmpty()
+                ?.filter { it.name.isNotBlank() && it.url.isNotBlank() }?.take(CalendarFeedPolicy.MAX)?.toList().orEmpty()
             // Migració sense perdre URL ni nom. Els colors anteriors es mantenen amb
             // l'ordre que tenien abans i es desen definitivament a cada ID.
             val migrated = CalendarColors.migrate(saved)
@@ -61,7 +64,7 @@ class Store(context: Context) {
             migrated
         }.getOrDefault(emptyList())
         set(value) {
-            val safe = value.take(5).mapIndexed { i, cal ->
+            val safe = value.take(CalendarFeedPolicy.MAX).mapIndexed { i, cal ->
                 cal.copy(color = CalendarColors.normalize(cal.color) ?: CalendarColors.legacy(i))
             }
             prefs.edit { putString("calendar_feeds", gson.toJson(safe)) }

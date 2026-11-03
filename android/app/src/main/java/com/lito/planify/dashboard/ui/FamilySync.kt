@@ -19,6 +19,9 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import com.lito.planify.dashboard.data.PersonalCalendar
+import com.lito.planify.dashboard.data.CalendarColors
+import com.lito.planify.dashboard.data.CalendarFeedPolicy
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
@@ -107,6 +110,50 @@ class FamilySync internal constructor(context: Context) {
     var cloudReminders by mutableIntStateOf(prefs.getInt("cloud_reminder_count", -1))
         private set
 
+    private var readCalendars: (() -> List<PersonalCalendar>)? = null
+    private var applyCalendars: ((List<PersonalCalendar>) -> Unit)? = null
+    private var calendarsSupported = prefs.getBoolean("calendars_supported", false)
+    fun attachCalendars(read: () -> List<PersonalCalendar>, apply: (List<PersonalCalendar>) -> Unit) {
+        readCalendars = read
+        applyCalendars = apply
+    }
+    fun detachCalendars() { readCalendars = null; applyCalendars = null }
+    fun queueCalendar(operation: JSONObject) {
+        // Amb el servei antic, els calendaris continuen locals fins a publicar Code.gs.
+        if (calendarsSupported) queue(operation)
+    }
+    private fun applyCalendarSnapshot(data: JSONObject) {
+        val remote = data.optJSONArray("calendars") ?: return
+        if (readCalendars == null || applyCalendars == null) return
+        calendarsSupported = true
+        prefs.edit().putBoolean("calendars_supported", true).apply()
+        if (!prefs.getBoolean("calendars_seeded", false)) {
+            val existing = readCalendars?.invoke().orEmpty()
+            if (existing.isNotEmpty()) {
+                val imports = JSONArray()
+                existing.forEach { calendar ->
+                    imports.put(JSONObject().put("id", calendar.id).put("name", calendar.name)
+                        .put("url", calendar.url).put("color", calendar.color ?: "#3977CB")
+                        .put("enabled", !calendar.disabled))
+                }
+                queue(JSONObject().put("type", "calendar_import").put("calendars", imports))
+                prefs.edit().putBoolean("calendars_seeded", true).apply()
+                return // Primer fusionar; mai substituir els calendaris locals per una llista buida.
+            }
+            prefs.edit().putBoolean("calendars_seeded", true).apply()
+        }
+        if (!data.optBoolean("calendarsConfigured") && remote.length() == 0) return
+        require(remote.length() <= CalendarFeedPolicy.MAX)
+        val parsed = (0 until remote.length()).map { i ->
+            val item = remote.getJSONObject(i)
+            val url = item.getString("url")
+            require(CalendarFeedPolicy.validUrl(url))
+            val color = CalendarColors.normalize(item.getString("color")) ?: error("Color de calendari invàlid")
+            PersonalCalendar(item.getString("id"), item.getString("name").take(50), url, color, !item.getBoolean("enabled"))
+        }
+        applyCalendars?.invoke(parsed)
+    }
+
     private var remindersStore: FamilyReminders? = null
     fun attachReminders(store: FamilyReminders) { remindersStore = store }
 
@@ -188,6 +235,10 @@ class FamilySync internal constructor(context: Context) {
                     localDinners.map { (date, meal) -> dinnerSet(date, meal) }
                 ops.chunked(60).forEach { chunk -> latest = call(endpoint, token, chunk) }
             }
+            if (endpoint != url || token != key) {
+                prefs.edit().remove("calendars_seeded").remove("calendars_supported").apply()
+                calendarsSupported = false
+            }
             prefs.edit().putString("url", endpoint).putString("key", token)
                 .putBoolean("ready", true).putString("queue", "[]")
                 .remove("draft_url").remove("draft_key").apply()
@@ -214,7 +265,9 @@ class FamilySync internal constructor(context: Context) {
             .remove("cloud_grocery_count").remove("cloud_dinner_count")
             .remove("cloud_task_count").remove("cloud_reward_count")
             .remove("cloud_reminder_count")
+            .remove("calendars_seeded").remove("calendars_supported")
             .putBoolean("ready", false).apply()
+        calendarsSupported = false
         draftUrl = ""
         draftKey = ""
         cloudGroceries = -1
@@ -299,6 +352,7 @@ class FamilySync internal constructor(context: Context) {
         dinners.replaceFromCloud(parseDinners(root))
         // No esborra tasques locals si l'Apps Script encara és una versió antiga.
         root.optJSONObject("data")?.let { data ->
+            applyCalendarSnapshot(data)
             data.optJSONArray("reminders")?.let { items -> remindersStore?.replaceFromCloud(items) }
             if (data.has("tasks") && data.has("taskDone") &&
                 data.has("rewards") && data.has("stars")) {

@@ -66,7 +66,11 @@ class MainActivity : ComponentActivity() {
             onLogout = viewModel::logout,
             onAddCalendar = viewModel::addPersonalCalendar,
             onRemoveCalendar = viewModel::removePersonalCalendar,
-            onChangeCalendarColor = viewModel::changePersonalCalendarColor
+            onChangeCalendarColor = viewModel::changePersonalCalendarColor,
+            onToggleCalendar = viewModel::togglePersonalCalendar,
+            onReadCalendars = viewModel::calendarsForSharing,
+            onApplySharedCalendars = viewModel::applySharedCalendars,
+            onCalendarMutationListener = { viewModel.onCalendarMutation = it }
         )
         val chores = ChoreCallbacks(
             onDone = viewModel::choreDone,

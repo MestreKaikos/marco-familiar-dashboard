@@ -134,6 +134,8 @@ fun DashboardApp(
     // Escolta els canvis locals: en cas de no tenir Internet, queden a la cua del marc.
     LaunchedEffect(sync, dinners, family, reminders) {
         sync.attachReminders(reminders)
+        sync.attachCalendars(settings.onReadCalendars, settings.onApplySharedCalendars)
+        settings.onCalendarMutationListener { sync.queueCalendar(it) }
         reminders.onMutation = { op -> sync.queue(op) }
         dinners.onLocalChange = { day, meal ->
             sync.queue(JSONObject().put("type", "dinner_set")
@@ -144,6 +146,8 @@ fun DashboardApp(
         try {
             awaitCancellation()
         } finally {
+            settings.onCalendarMutationListener(null)
+            sync.detachCalendars()
             dinners.onLocalChange = null
             family.onGroceryMutation = null
             family.onFamilyMutation = null

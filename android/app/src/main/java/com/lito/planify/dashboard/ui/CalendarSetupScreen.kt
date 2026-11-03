@@ -35,6 +35,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.lito.planify.dashboard.UiState
 import com.lito.planify.dashboard.data.CalendarColors
+import com.lito.planify.dashboard.data.CalendarFeedPolicy
 import com.lito.planify.dashboard.data.PersonalCalendar
 import com.lito.planify.dashboard.ui.theme.Palette
 import com.lito.planify.dashboard.ui.theme.Type
@@ -58,7 +59,8 @@ fun CalendarSetupScreen(state: UiState, callbacks: SettingsCallbacks, onBack: ()
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             Text("📅 Calendaris familiars", style = Type.Title)
-            Text("Connecta fins a cinc calendaris de Google sense usuari ni contrasenya de Planify.", style = Type.Small)
+            Text("Connecta fins a deu calendaris de Google sense usuari ni contrasenya de Planify.", style = Type.Small)
+            Text("Amb la sincronització familiar connectada, també els pots gestionar des dels ajustos de la web del mòbil.", style = Type.Small)
             Text("Com obtenir l'enllaç", style = Type.Large.copy(fontWeight = FontWeight.SemiBold))
             Text(
                 "1. Obre Google Calendar des de l'ordinador.\n" +
@@ -105,8 +107,9 @@ fun CalendarSetupScreen(state: UiState, callbacks: SettingsCallbacks, onBack: ()
                             )
                             Column(Modifier.weight(1f).padding(start = 14.dp)) {
                                 Text(calendar.name, style = Type.Small.copy(fontWeight = FontWeight.SemiBold))
-                                Text("Color propi · enllaç privat guardat", style = Type.Tiny.copy(color = Palette.InkMuted))
+                                Text(if (calendar.disabled) "Desactivat · enllaç privat guardat" else "Actiu · enllaç privat guardat", style = Type.Tiny.copy(color = Palette.InkMuted))
                             }
+                            TextButton(onClick = { callbacks.onToggleCalendar(calendar.id) }) { Text(if (calendar.disabled) "Activar" else "Pausar") }
                             TextButton(onClick = { colorEditorId = calendar.id }) { Text("Color") }
                             TextButton(onClick = { deleteId = calendar.id }) { Text("Eliminar") }
                         }
@@ -144,7 +147,7 @@ fun CalendarSetupScreen(state: UiState, callbacks: SettingsCallbacks, onBack: ()
                         showUrl = false
                     }
                 },
-                enabled = name.isNotBlank() && url.isNotBlank() && state.personalCalendars.size < 5,
+                enabled = name.isNotBlank() && url.isNotBlank() && state.personalCalendars.size < CalendarFeedPolicy.MAX,
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Afegir calendari") }
             Text(

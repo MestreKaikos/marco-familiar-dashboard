@@ -152,6 +152,11 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
   .app-nav button{font-size:10px;min-width:0}
   .app-nav button span{font-size:21px}
 }
+#calendarSettings{margin-top:18px;padding-top:12px;border-top:1px solid var(--border)}
+#calendarSettings summary{cursor:pointer;font-weight:650}
+#calendarSettings form input:not([type="checkbox"]):not([type="color"]){width:100%;box-sizing:border-box;margin-top:6px}
+#calendarSettings .item{flex-wrap:wrap}#calendarSettings .name{min-width:100px;overflow-wrap:anywhere}
+#calendarSettings input[type="color"]{padding:4px;width:64px;min-height:44px}
 </style>
 </head>
 <body>
@@ -306,6 +311,23 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
         <option value="10">10 minuts</option><option value="30">30 minuts</option><option value="60">60 minuts</option><option value="120">120 minuts</option>
       </select></label></p>
       <p>Només consulta automàticament mentre la web és visible. Els canvis s'envien de seguida. En tornar, actualitza si fa més de 5 minuts.</p>
+      <details id="calendarSettings">
+        <summary>📅 Calendaris del marc</summary>
+        <p>Afegeix fins a deu calendaris de Google. El marc rep els enllaços i llegeix les cites directament de Google.</p>
+        <p id="calendarNotice" role="status" aria-live="polite"></p>
+        <div id="calendarItems"></div>
+        <form id="calendarForm">
+          <input id="calendarId" type="hidden">
+          <p><label>Nom <input id="calendarName" required maxlength="50" placeholder="Família, Rai…" autocomplete="off"></label></p>
+          <p><label>Adreça iCal de Google <input id="calendarUrl" type="password" required maxlength="2048" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics" autocomplete="off" spellcheck="false"></label>
+            <button id="calendarReveal" type="button" class="small">Mostrar l'enllaç</button></p>
+          <p><label>Color <input id="calendarColor" type="color" value="#3977cb"></label>
+            <label><input id="calendarEnabled" type="checkbox" checked> Actiu al marc</label></p>
+          <button id="calendarSave" class="primary" type="submit">Afegir calendari</button>
+          <button id="calendarCancel" type="button">Cancel·lar edició</button>
+        </form>
+        <p>Trobaràs l'adreça a Google Calendar → Configuració → el calendari → Integrar calendari → Adreça secreta en format iCal. Es comparteix amb els dispositius connectats amb la clau familiar.</p>
+      </details>
     </details>
     <div class="row" style="justify-content:space-between">
       <span id="syncTime">Connectat · Sincronització automàtica</span>
@@ -426,6 +448,7 @@ function call(ops=[], onDone, minAgeMinutes=0) {
   return dataFlight;
 }
 function showLogin(){
+  resetCalendarForm();$('calendarItems').replaceChildren();
   photos=[];renderPhotos();raiSnapshot=null;
   data={groceries:[],dinners:{}};lastDataAt=lastRaiAt=lastPhotosAt=0;queueStorageKey='';
   key='';try { sessionStorage.removeItem('marc-sync-key'); } catch (_) {}
@@ -462,8 +485,69 @@ function render(){
     line.appendChild(del);list.appendChild(line);
   });
   renderReminders();
+  renderCalendars();
   renderOverview();
 }
+function calendarPayload(values){
+  const name=String(values.name||'').trim(),url=String(values.url||'').trim();
+  const color=String(values.color||'').toUpperCase();
+  if(!name||name.length>50)throw new Error('Posa un nom de fins a 50 caràcters.');
+  if(url.length>2048||!/^https:\/\/(calendar\.google\.com|www\.google\.com)\/calendar\/ical\/[^?#\s\\]+\/basic\.ics$/.test(url))
+    throw new Error('Copia l’adreça iCal de Google Calendar.');
+  if(!/^#[0-9A-F]{6}$/.test(color))throw new Error('Tria un color vàlid.');
+  return {type:'calendar_set',id:values.id||newId(),name,url,color,enabled:!!values.enabled};
+}
+function resetCalendarForm(){
+  $('calendarId').value='';$('calendarName').value='';$('calendarUrl').value='';
+  $('calendarUrl').type='password';$('calendarReveal').textContent="Mostrar l'enllaç";
+  $('calendarEnabled').checked=true;$('calendarSave').textContent='Afegir calendari';
+}
+function renderCalendars(){
+  const supported=Array.isArray(data.calendars),calendars=data.calendars||[];
+  $('calendarSave').disabled=!supported;
+  $('calendarNotice').textContent=supported
+    ? calendars.length+' de 10 calendaris. Els canvis arribaran al marc amb la sincronització familiar.'
+    : 'Per activar aquesta opció, actualitza també Code.gs a Apps Script i publica una versió nova de la mateixa implementació.';
+  const list=$('calendarItems');list.replaceChildren();
+  calendars.forEach(calendar=>{
+    const row=makeText('div','','item');
+    const active=document.createElement('input');active.type='checkbox';active.checked=calendar.enabled;
+    active.setAttribute('aria-label','Activar '+calendar.name);
+    active.addEventListener('change',()=>call([{type:'calendar_enabled',id:calendar.id,enabled:active.checked}]));
+    const name=makeText('span',calendar.name+(calendar.enabled?'':' · desactivat'),'name');
+    name.style.borderLeft='5px solid '+(/^#[0-9a-f]{6}$/i.test(calendar.color)?calendar.color:'#3977CB');
+    name.style.paddingLeft='8px';
+    const edit=makeText('button','Editar','small');edit.type='button';
+    edit.addEventListener('click',()=>{
+      $('calendarId').value=calendar.id;$('calendarName').value=calendar.name;
+      $('calendarUrl').value=calendar.url;$('calendarColor').value=calendar.color;
+      $('calendarEnabled').checked=calendar.enabled;$('calendarSave').textContent='Desar calendari';
+      $('calendarUrl').type='password';$('calendarReveal').textContent="Mostrar l'enllaç";
+    });
+    const remove=makeText('button','Eliminar','small ghost');remove.type='button';
+    remove.addEventListener('click',()=>{
+      if(confirm('Deixar de mostrar «'+calendar.name+'» als marcs connectats?'))
+        call([{type:'calendar_delete',id:calendar.id}],()=>{if($('calendarId').value===calendar.id)resetCalendarForm();});
+    });
+    row.append(active,name,edit,remove);list.appendChild(row);
+  });
+}
+$('calendarForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  if(!Array.isArray(data.calendars))return;
+  try{
+    const op=calendarPayload({id:$('calendarId').value,name:$('calendarName').value,url:$('calendarUrl').value,
+      color:$('calendarColor').value,enabled:$('calendarEnabled').checked});
+    if(data.calendars.some(c=>c.url===op.url&&c.id!==op.id))throw new Error('Aquest calendari ja està afegit.');
+    if(!op.id||(!data.calendars.some(c=>c.id===op.id)&&data.calendars.length>=10))throw new Error('Ja hi ha deu calendaris.');
+    call([op],resetCalendarForm);
+  }catch(err){$('calendarNotice').textContent=err.message;}
+});
+$('calendarCancel').addEventListener('click',resetCalendarForm);
+$('calendarReveal').addEventListener('click',()=>{
+  const show=$('calendarUrl').type==='password';$('calendarUrl').type=show?'text':'password';
+  $('calendarReveal').textContent=show?"Amagar l'enllaç":"Mostrar l'enllaç";
+});
 function renderOverview(){
   const now=new Date(),today=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
   const hour=now.getHours();

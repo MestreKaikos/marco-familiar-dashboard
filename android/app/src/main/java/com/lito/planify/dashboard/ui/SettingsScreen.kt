@@ -62,6 +62,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.lito.planify.dashboard.UiState
+import org.json.JSONObject
+import com.lito.planify.dashboard.data.PersonalCalendar
 import com.lito.planify.dashboard.data.GeoResult
 import com.lito.planify.dashboard.data.Schedule
 import com.lito.planify.dashboard.data.WifiStatus
@@ -82,7 +84,11 @@ class SettingsCallbacks(
     val onLogout: () -> Unit,
     val onAddCalendar: (String, String) -> String?,
     val onRemoveCalendar: (String) -> Unit,
-    val onChangeCalendarColor: (String, String) -> Unit
+    val onChangeCalendarColor: (String, String) -> Unit,
+    val onToggleCalendar: (String) -> Unit = {},
+    val onReadCalendars: () -> List<PersonalCalendar> = { emptyList() },
+    val onApplySharedCalendars: (List<PersonalCalendar>) -> Unit = {},
+    val onCalendarMutationListener: (((JSONObject) -> Unit)?) -> Unit = {}
 )
 
 /**

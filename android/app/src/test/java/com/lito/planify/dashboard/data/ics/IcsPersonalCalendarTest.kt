@@ -78,11 +78,22 @@ class IcsPersonalCalendarTest {
     }
 
     @Test
-    fun noMoreThanFiveLocalCalendars() {
+    fun noMoreThanTenLocalCalendars() {
         val config = IcsConfig(Properties())
-        config.setPersonalCalendars((1..7).map {
+        config.setPersonalCalendars((1..12).map {
             PersonalCalendar(it.toString(), "Calendar $it", "https://calendar.google.com/calendar/ical/$it/basic.ics")
         })
-        assertEquals(5, config.calendars.size)
+        assertEquals(10, config.calendars.size)
+    }
+    @Test
+    fun disabledCalendarsKeepTheirConfigurationAndColor() {
+        val config = IcsConfig(Properties())
+        val saved = PersonalCalendar("1", "Família", "https://calendar.google.com/calendar/ical/a/private-test/basic.ics", "#36A070")
+        config.setPersonalCalendars(listOf(saved.copy(disabled = true)))
+        assertFalse(config.enabled)
+        assertTrue(config.calendars.isEmpty())
+        config.setPersonalCalendars(listOf(saved))
+        assertEquals("#36A070", config.calendars.single().color)
+        assertEquals(saved.url, config.calendars.single().url)
     }
 }

@@ -18,6 +18,8 @@ import com.lito.planify.dashboard.data.GeoResult
 import com.lito.planify.dashboard.data.HttpError
 import com.lito.planify.dashboard.data.Location
 import com.lito.planify.dashboard.data.PersonalCalendar
+import com.lito.planify.dashboard.data.CalendarFeedPolicy
+import org.json.JSONObject
 import com.lito.planify.dashboard.data.CalendarColors
 import com.lito.planify.dashboard.data.ReferenceClock
 import com.lito.planify.dashboard.data.Schedule
@@ -105,7 +107,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private val cache = DiskCache(File(application.filesDir, "cache"))
     /** Calendarios iCal de dashboard.properties: si los hay, sustituyen a Planify y no hace falta iniciar sesión. */
     private val icsConfig = IcsConfig().apply {
-        store.calendarFeeds.takeIf { it.isNotEmpty() }?.let(::setPersonalCalendars)
+        if (store.calendarConfigured) setPersonalCalendars(store.calendarFeeds)
     }
     /** Disponible també abans de tenir calendaris, per poder afegir-los des de la interfície. */
     private val ics = IcsSource(icsConfig)
@@ -477,23 +479,20 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         val name = nameRaw.trim().take(50)
         val url = urlRaw.trim()
         if (name.isBlank()) return "Posa un nom al calendari."
-        val uri = runCatching { Uri.parse(url) }.getOrNull()
-        val validGoogleUrl = uri?.scheme == "https" &&
-            uri.host?.lowercase() in setOf("calendar.google.com", "www.google.com") &&
-            uri.encodedAuthority?.contains("@") != true &&
-            uri.path?.startsWith("/calendar/ical/") == true &&
-            uri.path?.endsWith("/basic.ics") == true &&
-            uri.fragment == null
-        if (!validGoogleUrl) return "Copia l'adreça secreta iCal de Google Calendar (https://calendar.google.com/...)."
+        if (!CalendarFeedPolicy.validUrl(url)) return "Copia l'adreça iCal de Google Calendar (https://calendar.google.com/...)."
         val items = store.calendarFeeds
-        if (items.size >= 5) return "Ja hi ha cinc calendaris configurats."
+        if (items.size >= CalendarFeedPolicy.MAX) return "Ja hi ha deu calendaris configurats."
         if (items.any { it.url == url }) return "Aquest calendari ja està afegit."
-        applyPersonalCalendars(items + PersonalCalendar(UUID.randomUUID().toString(), name, url, CalendarColors.nextAvailable(items)))
+        val calendar = PersonalCalendar(UUID.randomUUID().toString(), name, url, CalendarColors.nextAvailable(items))
+        applyPersonalCalendars(items + calendar)
+        onCalendarMutation?.invoke(JSONObject().put("type", "calendar_set").put("id", calendar.id)
+            .put("name", calendar.name).put("url", calendar.url).put("color", calendar.color).put("enabled", !calendar.disabled))
         return null
     }
 
     fun removePersonalCalendar(id: String) {
         applyPersonalCalendars(store.calendarFeeds.filterNot { it.id == id })
+        onCalendarMutation?.invoke(JSONObject().put("type", "calendar_delete").put("id", id))
     }
 
     /** Només canvia el color d'aquest calendari; no altera els altres ni la seva URL. */
@@ -504,6 +503,19 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         val current = calendars.firstOrNull { it.id == id } ?: return
         if (current.color == color) return
         applyPersonalCalendars(calendars.map { if (it.id == id) it.copy(color = color) else it })
+        onCalendarMutation?.invoke(JSONObject().put("type", "calendar_color").put("id", id).put("color", color))
+    }
+
+    var onCalendarMutation: ((JSONObject) -> Unit)? = null
+    fun calendarsForSharing(): List<PersonalCalendar> = store.calendarFeeds
+    fun applySharedCalendars(feeds: List<PersonalCalendar>) {
+        if (store.calendarFeeds == feeds && store.calendarConfigured) return
+        applyPersonalCalendars(feeds)
+    }
+    fun togglePersonalCalendar(id: String) {
+        val current = store.calendarFeeds.firstOrNull { it.id == id } ?: return
+        applyPersonalCalendars(store.calendarFeeds.map { if (it.id == id) it.copy(disabled = !it.disabled) else it })
+        onCalendarMutation?.invoke(JSONObject().put("type", "calendar_enabled").put("id", id).put("enabled", current.disabled))
     }
 
     private fun applyPersonalCalendars(feeds: List<PersonalCalendar>) {
