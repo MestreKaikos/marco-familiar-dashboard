@@ -49,6 +49,13 @@ for(const path of paths){
  test(label+': refresc manual ignora edat i fotos concurrents es comparteixen',async()=>{
   const h=harness(path);await h.api.start();h.api.stamp();h.api.refreshAll();h.api.refreshAll();assert.equal(h.requests.length,3);
  });
+ test(label+': recàrrega recent conserva antiguitat i evita consultes',async()=>{
+  const h=harness(path);await h.api.start();h.api.refreshAll();
+  h.requests[0].resolve({ok:true,data:{groceries:[]}});h.requests[1].resolve({ok:true,data:{}});h.requests[2].resolve({ok:true,photos:[]});await tick();
+  const reloaded=harness(path,h.stored);await reloaded.api.start();reloaded.api.refreshAll(5);
+  assert.equal(reloaded.requests.length,0);
+  reloaded.advance(5*60000);reloaded.api.refreshAll(5);assert.equal(reloaded.requests.length,3);
+ });
  test(label+': ajustos persistents i validació de valors',async()=>{
   const h=harness(path);h.nodes.get('dataInterval').value='60';h.events['dataInterval:change']();
   const next=harness(path,h.stored);assert.equal(next.api.intervals.data,60);assert.equal(next.api.intervals.photos,30);

@@ -76,103 +76,103 @@ class FamilyPhotoCache(context: Context) {
     suspend fun refresh(sync: FamilySync, minAgeMillis: Long = 0L) {
         val requestedGeneration = photoGeneration
         mutex.withLock {
-        if (photoGeneration != requestedGeneration) return@withLock
-        if (!sync.connected) {
-            message = if (photos.isEmpty()) "Activa la sincronització familiar per rebre fotografies." else null
-            return@withLock
-        }
-        if (minAgeMillis > 0L && !shouldCheck(minAgeMillis)) return@withLock
-        refreshing = true
-        try {
-            val response = sync.photoAction("photo_list")
-            val remoteArray = response.getJSONArray("photos")
-            val remote = (0 until minOf(remoteArray.length(), 120)).mapNotNull { i ->
-                val item = remoteArray.optJSONObject(i) ?: return@mapNotNull null
-                val id = item.optString("id")
-                if (!validId.matches(id)) return@mapNotNull null
-                RemotePhoto(id, item.optString("name").take(75))
+            if (photoGeneration != requestedGeneration) return@withLock
+            if (!sync.connected) {
+                message = if (photos.isEmpty()) "Activa la sincronització familiar per rebre fotografies." else null
+                return@withLock
             }
-            withContext(Dispatchers.IO) { if (!folder.exists()) folder.mkdirs() }
-            // Retirar les fotos que la família ha eliminat des del mòbil.
-            val keepIds = remote.map { it.id }.toSet()
-            withContext(Dispatchers.IO) {
-                folder.listFiles()?.forEach { file ->
-                    if (file.extension == "jpg" && file.nameWithoutExtension !in keepIds) file.delete()
+            if (minAgeMillis > 0L && !shouldCheck(minAgeMillis)) return@withLock
+            refreshing = true
+            try {
+                val response = sync.photoAction("photo_list")
+                val remoteArray = response.getJSONArray("photos")
+                val remote = (0 until minOf(remoteArray.length(), 120)).mapNotNull { i ->
+                    val item = remoteArray.optJSONObject(i) ?: return@mapNotNull null
+                    val id = item.optString("id")
+                    if (!validId.matches(id)) return@mapNotNull null
+                    RemotePhoto(id, item.optString("name").take(75))
                 }
-            }
-
-            var downloaded = 0
-            var attempted = 0
-            var firstError: String? = null
-            // Màxim 12 fotografies noves a cada comprovació per no saturar un Android d'1 GB RAM.
-            for (photo in remote) {
-                val file = cachedFile(photo.id)
-                if (file.isFile && file.length() in 6L..photoMaxBytes) continue
-                if (attempted >= 12) break
-                attempted++
-                try {
-                    val result = sync.photoAction("photo_get", JSONObject().put("id", photo.id))
-                    val encoded = result.getJSONObject("photo").getString("base64")
-                    if (encoded.length > 7_100_000) throw IllegalStateException("Fotografia massa gran")
-                    val bytes = Base64.decode(encoded, Base64.DEFAULT)
-                    val mime = result.getJSONObject("photo").optString("mimeType", "image/jpeg")
-                    val jpeg = bytes.size >= 4 &&
-                        (bytes[0].toInt() and 255) == 255 &&
-                        (bytes[1].toInt() and 255) == 216 &&
-                        (bytes[bytes.lastIndex - 1].toInt() and 255) == 255 &&
-                        (bytes[bytes.lastIndex].toInt() and 255) == 217
-                    val pngSignature = intArrayOf(137,80,78,71,13,10,26,10)
-                    val png = bytes.size >= 8 &&
-                        pngSignature.indices.all { i -> (bytes[i].toInt() and 255) == pngSignature[i] }
-                    val webp = bytes.size >= 12 &&
-                        String(bytes, 0, 4, Charsets.US_ASCII) == "RIFF" &&
-                        String(bytes, 8, 4, Charsets.US_ASCII) == "WEBP"
-                    if (bytes.size.toLong() !in 6L..photoMaxBytes ||
-                        !((mime == "image/jpeg" && jpeg) || (mime == "image/png" && png) ||
-                            (mime == "image/webp" && webp))) {
-                        throw IllegalStateException("Fotografia JPG, PNG o WebP incorrecta")
+                withContext(Dispatchers.IO) { if (!folder.exists()) folder.mkdirs() }
+                // Retirar les fotos que la família ha eliminat des del mòbil.
+                val keepIds = remote.map { it.id }.toSet()
+                withContext(Dispatchers.IO) {
+                    folder.listFiles()?.forEach { file ->
+                        if (file.extension == "jpg" && file.nameWithoutExtension !in keepIds) file.delete()
                     }
-                    withContext(Dispatchers.IO) {
-                        val temp = File(folder, photo.id + ".tmp")
-                        try {
-                            temp.writeBytes(bytes)
-                            if (!temp.renameTo(file)) throw IllegalStateException("No es pot guardar la foto")
-                        } finally {
-                            temp.delete()
+                }
+
+                var downloaded = 0
+                var attempted = 0
+                var firstError: String? = null
+                // Màxim 12 fotografies noves a cada comprovació per no saturar un Android d'1 GB RAM.
+                for (photo in remote) {
+                    val file = cachedFile(photo.id)
+                    if (file.isFile && file.length() in 6L..photoMaxBytes) continue
+                    if (attempted >= 12) break
+                    attempted++
+                    try {
+                        val result = sync.photoAction("photo_get", JSONObject().put("id", photo.id))
+                        val encoded = result.getJSONObject("photo").getString("base64")
+                        if (encoded.length > 7_100_000) throw IllegalStateException("Fotografia massa gran")
+                        val bytes = Base64.decode(encoded, Base64.DEFAULT)
+                        val mime = result.getJSONObject("photo").optString("mimeType", "image/jpeg")
+                        val jpeg = bytes.size >= 4 &&
+                            (bytes[0].toInt() and 255) == 255 &&
+                            (bytes[1].toInt() and 255) == 216 &&
+                            (bytes[bytes.lastIndex - 1].toInt() and 255) == 255 &&
+                            (bytes[bytes.lastIndex].toInt() and 255) == 217
+                        val pngSignature = intArrayOf(137,80,78,71,13,10,26,10)
+                        val png = bytes.size >= 8 &&
+                            pngSignature.indices.all { i -> (bytes[i].toInt() and 255) == pngSignature[i] }
+                        val webp = bytes.size >= 12 &&
+                            String(bytes, 0, 4, Charsets.US_ASCII) == "RIFF" &&
+                            String(bytes, 8, 4, Charsets.US_ASCII) == "WEBP"
+                        if (bytes.size.toLong() !in 6L..photoMaxBytes ||
+                            !((mime == "image/jpeg" && jpeg) || (mime == "image/png" && png) ||
+                                (mime == "image/webp" && webp))) {
+                            throw IllegalStateException("Fotografia JPG, PNG o WebP incorrecta")
                         }
+                        withContext(Dispatchers.IO) {
+                            val temp = File(folder, photo.id + ".tmp")
+                            try {
+                                temp.writeBytes(bytes)
+                                if (!temp.renameTo(file)) throw IllegalStateException("No es pot guardar la foto")
+                            } finally {
+                                temp.delete()
+                            }
+                        }
+                        downloaded++
+                    } catch (error: Exception) {
+                        if (error is CancellationException) throw error
+                        if (firstError == null) firstError = error.message ?: "No s'ha pogut descarregar una foto"
                     }
-                    downloaded++
-                } catch (error: Exception) {
-                    if (error is CancellationException) throw error
-                    if (firstError == null) firstError = error.message ?: "No s'ha pogut descarregar una foto"
                 }
-            }
 
-            val valid = withContext(Dispatchers.IO) {
-                remote.mapNotNull { item ->
-                    val file = cachedFile(item.id)
-                    if (file.isFile && file.length() in 6L..photoMaxBytes)
-                        SharedCachedPhoto(item.id, item.name, file)
-                    else null
+                val valid = withContext(Dispatchers.IO) {
+                    remote.mapNotNull { item ->
+                        val file = cachedFile(item.id)
+                        if (file.isFile && file.length() in 6L..photoMaxBytes)
+                            SharedCachedPhoto(item.id, item.name, file)
+                        else null
+                    }
                 }
+                writeIndex(valid)
+                lastSuccessfulCheckAt = System.currentTimeMillis()
+                photoGeneration++
+                prefs.edit().putLong("last_photo_check_epoch", lastSuccessfulCheckAt).apply()
+                message = when {
+                    firstError != null -> "Algunes fotos no s'han pogut baixar. Es tornarà a provar."
+                    valid.size < remote.size -> "Baixant fotos noves · ${valid.size} de ${remote.size}"
+                    else -> null
+                }
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                // Sense Internet, conservar i mostrar la còpia de les fotos ja descarregades.
+                message = "No es poden actualitzar les fotos. Mostrem les que ja tenim desades."
+            } finally {
+                refreshing = false
             }
-            writeIndex(valid)
-            lastSuccessfulCheckAt = System.currentTimeMillis()
-            photoGeneration++
-            prefs.edit().putLong("last_photo_check_epoch", lastSuccessfulCheckAt).apply()
-            message = when {
-                firstError != null -> "Algunes fotos no s'han pogut baixar. Es tornarà a provar."
-                valid.size < remote.size -> "Baixant fotos noves · ${valid.size} de ${remote.size}"
-                else -> null
-            }
-        } catch (error: Exception) {
-            if (error is CancellationException) throw error
-            // Sense Internet, conservar i mostrar la còpia de les fotos ja descarregades.
-            message = "No es poden actualitzar les fotos. Mostrem les que ja tenim desades."
-        } finally {
-            refreshing = false
         }
-    }
     }
 }
 

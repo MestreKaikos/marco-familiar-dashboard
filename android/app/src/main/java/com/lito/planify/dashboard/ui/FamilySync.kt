@@ -232,36 +232,35 @@ class FamilySync internal constructor(context: Context) {
     suspend fun synchronize(dinners: DinnerPlan, family: LocalFamilyStore, minAgeMillis: Long = 0L) {
         val requestedGeneration = syncGeneration
         mutex.withLock {
-        if (pendingCount == 0 && syncGeneration != requestedGeneration) return@withLock
-        if (!connected || busy || (pendingCount == 0 && minAgeMillis > 0L && !isStale(minAgeMillis)))
-            return@withLock
-        busy = true
-        try {
-            // Les mutacions s'envien una sola vegada i per ordre. Són idempotents:
-            // un reintent no torna a incrementar cap comptador.
-            repeat(5) {
-                val pending = readQueue()
-                val batch = pending.take(60)
-                val result = call(url, key, batch)
-                if (batch.isNotEmpty()) {
-                    val ack = batch.map { it.optString("mutationId") }.toSet()
-                    putQueue(readQueue().filterNot { it.optString("mutationId") in ack })
+            if (pendingCount == 0 && syncGeneration != requestedGeneration) return@withLock
+            if (!connected || busy || (pendingCount == 0 && minAgeMillis > 0L && !isStale(minAgeMillis)))
+                return@withLock
+            busy = true
+            try {
+                // Les mutacions s'envien una sola vegada i per ordre. Són idempotents:
+                // un reintent no torna a incrementar cap comptador.
+                repeat(5) {
+                    val pending = readQueue()
+                    val batch = pending.take(60)
+                    val result = call(url, key, batch)
+                    if (batch.isNotEmpty()) {
+                        val ack = batch.map { it.optString("mutationId") }.toSet()
+                        putQueue(readQueue().filterNot { it.optString("mutationId") in ack })
+                    }
+                    if (readQueue().isEmpty()) {
+                        applySnapshot(result, dinners, family)
+                        updateSuccess(result)
+                        return@withLock
+                    }
                 }
-                if (readQueue().isEmpty()) {
-                    applySnapshot(result, dinners, family)
-                    updateSuccess(result)
-                    return@withLock
-                }
+                status = "Hi ha canvis pendents: es tornaran a enviar"
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                status = messageForError(e)
+            } finally {
+                busy = false
             }
-            status = "Hi ha canvis pendents: es tornaran a enviar"
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            status = messageForError(e)
-        } finally {
-            busy = false
         }
-    }
-
     }
 
     private fun messageForError(ex: Exception): String {
