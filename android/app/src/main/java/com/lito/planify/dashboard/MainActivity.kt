@@ -32,7 +32,8 @@ import com.lito.planify.dashboard.ui.SettingsCallbacks
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
+import com.lito.planify.dashboard.ui.NightClockSettings
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -88,12 +89,13 @@ class MainActivity : ComponentActivity() {
             onMusic = viewModel::homeMusic
         )
 
+        val nightClock = NightClockSettings(this)
         setContent {
             val state by viewModel.state.collectAsStateWithLifecycle()
             // Se diseña en píxeles nativos del panel (1920×1200): 1 dp = 1 sp = 1 px.
             CompositionLocalProvider(LocalDensity provides Density(density = 1f, fontScale = 1f)) {
                 ProvideIconClock {
-                    DashboardApp(state, actions, viewModel::loadWeek, viewModel::syncAll, settings, viewModel::peek, chores, home)
+                    DashboardApp(state, actions, viewModel::loadWeek, viewModel::syncAll, settings, viewModel::peek, chores, home, nightClock)
                 }
             }
         }
@@ -106,8 +108,8 @@ class MainActivity : ComponentActivity() {
                 // El reloj nocturno va con el brillo al mínimo; el resto, con el elegido en Ajustes (o el del sistema).
                 // Siempre poco a poco y sin pasar de MAX_BRIGHTNESS: los saltos bruscos de brillo (07:00, 23:00, al
                 // arrancar) coincidían con los apagados del marco (21-10-2026).
-                viewModel.state.map { if (it.night) NIGHT_BRIGHTNESS else it.brightness }.distinctUntilChanged().collectLatest { value ->
-                    val target = (value ?: systemBrightness()).coerceIn(NIGHT_BRIGHTNESS, MAX_BRIGHTNESS)
+                combine(viewModel.state, nightClock.flow) { state, clock -> if (state.night) clock.brightness else state.brightness }.distinctUntilChanged().collectLatest { value ->
+                    val target = (value ?: systemBrightness()).coerceIn(0.01f, MAX_BRIGHTNESS)
                     val from = window.attributes.screenBrightness.takeIf { it >= 0f } ?: systemBrightness().coerceAtMost(MAX_BRIGHTNESS)
                     for (step in 1..RAMP_STEPS) {
                         val level = from + (target - from) * step / RAMP_STEPS
@@ -140,12 +142,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private companion object {
-        /**
-         * Brillo del reloj nocturno: tenue pero visible (10 de 255). Con 1/255 este panel queda casi negro, parecía
-         * apagado y, al pulsar el botón para «encenderlo», una pulsación larga lo apagaba de verdad (20-10-2026).
-         */
-        const val NIGHT_BRIGHTNESS = 10f / 255f
-
         /** Brillo máximo (180 de 255, ~70 %): menos consumo de pico y de calor; apenas se nota de día. */
         const val MAX_BRIGHTNESS = 180f / 255f
 

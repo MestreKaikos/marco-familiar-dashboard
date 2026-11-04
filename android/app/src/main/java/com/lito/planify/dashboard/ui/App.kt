@@ -131,7 +131,8 @@ fun DashboardApp(
     settings: SettingsCallbacks,
     onPeek: () -> Unit,
     chores: ChoreCallbacks,
-    home: HomeCallbacks = HomeCallbacks()
+    home: HomeCallbacks = HomeCallbacks(),
+    nightClock: NightClockSettings
 ) {
     var page by remember { mutableStateOf(Page.Today) }
     // Manté els camps editats en tornar a una pestanya, sense crear una segona còpia de les dades.
@@ -289,8 +290,8 @@ fun DashboardApp(
                 }
             }
     ) {
-        if (state.night && (page != Page.Photos || cycle.phase != FrameCyclePhase.MANUAL)) {
-            NightScreen(state, onWake = {
+        if (state.night) {
+            NightScreen(state, nightClock.config, onWake = {
                 selectPage(Page.Today)
                 onPeek()
             })
@@ -316,7 +317,7 @@ fun DashboardApp(
                         Page.Home -> HomeEnergyScreen(state, home)
                         Page.Tasks -> LocalFamilyScreen(family, state.now.toLocalDate(), sync.connected, sync.pendingCount, sync.cloudTasks >= 0)
                         Page.Reminders -> FamilyRemindersScreen(reminders, state.now.toLocalDate(), family, sync.connected, sync.pendingCount)
-                        Page.Settings -> SettingsScreen(state, actions, settings, sync, dinners, family, frameMode)
+                        Page.Settings -> SettingsScreen(state, actions, settings, sync, dinners, family, frameMode, nightClock)
                     }
                     }
                 }

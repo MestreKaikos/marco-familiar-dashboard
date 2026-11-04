@@ -97,9 +97,14 @@ class SettingsCallbacks(
  * Dentro de las cajas (blancas) los controles van en crema ([Control]) para que se distingan.
  */
 @Composable
-fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: SettingsCallbacks, sync: FamilySync, dinners: DinnerPlan, family: LocalFamilyStore, frameMode: FrameModeSettings) {
+fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: SettingsCallbacks, sync: FamilySync, dinners: DinnerPlan, family: LocalFamilyStore, frameMode: FrameModeSettings, nightClock: NightClockSettings) {
     var calendarSetup by remember { mutableStateOf(false) }
     var syncSetup by remember { mutableStateOf(false) }
+    var nightSetup by remember { mutableStateOf(false) }
+    if (nightSetup) {
+        NightClockSettingsScreen(state, callbacks, nightClock, onBack = { nightSetup = false })
+        return
+    }
     var frameSetup by remember { mutableStateOf(false) }
     if (frameSetup) {
         FrameModeSettingsScreen(frameMode, onBack = { frameSetup = false })
@@ -114,7 +119,7 @@ fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: Setting
         return
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        if (maxWidth < 1050.dp || maxHeight < 850.dp) {
+        if (maxWidth < 1050.dp || maxHeight < 1000.dp) {
             Column(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -123,6 +128,7 @@ fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: Setting
                 Text("Configura la sincronització i els calendaris des d'aquí.",
                     style = Type.Small.copy(color = Palette.InkSoft))
                 PillButton("Sincronització familiar", Modifier.fillMaxWidth(), background = Control, onClick = { syncSetup = true })
+                PillButton("Mode nocturn", Modifier.fillMaxWidth(), background = Control, onClick = { nightSetup = true })
                 PillButton("Fotos i agenda", Modifier.fillMaxWidth(), background = Control, onClick = { frameSetup = true })
                 PillButton("Calendaris de Google", Modifier.fillMaxWidth(), background = Control, onClick = { calendarSetup = true })
                 PillButton("Wi-Fi", Modifier.fillMaxWidth(), background = Control, onClick = actions.openWifi)
@@ -156,6 +162,7 @@ fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: Setting
                     Panel(Modifier.fillMaxWidth()) {
                         Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
                             PillButton("Wi-Fi", Modifier.fillMaxWidth(), background = Control, onClick = actions.openWifi)
+                            PillButton("Mode nocturn", Modifier.fillMaxWidth(), background = Control, onClick = { nightSetup = true })
                             PillButton("Fotos i agenda", Modifier.fillMaxWidth(), background = Control, onClick = { frameSetup = true })
                             PillButton("Calendaris de Google", Modifier.fillMaxWidth(), background = Control, onClick = { calendarSetup = true })
                             PillButton("Sincronització familiar", Modifier.fillMaxWidth(), background = Control, onClick = { syncSetup = true })
@@ -230,7 +237,7 @@ private fun LocationSection(state: UiState, callbacks: SettingsCallbacks) {
 }
 
 @Composable
-private fun ScheduleSection(schedule: Schedule, onChange: (Schedule) -> Unit) {
+internal fun ScheduleSection(schedule: Schedule, onChange: (Schedule) -> Unit) {
     Section("Horari de la pantalla") {
         Toggle("Horari de la pantalla", schedule.enabled) { onChange(schedule.copy(enabled = it)) }
         if (schedule.enabled) {
