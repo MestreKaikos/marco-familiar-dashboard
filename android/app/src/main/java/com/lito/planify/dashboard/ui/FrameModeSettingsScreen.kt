@@ -37,7 +37,7 @@ fun FrameModeSettingsScreen(mode: FrameModeSettings, onBack: () -> Unit) {
                     modifier = Modifier.semantics { contentDescription = "Alternança automàtica" })
             }
             Text("Quan deixis de tocar el marc, mostrarà fotos a pantalla completa. Periòdicament tornarà a Avui i després reprendrà les fotos. Toca una foto per obrir Avui.", style = Type.Small)
-            Text("S'espera mentre ets a Opcions o tens una cita oberta. Sense fotos disponibles es manté la informació, i durant l'horari nocturn s'atura l'alternança.", style = Type.Tiny)
+            Text("S'espera mentre ets a Opcions, tens una cita o un diàleg obert, o estàs escrivint amb el teclat. Sense fotos disponibles es manté la informació, i durant l'horari nocturn s'atura l'alternança.", style = Type.Tiny)
         }
         Column(Modifier.fillMaxWidth().background(Palette.Card, RoundedCornerShape(24.dp)).padding(22.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {

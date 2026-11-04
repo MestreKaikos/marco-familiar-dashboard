@@ -2,6 +2,11 @@ package com.lito.planify.dashboard.ui
 
 import android.content.Context
 import android.os.SystemClock
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.rememberUpdatedState
@@ -116,6 +121,7 @@ private const val IDLE_MILLIS = 120_000L
 /** Solape entre las líneas del reloj lateral: deja la distancia entre las cifras en el interlineado (52). */
 private val RAIL_CLOCK_OVERLAP = (-30).dp
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DashboardApp(
     state: UiState,
@@ -189,6 +195,8 @@ fun DashboardApp(
     }
     var lastTouch by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var cycle by remember { mutableStateOf(FrameCycle.interact(SystemClock.elapsedRealtime())) }
+    val windowFocused = LocalWindowInfo.current.isWindowFocused
+    val keyboardVisible = WindowInsets.isImeVisible
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var appResumed by remember(lifecycle) { mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
     var pointerDown by remember { mutableStateOf(false) }
@@ -216,9 +224,9 @@ fun DashboardApp(
 
     val hasPhotos = photosAvailable || sharedPhotos.photos.isNotEmpty()
     // Una sola màquina d'estats coordina les fotos i les visites periòdiques a Avui.
-    LaunchedEffect(frameMode.config, page, shownEvent, state.night, appResumed, pointerDown, hasPhotos) {
+    LaunchedEffect(frameMode.config, page, shownEvent, state.night, appResumed, pointerDown, hasPhotos, windowFocused, keyboardVisible) {
         val config = frameMode.config
-        if (!config.enabled || !appResumed || state.night || pointerDown || page == Page.Settings || shownEvent != null || !hasPhotos) {
+        if (!config.enabled || !appResumed || state.night || pointerDown || !windowFocused || keyboardVisible || page == Page.Settings || shownEvent != null || !hasPhotos) {
             if (cycle.phase != FrameCyclePhase.MANUAL) page = Page.Today
             cycle = FrameCycle.interact(SystemClock.elapsedRealtime())
             return@LaunchedEffect
@@ -259,6 +267,7 @@ fun DashboardApp(
         Modifier
             .fillMaxSize()
             .background(Palette.Background)
+            .onPreviewKeyEvent { currentInteraction(); false }
             .pointerInput(Unit) {
                 awaitPointerEventScope {
                     var consumeGesture = false
