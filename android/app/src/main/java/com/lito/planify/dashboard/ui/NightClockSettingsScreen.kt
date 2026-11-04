@@ -33,7 +33,7 @@ fun NightClockSettingsScreen(state: UiState, callbacks: SettingsCallbacks, setti
     var preview by remember { mutableStateOf(false) }
     var colorInput by remember(c.colorHex) { mutableStateOf(c.colorHex) }
     BackHandler(onBack = onBack)
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Mode nocturn", style = Type.Title, modifier = Modifier.weight(1f))
             OutlinedButton(onClick = onBack) { Text("← Tornar a Opcions") }
@@ -46,6 +46,7 @@ fun NightClockSettingsScreen(state: UiState, callbacks: SettingsCallbacks, setti
             Button(onClick = { preview = true }) { Text("Provar a pantalla completa", style = Type.Tiny) }
             OutlinedButton(onClick = { settings.update(NightClockConfig()) }) { Text("Restablir aspecte", style = Type.Tiny) }
         }
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         NightPanel {
             NightChoices("Tipus de rellotge", c.layout, listOf("digital" to "Digital", "stacked" to "Apilat", "analog" to "Analògic")) { settings.update(c.copy(layout = it)) }
             if (c.layout != "analog") {
@@ -68,7 +69,8 @@ fun NightClockSettingsScreen(state: UiState, callbacks: SettingsCallbacks, setti
         }
         NightPanel {
             ScheduleSection(state.schedule, callbacks.onSchedule)
-            Text("Activa l'horari i «Rellotge nocturn». Si el desactives, es conserva l'apagada real existent. Un toc al rellotge mostra Avui temporalment; al matí es recupera el funcionament habitual.", style = Type.Tiny)
+            Text("Activa l'horari i «Rellotge nocturn». Amb «Rellotge nocturn» desactivat, es fa servir l'apagada real existent. Un toc al rellotge mostra Avui temporalment; al matí es recupera el funcionament habitual.", style = Type.Tiny)
+        }
         }
     }
     if (preview) {

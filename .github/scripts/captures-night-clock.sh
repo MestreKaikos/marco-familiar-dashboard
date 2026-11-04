@@ -83,6 +83,14 @@ tap_text '← Tornar a Opcions'
 # Activació real amb la lluna i comprovació del toc de retorn a Avui.
 tap_text 'Dormir'
 capture_night '28-rellotge-nocturn-real.png'
+adb shell uiautomator dump /sdcard/night-real.xml >/dev/null
+adb pull /sdcard/night-real.xml /tmp/night-real.xml >/dev/null
+python3 - <<'PYTEST'
+import re,xml.etree.ElementTree as ET
+text='\n'.join(n.attrib.get('text','') for n in ET.parse('/tmp/night-real.xml').getroot().iter('node'))
+assert re.search(r'\d{2}:\d{2}', text), 'El rellotge digital ha de mostrar l’hora'
+assert 'Opcions' not in text and 'Compra' not in text, 'La nit ha d’ocultar les targetes i el menú'
+PYTEST
 adb shell input tap 300 1000
 sleep 3
 adb shell uiautomator dump /sdcard/night-wake.xml >/dev/null
