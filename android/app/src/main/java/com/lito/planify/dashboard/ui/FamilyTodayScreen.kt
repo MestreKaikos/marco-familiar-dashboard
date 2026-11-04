@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -24,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -73,7 +75,7 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
         if (state.personalCalendars.isNotEmpty()) {
             CalendarLegend(state.personalCalendars)
         }
-        Row(Modifier.fillMaxWidth().weight(0.53f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth().weight(0.48f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             (0 until WEEK_DAYS).forEach { i ->
                 val day = today.plusDays(i.toLong())
                 WeekDay(
@@ -87,7 +89,7 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
                 )
             }
         }
-        Row(Modifier.fillMaxWidth().weight(0.24f), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(Modifier.fillMaxWidth().weight(0.29f), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             ReminderTile(reminders, today, Modifier.weight(1.3f).fillMaxHeight()) { onOpen(Page.Reminders) }
             LocalShoppingTile(family, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Reminders) }
             LocalRaiTile(family, today, Modifier.weight(1.1f).fillMaxHeight()) { onOpen(Page.Tasks) }
@@ -238,57 +240,74 @@ private fun Tile(title: String, emoji: String, tint: Color, modifier: Modifier, 
     }
 }
 
-/** Targeta de la compra, amb tota la gestió des de la pestanya Família. */
+/** El contingut té més pes que les etiquetes; cada element ocupa una línia pròpia. */
+@Composable
+private fun HomeSummaryTile(
+    title: String, emoji: String, tint: Color, summary: String,
+    items: List<String>, emptyMessage: String, modifier: Modifier,
+    alert: Boolean = false, onClick: () -> Unit
+) {
+    BoxWithConstraints(
+        modifier.background(Palette.Card, RoundedCornerShape(28.dp))
+            .clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 14.dp)
+    ) {
+        val density = LocalDensity.current
+        val itemLine = with(density) { 32.sp.toDp() }
+        val headerAndSummary = with(density) { 44.sp.toDp() } + 12.dp
+        val visibleCount = if (maxHeight - headerAndSummary >= itemLine * 2) 2 else 1
+        val hiddenCount = (items.size - visibleCount).coerceAtLeast(0)
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(emoji, style = Type.Tiny.copy(fontSize = 20.sp, lineHeight = 22.sp))
+                Text(title, style = Type.Label.copy(color = tint, fontSize = 16.sp, lineHeight = 22.sp),
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Text(
+                summary + if (hiddenCount > 0) " · +$hiddenCount més" else "",
+                style = Type.Small.copy(fontSize = 18.sp, lineHeight = 22.sp,
+                    color = if (alert) Palette.Accent else Palette.InkSoft),
+                maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+            Column(Modifier.fillMaxWidth().weight(1f).padding(top = 4.dp)) {
+                if (items.isEmpty()) {
+                    Text(emptyMessage, style = Type.Body.copy(fontSize = 24.sp, lineHeight = 30.sp,
+                        color = Palette.Ink), maxLines = visibleCount, overflow = TextOverflow.Ellipsis)
+                } else {
+                    items.take(visibleCount).forEach { item ->
+                        Text(item, style = Type.Body.copy(fontSize = 26.sp, lineHeight = 32.sp,
+                            color = Palette.Ink, fontWeight = FontWeight.Medium),
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Compra pendent: els noms dels productes són la informació principal. */
 @Composable
 private fun LocalShoppingTile(store: LocalFamilyStore, modifier: Modifier, onClick: () -> Unit) {
     val pending = store.groceries.filterNot { it.bought }
-    Tile("Llista de la compra", "🛒", Palette.Online, modifier, onClick) {
-        Text(
-            if (pending.isEmpty()) "No falta res per comprar" else "${pending.size} producte${if (pending.size == 1) "" else "s"} pendents",
-            style = Type.Body.copy(fontWeight = FontWeight.SemiBold),
-            modifier = Modifier.padding(top = 8.dp),
-            maxLines = 1
-        )
-        Text(
-            if (pending.isEmpty()) "Toca per afegir productes" else pending.take(3).joinToString(" · ") { it.name },
-            style = Type.Tiny.copy(color = Palette.InkMuted),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 6.dp)
-        )
-    }
+    HomeSummaryTile("Compra", "🛒", Palette.Online,
+        summary = if (pending.isEmpty()) "No falta res" else "${pending.size} producte${if (pending.size == 1) "" else "s"} pendents",
+        items = pending.map { it.name }, emptyMessage = "Toca per afegir productes",
+        modifier = modifier, onClick = onClick)
 }
 
-/** Resum de les feines d'en Rai i les estrelles disponibles. */
+/** Primer les feines que esperen validació, després les que queden per fer. */
 @Composable
 private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Modifier, onClick: () -> Unit) {
     val tasks = store.chores.filter { it.owner == "Rai" }
-    val awaiting = tasks.count { store.status(it, today) == "pending" }
-    val remaining = tasks.count { store.status(it, today) in setOf("todo", "slots") }
-    val nextTasks = tasks.filter { store.status(it, today) in setOf("todo", "slots") }
-        .take(2).joinToString(" · ") { it.title }
-    Tile("Feines d'en Rai", "⭐", Palette.Warm, modifier, onClick) {
-        Text(
-            if (tasks.isEmpty()) "Afegir feines per a en Rai" else "⭐ ${store.stars} disponibles · $remaining pendents",
-            style = Type.Body.copy(fontWeight = FontWeight.SemiBold),
-            maxLines = 2,
-            modifier = Modifier.padding(top = 8.dp)
-        )
-        Text(
-            when {
-                awaiting > 0 -> "${awaiting} feina${if (awaiting == 1) "" else "s"} per validar"
-                nextTasks.isNotBlank() -> nextTasks
-                tasks.isNotEmpty() -> "Tot fet per avui · Recompenses disponibles"
-                else -> "Crea feines i recompenses a Família"
-            },
-            style = Type.Tiny.copy(color = if (awaiting > 0) Palette.Accent else Palette.InkMuted),
-            maxLines = 2, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 6.dp)
-        )
-    }
+    val awaiting = tasks.filter { store.status(it, today) == "pending" }
+    val remaining = tasks.filter { store.status(it, today) in setOf("todo", "slots") }
+    val items = awaiting.map { "${it.title} · per validar" } + remaining.map { it.title }
+    HomeSummaryTile("Feines d'en Rai", "⭐", Palette.Warm,
+        summary = "${store.stars} estrelles · ${items.size} pendents",
+        items = items, emptyMessage = if (tasks.isEmpty()) "Toca per afegir feines" else "Tot fet per avui!",
+        modifier = modifier, alert = awaiting.isNotEmpty(), onClick = onClick)
 }
 
-/** Recordatoris de casa, visibles a la portada sense entrar al mòbil. */
+/** Recordatoris prioritzats: vençuts, avui, futurs i sense data. */
 @Composable
 private fun ReminderTile(store: FamilyReminders, today: LocalDate, modifier: Modifier, onClick: () -> Unit) {
     val pending = store.pending()
@@ -296,27 +315,16 @@ private fun ReminderTile(store: FamilyReminders, today: LocalDate, modifier: Mod
     val todayReminders = pending.filter { it.date == today.toString() }
     val upcoming = pending.filter { it.date.isNotBlank() && it.date > today.toString() }.sortedBy { it.date }
     val withoutDate = pending.filter { it.date.isBlank() }
-    // Primer allò que ja ha vençut, després el que toca avui, després el futur.
-    val priority = (overdue + todayReminders + upcoming + withoutDate).take(3)
-    val headline = when {
+    val priority = overdue + todayReminders + upcoming + withoutDate
+    val summary = when {
         overdue.isNotEmpty() -> "⚠ ${overdue.size} vençut${if (overdue.size == 1) "" else "s"}"
-        todayReminders.isNotEmpty() -> "📅 ${todayReminders.size} per avui"
-        upcoming.isNotEmpty() -> "${pending.size} pendents · Proper: ${upcoming.first().deadline?.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM"))}"
-        pending.isNotEmpty() -> "${pending.size} pendents sense data"
+        todayReminders.isNotEmpty() -> "${todayReminders.size} per avui"
+        pending.isNotEmpty() -> "${pending.size} pendents"
         else -> "Tot al dia!"
     }
-    val description = if (priority.isEmpty()) "Toca per afegir un recordatori"
-                      else priority.joinToString(" · ") { it.title }
-    Tile("Recordatoris", "📌", Palette.Warm, modifier, onClick) {
-        Text(headline,
-            style = Type.Body.copy(fontWeight = FontWeight.SemiBold,
-                color = if(overdue.isNotEmpty()) Palette.Accent else Palette.Ink),
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 8.dp))
-        Text(description, style = Type.Tiny.copy(color = Palette.InkSoft),
-            maxLines = 2, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 6.dp))
-    }
+    HomeSummaryTile("Recordatoris", "📌", Palette.Warm, summary,
+        items = priority.map { it.title }, emptyMessage = "Toca per afegir-ne un",
+        modifier = modifier, alert = overdue.isNotEmpty(), onClick = onClick)
 }
 
 @Composable
