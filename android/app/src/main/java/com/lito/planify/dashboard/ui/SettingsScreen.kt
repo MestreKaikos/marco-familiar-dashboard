@@ -97,9 +97,14 @@ class SettingsCallbacks(
  * Dentro de las cajas (blancas) los controles van en crema ([Control]) para que se distingan.
  */
 @Composable
-fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: SettingsCallbacks, sync: FamilySync, dinners: DinnerPlan, family: LocalFamilyStore) {
+fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: SettingsCallbacks, sync: FamilySync, dinners: DinnerPlan, family: LocalFamilyStore, frameMode: FrameModeSettings) {
     var calendarSetup by remember { mutableStateOf(false) }
     var syncSetup by remember { mutableStateOf(false) }
+    var frameSetup by remember { mutableStateOf(false) }
+    if (frameSetup) {
+        FrameModeSettingsScreen(frameMode, onBack = { frameSetup = false })
+        return
+    }
     if (syncSetup) {
         FamilySyncSettings(sync, dinners, family, onBack = { syncSetup = false })
         return
@@ -109,7 +114,7 @@ fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: Setting
         return
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        if (maxWidth < 1050.dp || maxHeight < 730.dp) {
+        if (maxWidth < 1050.dp || maxHeight < 850.dp) {
             Column(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -118,6 +123,7 @@ fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: Setting
                 Text("Configura la sincronització i els calendaris des d'aquí.",
                     style = Type.Small.copy(color = Palette.InkSoft))
                 PillButton("Sincronització familiar", Modifier.fillMaxWidth(), background = Control, onClick = { syncSetup = true })
+                PillButton("Fotos i agenda", Modifier.fillMaxWidth(), background = Control, onClick = { frameSetup = true })
                 PillButton("Calendaris de Google", Modifier.fillMaxWidth(), background = Control, onClick = { calendarSetup = true })
                 PillButton("Wi-Fi", Modifier.fillMaxWidth(), background = Control, onClick = actions.openWifi)
                 PillButton("Opcions d’Android", Modifier.fillMaxWidth(), background = Control, onClick = actions.openSettings)
@@ -150,6 +156,7 @@ fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: Setting
                     Panel(Modifier.fillMaxWidth()) {
                         Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
                             PillButton("Wi-Fi", Modifier.fillMaxWidth(), background = Control, onClick = actions.openWifi)
+                            PillButton("Fotos i agenda", Modifier.fillMaxWidth(), background = Control, onClick = { frameSetup = true })
                             PillButton("Calendaris de Google", Modifier.fillMaxWidth(), background = Control, onClick = { calendarSetup = true })
                             PillButton("Sincronització familiar", Modifier.fillMaxWidth(), background = Control, onClick = { syncSetup = true })
                             PillButton("Opcions d’Android", Modifier.fillMaxWidth(), background = Control, onClick = actions.openSettings)

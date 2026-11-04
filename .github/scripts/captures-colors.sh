@@ -18,6 +18,7 @@ capture() {
 }
 
 bash .github/scripts/captures-home.sh
+bash .github/scripts/captures-frame-cycle.sh
 
 # Prova visual dels colors AMB DADES FICTÍCIES. No s'hi posa cap URL privada real.
 # Només es modifica la configuració de l'emulador (APK debug) amb run-as.

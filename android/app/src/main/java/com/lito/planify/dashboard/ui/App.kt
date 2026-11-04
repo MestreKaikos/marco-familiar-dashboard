@@ -1,5 +1,10 @@
 package com.lito.planify.dashboard.ui
 
+import android.content.Context
+import android.os.SystemClock
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -130,6 +135,13 @@ fun DashboardApp(
     val family = rememberLocalFamilyStore()
     val reminders = rememberFamilyReminders()
     val sync = rememberFamilySync()
+    val frameMode = rememberFrameModeSettings()
+    val sharedPhotos = rememberFamilyPhotoCache()
+    val context = LocalContext.current
+    var photosAvailable by remember {
+        mutableStateOf(sharedPhotos.photos.isNotEmpty() ||
+            context.getSharedPreferences("marc_fotos", Context.MODE_PRIVATE).getString("carpeta", null) != null)
+    }
     val coroutineScope = rememberCoroutineScope()
     // Escolta els canvis locals: en cas de no tenir Internet, queden a la cua del marc.
     LaunchedEffect(sync, dinners, family, reminders) {
@@ -175,13 +187,62 @@ fun DashboardApp(
             if (sync.pendingCount > 0) sync.synchronize(dinners, family, minAgeMillis = 1L)
         }
     }
-    var lastTouch by remember { mutableLongStateOf(0L) }
+    var lastTouch by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var cycle by remember { mutableStateOf(FrameCycle.interact(SystemClock.elapsedRealtime())) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var appResumed by remember(lifecycle) { mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
+    var pointerDown by remember { mutableStateOf(false) }
+    val automaticPhotos = cycle.phase == FrameCyclePhase.PHOTOS
+    val onInteraction: () -> Boolean = {
+        val leavePhotos = cycle.phase == FrameCyclePhase.PHOTOS
+        cycle = FrameCycle.interact(SystemClock.elapsedRealtime())
+        lastTouch = System.currentTimeMillis()
+        if (leavePhotos) page = Page.Today
+        leavePhotos
+    }
+    val currentInteraction by rememberUpdatedState(onInteraction)
+    val selectPage: (Page) -> Unit = { selected -> onInteraction(); page = selected }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        appResumed = true
+        onInteraction()
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
+        onInteraction()
+        pointerDown = false
+        appResumed = false
+    }
     /** Cita abierta en el aviso ([EventOverlay]); se cierra sola al volver a Hoy por inactividad. */
     var shownEvent by remember { mutableStateOf<Event?>(null) }
 
-    // Després de dos minuts sense tocar, tornem a Avui, excepte durant la presentació de fotos.
-    LaunchedEffect(page, lastTouch) {
-        if (page == Page.Today || page == Page.Photos) return@LaunchedEffect
+    val hasPhotos = photosAvailable || sharedPhotos.photos.isNotEmpty()
+    // Una sola màquina d'estats coordina les fotos i les visites periòdiques a Avui.
+    LaunchedEffect(frameMode.config, page, shownEvent, state.night, appResumed, pointerDown, hasPhotos) {
+        val config = frameMode.config
+        if (!config.enabled || !appResumed || state.night || pointerDown || page == Page.Settings || shownEvent != null || !hasPhotos) {
+            if (cycle.phase != FrameCyclePhase.MANUAL) page = Page.Today
+            cycle = FrameCycle.interact(SystemClock.elapsedRealtime())
+            return@LaunchedEffect
+        }
+        while (true) {
+            val updated = FrameCycle.advance(cycle, SystemClock.elapsedRealtime(), config)
+            if (updated != cycle) {
+                cycle = updated
+                page = if (updated.phase == FrameCyclePhase.PHOTOS) Page.Photos else Page.Today
+            }
+            delay(1_000L)
+        }
+    }
+    // Prepara la còpia compartida encara que encara no hàgim obert la galeria.
+    LaunchedEffect(frameMode.config.enabled, sync.connected, sync.photoIntervalMinutes, appResumed) {
+        if (!frameMode.config.enabled || !sync.connected || !appResumed) return@LaunchedEffect
+        while (true) {
+            sharedPhotos.refresh(sync, minAgeMillis = sync.photoIntervalMinutes * 60_000L)
+            delay(60_000L)
+        }
+    }
+    // Amb l'alternança desactivada, es conserva el retorn habitual de dos minuts.
+    LaunchedEffect(page, lastTouch, frameMode.config.enabled) {
+        if (frameMode.config.enabled || page == Page.Today || page == Page.Photos || page == Page.Settings) return@LaunchedEffect
         delay(IDLE_MILLIS)
         page = Page.Today
     }
@@ -192,7 +253,7 @@ fun DashboardApp(
         shownEvent = null
     }
     // Es el launcher: "atrás" cierra el aviso o vuelve a Hoy, y nunca cierra la actividad.
-    BackHandler { if (shownEvent != null) shownEvent = null else page = Page.Today }
+    BackHandler { onInteraction(); if (shownEvent != null) shownEvent = null else page = Page.Today }
 
     Box(
         Modifier
@@ -200,42 +261,52 @@ fun DashboardApp(
             .background(Palette.Background)
             .pointerInput(Unit) {
                 awaitPointerEventScope {
+                    var consumeGesture = false
                     while (true) {
-                        awaitPointerEvent(PointerEventPass.Initial)
-                        lastTouch = System.currentTimeMillis()
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        if (event.changes.any { it.pressed || it.previousPressed }) {
+                            consumeGesture = currentInteraction() || consumeGesture
+                        }
+                        pointerDown = event.changes.any { it.pressed }
+                        if (consumeGesture) event.changes.forEach { it.consume() }
+                        if (!pointerDown) consumeGesture = false
                     }
                 }
             }
     ) {
-        if (state.night && page != Page.Photos) {
+        if (state.night && (page != Page.Photos || cycle.phase != FrameCyclePhase.MANUAL)) {
             NightScreen(state, onWake = {
-                page = Page.Today
+                selectPage(Page.Today)
                 onPeek()
             })
             return@Box
         }
-        CompositionLocalProvider(LocalShowEvent provides { shownEvent = it }) {
+        CompositionLocalProvider(LocalShowEvent provides { onInteraction(); shownEvent = it }) {
             // La barra lateral a la derecha, con el nombre bajo cada icono
             Row(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f).fillMaxHeight()) {
                     pageState.SaveableStateProvider(page.name) {
                     when (page) {
                         // La portada familiar funciona sense credencials; el backend antic és opcional.
-                        Page.Today -> if (state.ics || state.token == null) FamilyTodayScreen(state, reminders, family, onOpen = { page = it }) else TodayScreen(state, lastTouch)
-                        Page.Photos -> PhotosScreen(sync)
+                        Page.Today -> if (state.ics || state.token == null) FamilyTodayScreen(state, reminders, family, onOpen = selectPage) else TodayScreen(state, lastTouch)
+                        Page.Photos -> PhotosScreen(sync, shared = sharedPhotos, presentationMode = automaticPhotos,
+                            slideSeconds = frameMode.config.slideSeconds,
+                            onPhotosAvailable = { photosAvailable = it },
+                            onExitPresentation = { selectPage(Page.Today) })
                         // Con los calendarios de la familia, semanas en vertical como la portada; con Planify, la de Lito
-                        Page.Calendar -> if (state.ics || state.token == null) FamilyCalendarScreen(state, reminders, onOpenReminders = { page = Page.Reminders }) else CalendarScreen(state, onLoadWeek)
+                        Page.Calendar -> if (state.ics || state.token == null) FamilyCalendarScreen(state, reminders, onOpenReminders = { selectPage(Page.Reminders) }) else CalendarScreen(state, onLoadWeek)
                         Page.Weather -> WeatherScreen(state)
                         Page.Energy -> EnergyScreen(state)
                         // Prueba: Casa y Energía juntas (EnergyScreen y HomeScreen siguen por si se separan)
                         Page.Home -> HomeEnergyScreen(state, home)
                         Page.Tasks -> LocalFamilyScreen(family, state.now.toLocalDate(), sync.connected, sync.pendingCount, sync.cloudTasks >= 0)
                         Page.Reminders -> FamilyRemindersScreen(reminders, state.now.toLocalDate(), family, sync.connected, sync.pendingCount)
-                        Page.Settings -> SettingsScreen(state, actions, settings, sync, dinners, family)
+                        Page.Settings -> SettingsScreen(state, actions, settings, sync, dinners, family, frameMode)
                     }
                     }
                 }
-                Rail(page, state, onSelect = { page = it }, onSync = {
+                if (!automaticPhotos) Rail(page, state, onSelect = selectPage, onSync = {
+                    onInteraction()
                     onSync()
                     coroutineScope.launch { sync.synchronize(dinners, family) }
                 }, onSleep = actions.sleep)

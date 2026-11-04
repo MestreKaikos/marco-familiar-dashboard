@@ -8,6 +8,8 @@ import android.provider.DocumentsContract
 import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -40,21 +42,29 @@ private data class LocalPhoto(val uri: Uri, val name: String)
 private data class GalleryPhoto(val name: String, val uri: Uri? = null, val file: File? = null) {
     val key: String get() = uri?.toString() ?: file?.absolutePath.orEmpty()
 }
-private const val SLIDESHOW_DELAY_MS = 20_000L
 
 /**
  * Diapositives de fotos locals + fotografies compartides de Drive, desades en
  * memòria cau privada. L'APK només descodifica una foto alhora (XORO: 1 GB RAM).
  */
 @Composable
-fun PhotosScreen(sync: FamilySync) {
+fun PhotosScreen(
+    sync: FamilySync,
+    shared: FamilyPhotoCache = rememberFamilyPhotoCache(),
+    presentationMode: Boolean = false,
+    slideSeconds: Int = 20,
+    onPhotosAvailable: (Boolean) -> Unit = {},
+    onExitPresentation: () -> Unit = {}
+) {
     val context = LocalContext.current
     val prefs = remember(context) { context.getSharedPreferences("marc_fotos", Context.MODE_PRIVATE) }
-    val shared = rememberFamilyPhotoCache()
     val scope = rememberCoroutineScope()
     var folder by remember { mutableStateOf(prefs.getString("carpeta", null)) }
     var localPhotos by remember { mutableStateOf<List<LocalPhoto>>(emptyList()) }
-    var index by remember { mutableIntStateOf(0) }
+    var index by rememberSaveable { mutableIntStateOf(0) }
+    var localChecked by remember(folder) { mutableStateOf(folder == null) }
+    var cloudChecked by remember(sync.connected) { mutableStateOf(!sync.connected || shared.photos.isNotEmpty()) }
+    val availabilityListener by rememberUpdatedState(onPhotosAvailable)
     var bitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var loadingLocal by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -77,19 +87,20 @@ fun PhotosScreen(sync: FamilySync) {
         bitmap = null
         if (folder == null) return@LaunchedEffect
         loadingLocal = true
+        localChecked = false
         try {
             localPhotos = withContext(Dispatchers.IO) { listLocalPhotos(context, Uri.parse(folder)) }
-            index = 0
             error = null
         } catch (_: Exception) {
             error = "No es poden llegir les fotos locals. Torna a triar la carpeta."
-        } finally { loadingLocal = false }
+        } finally { loadingLocal = false; localChecked = true }
     }
 
     // La connexió familiar es fa des d'Opcions; aquesta pantalla només consulta fotos.
     LaunchedEffect(sync.connected, sync.photoIntervalMinutes) {
         if (!sync.connected) return@LaunchedEffect
         shared.refresh(sync, minAgeMillis = 5 * 60_000L)
+        cloudChecked = true
         while (true) {
             delay(60_000L)
             shared.refresh(sync, minAgeMillis = sync.photoIntervalMinutes * 60_000L)
@@ -103,7 +114,12 @@ fun PhotosScreen(sync: FamilySync) {
     val photos = localPhotos.map { GalleryPhoto(it.name, uri = it.uri) } +
         shared.photos.map { GalleryPhoto(it.name, file = it.file) }
 
-    LaunchedEffect(photos.size) {
+    LaunchedEffect(photos.size, localChecked, cloudChecked, shared.refreshing) {
+        if (localChecked && cloudChecked && !shared.refreshing) availabilityListener(photos.isNotEmpty())
+    }
+
+    LaunchedEffect(photos.size, localChecked) {
+        if (!localChecked) return@LaunchedEffect
         if (photos.isEmpty()) index = 0
         else if (index >= photos.size) index = photos.lastIndex
     }
@@ -126,16 +142,17 @@ fun PhotosScreen(sync: FamilySync) {
         }
     }
 
-    LaunchedEffect(photos.size) {
+    LaunchedEffect(photos.size, slideSeconds) {
         if (photos.size > 1) {
             while (true) {
-                delay(SLIDESHOW_DELAY_MS)
+                delay(slideSeconds.coerceIn(10, 60) * 1_000L)
                 index = (index + 1) % photos.size
             }
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(24.dp)) {
+    Column(Modifier.fillMaxSize().padding(if (presentationMode) 0.dp else 24.dp)) {
+        if (!presentationMode) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween) {
             Text("Fotografies", style = Type.Title)
@@ -156,7 +173,9 @@ fun PhotosScreen(sync: FamilySync) {
             style = Type.Tiny, color = Palette.InkMuted
         )
         Spacer(Modifier.height(14.dp))
-        Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(20.dp))
+        }
+        Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(if (presentationMode) 0.dp else 20.dp))
+            .then(if (presentationMode) Modifier.clickable(onClick = onExitPresentation) else Modifier)
             .background(Color.Black), contentAlignment = Alignment.Center) {
             when {
                 loadingLocal && photos.isEmpty() -> CircularProgressIndicator()
@@ -171,12 +190,19 @@ fun PhotosScreen(sync: FamilySync) {
                 error != null -> Text("No es pot mostrar aquesta fotografia", color = Color.White)
                 else -> CircularProgressIndicator()
             }
+            if (presentationMode) {
+                Text("Toca per veure Avui", style = Type.Tiny,
+                    color = Color.White.copy(alpha = 0.85f),
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 20.dp)
+                        .background(Color.Black.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 14.dp, vertical = 6.dp))
+            }
         }
-        if (error != null || shared.message != null) {
+        if (!presentationMode && (error != null || shared.message != null)) {
             Spacer(Modifier.height(8.dp))
             Text(error ?: shared.message.orEmpty(), style = Type.Tiny, color = Palette.InkMuted)
         }
-        if (photos.isNotEmpty()) {
+        if (!presentationMode && photos.isNotEmpty()) {
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween) {
