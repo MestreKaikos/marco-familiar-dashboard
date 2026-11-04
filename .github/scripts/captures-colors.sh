@@ -17,9 +17,11 @@ capture() {
   file "captures/$name"
 }
 
+bash .github/scripts/captures-home.sh
+
 # Prova visual dels colors AMB DADES FICTÍCIES. No s'hi posa cap URL privada real.
 # Només es modifica la configuració de l'emulador (APK debug) amb run-as.
-adb shell am force-stop com.lito.planify.dashboard
+adb shell am force-stop com.lito.planify.dashboard.testqr
 python3 - <<'PY'
 import json
 from xml.sax.saxutils import escape
@@ -32,13 +34,13 @@ with open("/tmp/marc-calendar-colors.xml", "w", encoding="utf-8") as f:
     f.write('<?xml version="1.0" encoding="utf-8" standalone="yes" ?>\n<map>\n')
     f.write('<string name="calendar_feeds">' + data + '</string>\n</map>\n')
 PY
-adb shell run-as com.lito.planify.dashboard mkdir -p /data/user/0/com.lito.planify.dashboard/shared_prefs
+adb shell run-as com.lito.planify.dashboard.testqr mkdir -p /data/user/0/com.lito.planify.dashboard.testqr/shared_prefs
 # Copiem primer a una ruta temporal llegible i després al directori privat
 # amb cp sota run-as (evita la redirecció de l'intèrpret del sistema).
 adb push /tmp/marc-calendar-colors.xml /data/local/tmp/marc-calendar-colors.xml >/dev/null
-adb shell run-as com.lito.planify.dashboard cp /data/local/tmp/marc-calendar-colors.xml /data/user/0/com.lito.planify.dashboard/shared_prefs/dashboard.xml
+adb shell run-as com.lito.planify.dashboard.testqr cp /data/local/tmp/marc-calendar-colors.xml /data/user/0/com.lito.planify.dashboard.testqr/shared_prefs/dashboard.xml
 adb shell rm /data/local/tmp/marc-calendar-colors.xml
-adb shell am start -W -n com.lito.planify.dashboard/.MainActivity
+adb shell am start -W -n com.lito.planify.dashboard.testqr/com.lito.planify.dashboard.MainActivity
 sleep 12
 # Android 10 mostra un avís inicial de pantalla completa.
 # El tanquem igual que al procés habitual abans de tocar cap pestanya.
@@ -135,13 +137,13 @@ if [ -z "$orange_coords" ]; then
 fi
 adb shell input tap $orange_coords
 sleep 4
-adb shell run-as com.lito.planify.dashboard cat /data/user/0/com.lito.planify.dashboard/shared_prefs/dashboard.xml > /tmp/marc-colors-after.xml
+adb shell run-as com.lito.planify.dashboard.testqr cat /data/user/0/com.lito.planify.dashboard.testqr/shared_prefs/dashboard.xml > /tmp/marc-colors-after.xml
 grep -q '#E09132' /tmp/marc-colors-after.xml
 grep -q '#3977CB' /tmp/marc-colors-after.xml
 capture "18-color-calendari-actualitzat.png"
 
 # Després de reiniciar, el canvi ha de persistir i la llegenda l'ha de reflectir.
-adb shell am force-stop com.lito.planify.dashboard
-adb shell am start -W -n com.lito.planify.dashboard/.MainActivity
+adb shell am force-stop com.lito.planify.dashboard.testqr
+adb shell am start -W -n com.lito.planify.dashboard.testqr/com.lito.planify.dashboard.MainActivity
 sleep 10
 capture "19-color-persistent-portada.png"
