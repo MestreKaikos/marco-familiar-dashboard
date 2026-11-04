@@ -195,6 +195,7 @@ fun DashboardApp(
     }
     var lastTouch by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var cycle by remember { mutableStateOf(FrameCycle.interact(SystemClock.elapsedRealtime())) }
+    var cycleSuspended by remember { mutableStateOf(true) }
     val windowFocused = LocalWindowInfo.current.isWindowFocused
     val keyboardVisible = WindowInsets.isImeVisible
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -229,7 +230,12 @@ fun DashboardApp(
         if (!config.enabled || !appResumed || state.night || pointerDown || !windowFocused || keyboardVisible || page == Page.Settings || shownEvent != null || !hasPhotos) {
             if (cycle.phase != FrameCyclePhase.MANUAL) page = Page.Today
             cycle = FrameCycle.interact(SystemClock.elapsedRealtime())
+            cycleSuspended = true
             return@LaunchedEffect
+        }
+        if (cycleSuspended) {
+            cycle = FrameCycle.interact(SystemClock.elapsedRealtime())
+            cycleSuspended = false
         }
         while (true) {
             val updated = FrameCycle.advance(cycle, SystemClock.elapsedRealtime(), config)
