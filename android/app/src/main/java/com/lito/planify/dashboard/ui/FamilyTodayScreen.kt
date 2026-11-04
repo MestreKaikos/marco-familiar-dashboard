@@ -1,10 +1,10 @@
 package com.lito.planify.dashboard.ui
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -25,7 +26,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -240,47 +245,93 @@ private fun Tile(title: String, emoji: String, tint: Color, modifier: Modifier, 
     }
 }
 
-/** El contingut té més pes que les etiquetes; cada element ocupa una línia pròpia. */
+/** Mesura la capçalera i una fila real: mostra totes les files completes que hi caben. */
 @Composable
 private fun HomeSummaryTile(
     title: String, emoji: String, tint: Color, summary: String,
     items: List<String>, emptyMessage: String, modifier: Modifier,
     alert: Boolean = false, onClick: () -> Unit
 ) {
-    BoxWithConstraints(
-        modifier.background(Palette.Card, RoundedCornerShape(28.dp))
-            .clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 14.dp)
-    ) {
-        val density = LocalDensity.current
-        val itemLine = with(density) { 32.sp.toDp() }
-        val headerAndSummary = with(density) { 44.sp.toDp() } + 12.dp
-        val visibleCount = if (maxHeight - headerAndSummary >= itemLine * 2) 2 else 1
-        val hiddenCount = (items.size - visibleCount).coerceAtLeast(0)
-        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(emoji, style = Type.Tiny.copy(fontSize = 20.sp, lineHeight = 22.sp))
-                Text(title, style = Type.Label.copy(color = tint, fontSize = 16.sp, lineHeight = 22.sp),
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            Text(
-                summary + if (hiddenCount > 0) " · +$hiddenCount més" else "",
-                style = Type.Small.copy(fontSize = 18.sp, lineHeight = 22.sp,
-                    color = if (alert) Palette.Accent else Palette.InkSoft),
-                maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
-            Column(Modifier.fillMaxWidth().weight(1f).padding(top = 4.dp)) {
-                if (items.isEmpty()) {
+    val shape = RoundedCornerShape(24.dp)
+    val accent = if (alert) Palette.Accent else tint
+    SubcomposeLayout(
+        modifier.clip(shape)
+            .background(Brush.verticalGradient(listOf(Palette.Card, tint.copy(alpha = 0.07f).compositeOver(Palette.Card))))
+            .border(1.dp, tint.copy(alpha = 0.20f), shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 12.dp)
+    ) { constraints ->
+        val width = constraints.maxWidth
+        val childConstraints = constraints.copy(minHeight = 0)
+        val header = subcompose("headerMeasure") {
+            HomeSummaryHeader(title, emoji, accent, summary, hiddenCount = 0)
+        }.single().measure(childConstraints)
+        val headerGap = 8.dp.roundToPx()
+        val rowGap = 2.dp.roundToPx()
+        val bodyHeight = (constraints.maxHeight - header.height - headerGap).coerceAtLeast(0)
+        val bodyConstraints = Constraints(minWidth = width, maxWidth = width, maxHeight = bodyHeight)
+        val visibleCount = if (items.isEmpty()) 0 else {
+            val sample = subcompose("rowMeasure") {
+                HomeSummaryRow(items.first(), accent)
+            }.single().measure(childConstraints)
+            SummaryTileLayout.visibleItems(bodyHeight, sample.height, rowGap, items.size)
+        }
+        val finalHeader = subcompose("header") {
+            HomeSummaryHeader(title, emoji, accent, summary, hiddenCount = items.size - visibleCount)
+        }.single().measure(childConstraints)
+        val body = subcompose("items") {
+            if (items.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
                     Text(emptyMessage, style = Type.Body.copy(fontSize = 24.sp, lineHeight = 30.sp,
-                        color = Palette.Ink), maxLines = visibleCount, overflow = TextOverflow.Ellipsis)
-                } else {
-                    items.take(visibleCount).forEach { item ->
-                        Text(item, style = Type.Body.copy(fontSize = 26.sp, lineHeight = 32.sp,
-                            color = Palette.Ink, fontWeight = FontWeight.Medium),
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
+                        color = Palette.InkSoft), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+            } else {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    items.take(visibleCount).forEach { HomeSummaryRow(it, accent) }
                 }
             }
+        }.single().measure(bodyConstraints)
+        layout(width, constraints.maxHeight) {
+            finalHeader.placeRelative(0, 0)
+            body.placeRelative(0, header.height + headerGap)
         }
+    }
+}
+
+@Composable
+private fun HomeSummaryHeader(title: String, emoji: String, tint: Color, summary: String, hiddenCount: Int) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(Modifier.size(36.dp).background(tint.copy(alpha = 0.12f), RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.Center) {
+            Text(emoji, style = Type.Tiny.copy(fontSize = 22.sp, lineHeight = 26.sp))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(title, style = Type.Small.copy(fontSize = 19.sp, lineHeight = 24.sp,
+                fontWeight = FontWeight.SemiBold, color = Palette.Ink, letterSpacing = 0.sp),
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(summary, style = Type.Tiny.copy(fontSize = 17.sp, lineHeight = 22.sp,
+                fontWeight = FontWeight.Normal, color = Palette.InkSoft),
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Text(if (hiddenCount > 0) "+$hiddenCount més ›" else "›",
+            style = Type.Small.copy(fontSize = if (hiddenCount > 0) 16.sp else 28.sp,
+                lineHeight = 28.sp, fontWeight = FontWeight.Medium, color = tint),
+            modifier = Modifier.background(tint.copy(alpha = 0.09f), RoundedCornerShape(10.dp))
+                .padding(horizontal = 8.dp, vertical = 2.dp),
+            maxLines = 1)
+    }
+}
+
+@Composable
+private fun HomeSummaryRow(title: String, tint: Color) {
+    Row(Modifier.fillMaxWidth().background(tint.copy(alpha = 0.045f), RoundedCornerShape(8.dp))
+        .padding(horizontal = 8.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(Modifier.size(6.dp).background(tint.copy(alpha = 0.75f), RoundedCornerShape(3.dp)))
+        Text(title, style = Type.Body.copy(fontSize = 26.sp, lineHeight = 32.sp,
+            color = Palette.Ink, fontWeight = FontWeight.Medium),
+            modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -289,7 +340,7 @@ private fun HomeSummaryTile(
 private fun LocalShoppingTile(store: LocalFamilyStore, modifier: Modifier, onClick: () -> Unit) {
     val pending = store.groceries.filterNot { it.bought }
     HomeSummaryTile("Compra", "🛒", Palette.Online,
-        summary = if (pending.isEmpty()) "No falta res" else "${pending.size} producte${if (pending.size == 1) "" else "s"} pendents",
+        summary = if (pending.isEmpty()) "No falta res" else "${pending.size} producte${if (pending.size == 1) " pendent" else "s pendents"}",
         items = pending.map { it.name }, emptyMessage = "Toca per afegir productes",
         modifier = modifier, onClick = onClick)
 }
@@ -301,8 +352,8 @@ private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Mo
     val awaiting = tasks.filter { store.status(it, today) == "pending" }
     val remaining = tasks.filter { store.status(it, today) in setOf("todo", "slots") }
     val items = awaiting.map { "${it.title} · per validar" } + remaining.map { it.title }
-    HomeSummaryTile("Feines d'en Rai", "⭐", Palette.Warm,
-        summary = "${store.stars} estrelles · ${items.size} pendents",
+    HomeSummaryTile("Feines d'en Rai", "⭐", parseColor("#7857BC"),
+        summary = "${store.stars} estrelles · ${items.size} pendent${if (items.size == 1) "" else "s"}",
         items = items, emptyMessage = if (tasks.isEmpty()) "Toca per afegir feines" else "Tot fet per avui!",
         modifier = modifier, alert = awaiting.isNotEmpty(), onClick = onClick)
 }
