@@ -1,13 +1,23 @@
 package com.lito.planify.dashboard.ui
 
 import android.annotation.SuppressLint
+import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
+import android.os.PersistableBundle
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,6 +26,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.lito.planify.dashboard.ui.theme.Type
+import org.json.JSONObject
 
 internal const val NEST_ORIGIN = "https://marc-familiar-pwa.vercel.app"
 private val nestKeyPattern = Regex("[a-fA-F0-9]{64}")
@@ -85,16 +96,30 @@ fun NestCameraPanel(
 @Composable
 fun NestCameraViewer(device: NestDevice, cameraKey: String, onClose: () -> Unit) {
     val context = LocalContext.current
-    val html = remember(device, cameraKey, context) {
-        context.assets.open("nest-viewer.html").bufferedReader().use { it.readText() }
-            .replace("__NEST_KEY__", cameraKey.takeIf(nestKeyPattern::matches).orEmpty())
-            .replace("__NEST_DEVICE__", device.apiValue)
-    }
+    val embeddedUrl = "$NEST_ORIGIN/nest.html?app=1"
+    val browserUrl = "$NEST_ORIGIN/nest.html#${device.apiValue}"
+    var problem by remember(device) { mutableStateOf<String?>(null) }
+
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(device.label, style = Type.Large, modifier = Modifier.weight(1f))
+            TextButton(onClick = {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(browserUrl))
+                try {
+                    context.startActivity(intent)
+                    val clip = ClipData.newPlainText("Clau de càmeres Nest", cameraKey)
+                    clip.description.extras = PersistableBundle().apply {
+                        putBoolean("android.content.extra.IS_SENSITIVE", true)
+                    }
+                    (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(clip)
+                    Toast.makeText(context, "Clau copiada. Enganxa-la al navegador.", Toast.LENGTH_LONG).show()
+                } catch (_: ActivityNotFoundException) {
+                    problem = "No hi ha cap navegador disponible."
+                }
+            }) { Text("Copiar clau i obrir al navegador", style = Type.Tiny) }
             PillButton("Tancar", onClick = onClose)
         }
+        problem?.let { Text(it, style = Type.Small) }
         key(device, cameraKey) {
             AndroidView(
                 modifier = Modifier.fillMaxWidth().weight(1f),
@@ -106,14 +131,33 @@ fun NestCameraViewer(device: NestDevice, cameraKey: String, onClose: () -> Unit)
                         settings.allowContentAccess = false
                         settings.mediaPlaybackRequiresUserGesture = false
                         webViewClient = object : WebViewClient() {
-                            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) = true
+                            private var initialized = false
+
+                            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) =
+                                request.url.toString() != embeddedUrl
+
+                            override fun onPageFinished(view: WebView, url: String) {
+                                if (initialized || url != embeddedUrl || view.url != embeddedUrl) return
+                                initialized = true
+                                val credential = JSONObject.quote(cameraKey)
+                                val selected = JSONObject.quote(device.apiValue)
+                                view.evaluateJavascript(
+                                    "if (location.href === '$embeddedUrl' && window.openNestInApp) " +
+                                        "window.openNestInApp($credential, $selected); else false;"
+                                ) { result ->
+                                    if (result != "true") problem = "No s’ha pogut iniciar el visor. Prova el navegador."
+                                }
+                            }
+
+                            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                                if (request.isForMainFrame) problem = "No s’ha pogut carregar el visor de Nest."
+                            }
                         }
-                        loadDataWithBaseURL("$NEST_ORIGIN/", html, "text/html", "UTF-8", null)
+                        loadUrl(embeddedUrl)
                     }
                 },
                 onRelease = { view ->
                     view.evaluateJavascript("if (window.endNestStream) window.endNestStream()", null)
-                    // Dona temps a WebView per enviar el tancament abans de destruir-la.
                     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ view.destroy() }, 1000L)
                 }
             )
