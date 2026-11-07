@@ -44,7 +44,9 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 
-val Spanish: Locale = Locale.forLanguageTag("es-ES")
+val Catalan: Locale = Locale.forLanguageTag("ca-ES")
+// Àlies temporal mentre acabem de traduir les pantalles heretades.
+val Spanish: Locale = Catalan
 val HourMinute: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 fun parseColor(hex: String?, fallback: Color = Palette.InkMuted): Color =
@@ -54,16 +56,24 @@ fun String.capitalized() = replaceFirstChar { it.titlecase(Spanish) }
 
 fun LocalDate.weekdayName(style: TextStyle = TextStyle.FULL) = dayOfWeek.getDisplayName(style, Spanish).capitalized()
 
-/** "LUNES 12 OCTUBRE" */
-fun LocalDate.longLabel() = "${dayOfWeek.getDisplayName(TextStyle.FULL, Spanish)} $dayOfMonth ${month.getDisplayName(TextStyle.FULL, Spanish)}".uppercase(Spanish)
+fun LocalDate.monthWithArticle(): String {
+    // A Android/ICU el nom català d'alguns mesos ja inclou d' o de.
+    // Normalitzem-lo per no acabar mostrant «de d'octubre».
+    val name = month.getDisplayName(TextStyle.FULL, Catalan)
+        .removePrefix("d'").removePrefix("d’").removePrefix("de ")
+    val vowel = name.firstOrNull()?.lowercaseChar()?.let { it in "aeiou" } == true
+    return if (vowel) "d'$name" else "de $name"
+}
 
-/** Los 7 días desde [from]: "13 – 19 de octubre" o "29 de septiembre – 5 de octubre" (con el año si no es el actual). */
+/** Exemple: DIMECRES 21 D'OCTUBRE. */
+fun LocalDate.longLabel() = "${dayOfWeek.getDisplayName(TextStyle.FULL, Catalan)} $dayOfMonth ${monthWithArticle()}".uppercase(Catalan)
+
+/** Els 7 dies des de [from]: «13 – 19 d'octubre» o «29 de setembre – 5 d'octubre». */
 fun weekRange(from: LocalDate): String {
     val to = from.plusDays(6)
-    fun month(date: LocalDate) = date.month.getDisplayName(TextStyle.FULL, Spanish)
     val year = if (to.year != LocalDate.now().year) " de ${to.year}" else ""
-    return if (from.month == to.month) "${from.dayOfMonth} – ${to.dayOfMonth} de ${month(to)}$year"
-    else "${from.dayOfMonth} de ${month(from)} – ${to.dayOfMonth} de ${month(to)}$year"
+    return if (from.month == to.month) "${from.dayOfMonth} – ${to.dayOfMonth} ${to.monthWithArticle()}$year"
+    else "${from.dayOfMonth} ${from.monthWithArticle()} – ${to.dayOfMonth} ${to.monthWithArticle()}$year"
 }
 
 /** "MIÉ 14 OCT", como en el widget de la app. */
@@ -76,7 +86,7 @@ fun LocalDate.shortLabel() =
  */
 fun relativeBadge(now: LocalDateTime, at: LocalDateTime): String {
     val minutes = kotlin.math.abs(java.time.Duration.between(now, at).toMinutes())
-    if (minutes < 1) return "AHORA"
+    if (minutes < 1) return "ARA"
     val hours = minutes / 60
     val days = kotlin.math.abs(java.time.temporal.ChronoUnit.DAYS.between(now.toLocalDate(), at.toLocalDate())).toInt()
     fun pair(a: Long, unitA: String, b: Long, unitB: String) = if (b > 0) "$a$unitA $b$unitB" else "$a$unitA"
@@ -91,8 +101,8 @@ fun relativeBadge(now: LocalDateTime, at: LocalDateTime): String {
 
 /** "Hoy", "Mañana" o "Jue 16". */
 fun relativeDay(date: LocalDate, today: LocalDate) = when (date) {
-    today -> "Hoy"
-    today.plusDays(1) -> "Mañana"
+    today -> "Avui"
+    today.plusDays(1) -> "Demà"
     else -> "${date.dayOfWeek.getDisplayName(TextStyle.SHORT, Spanish).capitalized().trimEnd('.')} ${date.dayOfMonth}"
 }
 
@@ -101,7 +111,7 @@ fun countdown(from: LocalDateTime, to: LocalDateTime, maxMinutes: Long = 120): S
     val minutes = java.time.Duration.between(from, to).toMinutes()
     if (minutes < 0 || minutes > maxMinutes) return null
     return when {
-        minutes < 1 -> "ahora"
+        minutes < 1 -> "ara"
         minutes < 60 -> "en $minutes min"
         minutes % 60 == 0L -> "en ${minutes / 60} h"
         else -> "en ${minutes / 60} h ${minutes % 60} min"

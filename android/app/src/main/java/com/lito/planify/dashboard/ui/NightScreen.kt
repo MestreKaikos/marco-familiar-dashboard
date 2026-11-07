@@ -1,71 +1,82 @@
 package com.lito.planify.dashboard.ui
 
+import android.graphics.Typeface
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lito.planify.dashboard.UiState
+import com.lito.planify.dashboard.ui.theme.Geist
 import com.lito.planify.dashboard.ui.theme.GeistMono
-import com.lito.planify.dashboard.ui.theme.Type
-import java.time.format.TextStyle
+import java.time.LocalDateTime
+import kotlin.math.cos
+import kotlin.math.sin
 
-/**
- * Reloj nocturno: fuera de horario, en vez de apagar la pantalla, la hora, la fecha y el tiempo de ahora en el centro,
- * en blanco sobre negro y en negrita (con el brillo al mínimo hace falta todo el contraste). El brillo lo pone
- * MainActivity. Todo estático: solo cambia una vez por minuto.
- * Tocar en cualquier sitio enseña el dashboard unos minutos.
- */
+/** Sense segons ni animació contínua. Un toc conserva el retorn temporal habitual a Avui. */
 @Composable
-fun NightScreen(state: UiState, onWake: () -> Unit) {
-    val now = state.now
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .pointerInput(Unit) { detectTapGestures { onWake() } }
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                now.format(HourMinute),
-                style = Type.Clock.copy(fontSize = 300.sp, lineHeight = 300.sp, letterSpacing = (-10).sp, fontWeight = FontWeight.Bold, color = Color.White, fontFeatureSettings = "tnum")
-            )
-            Text(
-                "${now.toLocalDate().weekdayName()} · ${now.dayOfMonth} ${now.month.getDisplayName(TextStyle.FULL, Spanish)}".uppercase(Spanish),
-                style = Type.Mono.copy(fontFamily = GeistMono, fontSize = 40.sp, letterSpacing = 10.sp, fontWeight = FontWeight.Bold, color = Color.White),
-                maxLines = 1,
-                modifier = Modifier.padding(top = 20.dp)
-            )
-            state.forecast?.current?.let { current ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(44.dp),
-                    modifier = Modifier.padding(top = 56.dp)
-                ) {
-                    WeatherIcon(current.weather_code, current.is_day == 1, size = 110, colorFilter = NightIcon)
-                    Text(
-                        current.temperature_2m.degrees(),
-                        style = Type.Huge.copy(fontSize = 84.sp, lineHeight = 84.sp, letterSpacing = (-2).sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    )
-                }
-            }
-        }
+fun NightScreen(state: UiState, config: NightClockConfig, onWake: () -> Unit) {
+    Box(Modifier.fillMaxSize().background(Color.Black).clickable(onClickLabel = "Mostrar Avui", onClick = onWake)) {
+        NightClock(state.now, config, Modifier.fillMaxSize())
     }
 }
 
-/** El icono del tiempo, todo en blanco: sus colores, pensados para fondo claro, apenas se ven sobre negro. */
-private val NightIcon = ColorFilter.tint(Color.White)
+@Composable
+fun NightClock(now: LocalDateTime, config: NightClockConfig, modifier: Modifier = Modifier, drift: Boolean = true) {
+    val c = config.validated()
+    val color = Color(android.graphics.Color.parseColor(c.colorHex)).copy(alpha = c.intensity)
+    val font = when (c.font) {
+        "classic" -> FontFamily.Serif
+        "mono" -> GeistMono
+        "compact" -> remember { FontFamily(Typeface.create("sans-serif-condensed", Typeface.NORMAL)) }
+        else -> Geist
+    }
+    val weight = when (c.weight) { "bold" -> FontWeight.Bold; "normal" -> FontWeight.Normal; else -> FontWeight.Light }
+    // Petits desplaçaments cada cinc minuts, sempre dins l'àrea reservada.
+    val slot = (now.hour * 60 + now.minute) / 5
+    val dx = if (drift) ((slot % 5) - 2) * 4 else 0
+    val dy = if (drift) (((slot / 5) % 5) - 2) * 4 else 0
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        val width = (maxWidth.value - 40f).coerceAtLeast(1f)
+        val height = (maxHeight.value - 40f).coerceAtLeast(1f)
+        val clockModifier = Modifier.offset(dx.dp, dy.dp)
+        if (c.layout == "analog") {
+            val diameter = minOf(width, height) * c.scale
+            Canvas(clockModifier.size(diameter.dp)) {
+                val radius = size.minDimension / 2
+                val center = Offset(size.width / 2, size.height / 2)
+                fun point(angle: Double, length: Float) = center + Offset(sin(angle).toFloat() * length, -cos(angle).toFloat() * length)
+                for (i in 0..3) {
+                    val angle = i * Math.PI / 2
+                    drawLine(color, point(angle, radius * .90f), point(angle, radius * .98f), strokeWidth = radius * .015f, cap = StrokeCap.Round)
+                }
+                val thickness = radius * when(c.weight) { "bold" -> .045f; "normal" -> .026f; else -> .014f }
+                drawLine(color, center, point((now.hour % 12 + now.minute / 60.0) * Math.PI / 6, radius * .52f), thickness, StrokeCap.Round)
+                drawLine(color, center, point(now.minute * Math.PI / 30, radius * .78f), thickness * .7f, StrokeCap.Round)
+                drawCircle(color, thickness, center)
+            }
+        } else {
+            // La mida es calcula amb l'espai disponible, inclosa la previsualització i pantalles petites.
+            val size = if (c.layout == "stacked") minOf(width / 1.65f, height / 2.55f) * c.scale
+                else minOf(width / 3.9f, height / 1.35f) * c.scale
+            val text = if (c.layout == "stacked") "%02d\n%02d".format(now.hour, now.minute) else now.format(HourMinute)
+            Text(text, modifier = clockModifier, color = color,
+                style = TextStyle(fontFamily = font, fontWeight = weight, fontSize = size.sp,
+                    lineHeight = (size * 1.08f).sp, fontFeatureSettings = "tnum", textAlign = TextAlign.Center),
+                softWrap = false, maxLines = if (c.layout == "stacked") 2 else 1)
+        }
+    }
+}

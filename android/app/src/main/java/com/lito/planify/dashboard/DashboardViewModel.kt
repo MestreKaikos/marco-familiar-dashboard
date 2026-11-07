@@ -1,6 +1,8 @@
 package com.lito.planify.dashboard
 
 import android.app.Application
+import android.net.Uri
+import java.util.UUID
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -15,6 +17,10 @@ import com.lito.planify.dashboard.data.Forecast
 import com.lito.planify.dashboard.data.GeoResult
 import com.lito.planify.dashboard.data.HttpError
 import com.lito.planify.dashboard.data.Location
+import com.lito.planify.dashboard.data.PersonalCalendar
+import com.lito.planify.dashboard.data.CalendarFeedPolicy
+import org.json.JSONObject
+import com.lito.planify.dashboard.data.CalendarColors
 import com.lito.planify.dashboard.data.ReferenceClock
 import com.lito.planify.dashboard.data.Schedule
 import com.lito.planify.dashboard.data.Store
@@ -49,6 +55,9 @@ data class UiState(
     val email: String? = null,
     /** Calendarios iCal en lugar de Planify: sin sesión, con turnos, menú del cole y precio de la luz. */
     val ics: Boolean = false,
+    /** La URL privada només es fa servir a la configuració: no es mostra mai al resum. */
+    val personalCalendars: List<PersonalCalendar> = emptyList(),
+    val calendarError: String? = null,
     val now: LocalDateTime = LocalDateTime.now(),
     /** false mientras el reloj no se haya sincronizado (el RTC vuelve a la fecha de fábrica). */
     val clockValid: Boolean = false,
@@ -86,7 +95,7 @@ data class UiState(
 ) {
     /** Reloj nocturno: fuera de horario (salvo mientras se mira el dashboard un momento) o pedido con la luna. */
     val night: Boolean
-        get() = clockValid && token != null && (
+        get() = clockValid && (
             (nightUntil != null && now.isBefore(nightUntil)) ||
                 (ScreenSchedule.isNight(schedule, now) && (peekUntil == null || !now.isBefore(peekUntil)))
             )
@@ -97,14 +106,17 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private val api = Api.client
     private val cache = DiskCache(File(application.filesDir, "cache"))
     /** Calendarios iCal de dashboard.properties: si los hay, sustituyen a Planify y no hace falta iniciar sesión. */
-    private val icsConfig = IcsConfig()
-    private val ics = if (icsConfig.enabled) IcsSource(icsConfig) else null
+    private val icsConfig = IcsConfig().apply {
+        if (store.calendarConfigured) setPersonalCalendars(store.calendarFeeds)
+    }
+    /** Disponible també abans de tenir calendaris, per poder afegir-los des de la interfície. */
+    private val ics = IcsSource(icsConfig)
     private val contentRepository = ContentRepository(api, cache, ics)
     private val weatherRepository = WeatherRepository(api, cache)
     private val calendarRepository = CalendarRepository(api, cache, ics = ics)
-    private val energyRepository = if (ics != null) EnergyRepository(api, cache) else null
-    private val shoppingRepository = icsConfig.shoppingUrl?.takeIf { ics != null }?.let { ShoppingRepository(api, cache, it) }
-    private val choresRepository = icsConfig.choresUrl?.takeIf { ics != null }?.let { url ->
+    private val energyRepository = if (icsConfig.enabled) EnergyRepository(api, cache) else null
+    private val shoppingRepository = icsConfig.shoppingUrl?.takeIf { icsConfig.enabled }?.let { ShoppingRepository(api, cache, it) }
+    private val choresRepository = icsConfig.choresUrl?.takeIf { icsConfig.enabled }?.let { url ->
         icsConfig.choresToken?.let { ChoresRepository(api, cache, url, it) }
     }
     /** Productos (en minúsculas) quitados en el marco que el servidor aún no ha sacado de compra.json. */
@@ -116,9 +128,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private val _state = MutableStateFlow(
         clock.current().let { time ->
             UiState(
-                token = if (ics != null) ICS_TOKEN else store.token,
+                token = if (icsConfig.enabled) ICS_TOKEN else store.token,
                 email = if (ics != null) null else store.email,
-                ics = ics != null,
+                ics = icsConfig.enabled,
+                personalCalendars = store.calendarFeeds,
                 now = time.now,
                 clockValid = time.valid,
                 content = contentRepository.content.value?.value,
@@ -216,7 +229,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     /** Sin hora válida no se pide nada: las fechas de la petición serían las de fábrica. */
     private suspend fun refreshContent() {
         val token = _state.value.token ?: return
-        report(contentRepository.refresh(token, LocalDate.now()))
+        if (!icsConfig.enabled) return
+        val result = contentRepository.refresh(token, LocalDate.now())
+        _state.update { it.copy(calendarError = if (result.isFailure) "No s’ha pogut actualitzar el calendari. Revisa l’enllaç i la connexió." else null) }
+        report(result)
     }
 
     private suspend fun refreshShopping() {
@@ -409,7 +425,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         val error = result.exceptionOrNull()
         when {
             error == null -> _state.update { it.copy(online = true) }
-            error.isUnauthorized -> logout()
+            error.isUnauthorized && !icsConfig.enabled -> logout()
             else -> _state.update { it.copy(online = false) }
         }
     }
@@ -438,7 +454,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     fun logout() {
         contentRepository.clear()
         calendarRepository.clear()
-        if (ics != null) {
+        if (icsConfig.enabled) {
             viewModelScope.launch {
                 ics.invalidate()
                 refreshNow()
@@ -452,6 +468,76 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     private companion object {
         /** Sesión ficticia con calendarios iCal: la pantalla trata al marco como con la sesión iniciada. */
         const val ICS_TOKEN = "ics"
+    }
+
+
+    /**
+     * L'adreça iCal és de només lectura. No s'envia mai al GitHub:
+     * l'usuari la copia directament a l'APK i es desa en espai privat d'Android.
+     */
+    fun addPersonalCalendar(nameRaw: String, urlRaw: String): String? {
+        val name = nameRaw.trim().take(50)
+        val url = urlRaw.trim()
+        if (name.isBlank()) return "Posa un nom al calendari."
+        if (!CalendarFeedPolicy.validUrl(url)) return "Copia l'adreça iCal de Google Calendar (https://calendar.google.com/...)."
+        val items = store.calendarFeeds
+        if (items.size >= CalendarFeedPolicy.MAX) return "Ja hi ha deu calendaris configurats."
+        if (items.any { it.url == url }) return "Aquest calendari ja està afegit."
+        val calendar = PersonalCalendar(UUID.randomUUID().toString(), name, url, CalendarColors.nextAvailable(items))
+        applyPersonalCalendars(items + calendar)
+        onCalendarMutation?.invoke(JSONObject().put("type", "calendar_set").put("id", calendar.id)
+            .put("name", calendar.name).put("url", calendar.url).put("color", calendar.color).put("enabled", !calendar.disabled))
+        return null
+    }
+
+    fun removePersonalCalendar(id: String) {
+        applyPersonalCalendars(store.calendarFeeds.filterNot { it.id == id })
+        onCalendarMutation?.invoke(JSONObject().put("type", "calendar_delete").put("id", id))
+    }
+
+    /** Només canvia el color d'aquest calendari; no altera els altres ni la seva URL. */
+    fun changePersonalCalendarColor(id: String, hex: String) {
+        val color = CalendarColors.normalize(hex) ?: return
+        if (CalendarColors.options.none { it.hex == color }) return
+        val calendars = store.calendarFeeds
+        val current = calendars.firstOrNull { it.id == id } ?: return
+        if (current.color == color) return
+        applyPersonalCalendars(calendars.map { if (it.id == id) it.copy(color = color) else it })
+        onCalendarMutation?.invoke(JSONObject().put("type", "calendar_color").put("id", id).put("color", color))
+    }
+
+    var onCalendarMutation: ((JSONObject) -> Unit)? = null
+    fun calendarsForSharing(): List<PersonalCalendar> = store.calendarFeeds
+    fun applySharedCalendars(feeds: List<PersonalCalendar>) {
+        if (store.calendarFeeds == feeds && store.calendarConfigured) return
+        applyPersonalCalendars(feeds)
+    }
+    fun togglePersonalCalendar(id: String) {
+        val current = store.calendarFeeds.firstOrNull { it.id == id } ?: return
+        applyPersonalCalendars(store.calendarFeeds.map { if (it.id == id) it.copy(disabled = !it.disabled) else it })
+        onCalendarMutation?.invoke(JSONObject().put("type", "calendar_enabled").put("id", id).put("enabled", current.disabled))
+    }
+
+    private fun applyPersonalCalendars(feeds: List<PersonalCalendar>) {
+        store.calendarFeeds = feeds
+        icsConfig.setPersonalCalendars(feeds)
+        contentRepository.clear()
+        calendarRepository.clear()
+        _state.update {
+            it.copy(
+                personalCalendars = feeds,
+                ics = icsConfig.enabled,
+                token = if (icsConfig.enabled) ICS_TOKEN else null,
+                content = null,
+                weeks = emptyMap(),
+                calendarError = null,
+                online = true
+            )
+        }
+        viewModelScope.launch {
+            ics.invalidate()
+            if (icsConfig.enabled) refreshContent()
+        }
     }
 
     fun searchLocation(query: String) {

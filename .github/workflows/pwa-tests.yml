@@ -1,0 +1,28 @@
+name: PWA · Proves d'instal·lació i seguretat
+
+on:
+  pull_request:
+    paths:
+      - "pwa/**"
+      - "sync/google-apps-script/Mobile.html"
+      - ".github/workflows/pwa-tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixa el codi
+        uses: actions/checkout@v4
+      - name: Configura Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Valida la PWA i el transport d'Apps Script
+        working-directory: pwa
+        run: |
+          if [ -f package-lock.json ]; then npm ci; fi
+          npm test
