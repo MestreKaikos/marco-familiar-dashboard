@@ -2,7 +2,6 @@ package com.lito.planify.dashboard.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -62,7 +61,7 @@ private fun SkyHeader(state: UiState, modifier: Modifier) {
             .padding(horizontal = 36.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy((-20).dp)) {
             Text(
                 if (state.clockValid) now.format(HourMinute) else "--:--",
                 style = Type.Clock.copy(color = ink, fontSize = 150.sp, lineHeight = 150.sp, letterSpacing = (-6).sp, fontWeight = FontWeight.Normal),

@@ -46,7 +46,7 @@ fun EventTapTarget(event: Event, modifier: Modifier = Modifier, content: @Compos
 
 /**
  * La cita completa en un aviso: calendario (con su color), título sin cortar, día y horas, lugar y descripción (que
- * se desplaza si es larga). Se cierra tocando fuera o en «Cerrar». Se dibuja dentro de la pantalla y no en un Dialog:
+ * se desplaza si es larga). Se cierra tocando fuera o en «TANCAR». Se dibuja dentro de la pantalla y no en un Dialog:
  * una ventana aparte perdería la escala 1 dp = 1 px y el modo inmersivo del quiosco (salen las barras de Android).
  */
 @Composable
@@ -87,7 +87,7 @@ fun EventOverlay(event: Event?, onDismiss: () -> Unit) {
                 Box(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) { Detail("📝", text.trim()) }
             }
             Text(
-                "Cerrar",
+                "TANCAR",
                 style = Type.Body.copy(color = color, fontWeight = FontWeight.SemiBold),
                 modifier = Modifier
                     .align(Alignment.End)
