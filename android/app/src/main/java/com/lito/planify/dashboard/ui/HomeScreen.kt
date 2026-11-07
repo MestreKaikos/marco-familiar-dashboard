@@ -267,7 +267,8 @@ fun HomeEnergyScreen(
     actions: HomeCallbacks,
     nestKey: String,
     onSaveNestKey: (String) -> Unit,
-    onOpenNest: (NestDevice) -> Unit
+    onOpenNest: (NestDevice) -> Unit,
+    onNestPairingChanged: (Boolean) -> Unit
 ) {
     val casa = state.shopping?.casa
     val car = state.shopping?.coche
@@ -277,7 +278,7 @@ fun HomeEnergyScreen(
                 Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                NestCameraPanel(nestKey, onSaveNestKey, onOpenNest, Modifier.fillMaxWidth())
+                NestCameraPanel(nestKey, onSaveNestKey, onOpenNest, onNestPairingChanged, Modifier.fillMaxWidth())
                 MusicPanel(casa?.musica, actions, Modifier.fillMaxWidth().height(if (casa?.musica == null) 180.dp else 400.dp))
                 casa?.toldo?.let { AwningPanel(it, actions, Modifier.fillMaxWidth()) }
                 casa?.clima?.let { ClimatePanel(it, casa.estancias.orEmpty(), actions, Modifier.fillMaxWidth(), compact = true) }
@@ -286,7 +287,7 @@ fun HomeEnergyScreen(
         } else {
             ScreenPadding {
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                    NestCameraPanel(nestKey, onSaveNestKey, onOpenNest, Modifier.weight(1.2f).fillMaxHeight())
+                    NestCameraPanel(nestKey, onSaveNestKey, onOpenNest, onNestPairingChanged, Modifier.weight(1.2f).fillMaxHeight())
                     Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
                         casa?.clima?.let { ClimatePanel(it, casa.estancias.orEmpty(), actions, Modifier.fillMaxWidth().weight(1f), compact = true) }
                         car?.bateria?.let { CarPanel(car, Modifier.fillMaxWidth()) }

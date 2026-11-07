@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.lito.planify.dashboard.ui.theme.Type
 
-private const val NEST_ORIGIN = "https://marc-familiar-pwa.vercel.app"
+internal const val NEST_ORIGIN = "https://marc-familiar-pwa.vercel.app"
 private val nestKeyPattern = Regex("[a-fA-F0-9]{64}")
 
 enum class NestDevice(val label: String, val apiValue: String) {
@@ -30,15 +30,30 @@ fun NestCameraPanel(
     cameraKey: String,
     onSaveKey: (String) -> Unit,
     onOpen: (NestDevice) -> Unit,
+    onPairingChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var editing by remember { mutableStateOf(cameraKey.isEmpty()) }
     var draft by remember { mutableStateOf("") }
+    var pairing by remember { mutableStateOf(false) }
+    DisposableEffect(pairing) {
+        onPairingChanged(pairing)
+        onDispose { onPairingChanged(false) }
+    }
     Panel(modifier, compact = true) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Càmeres Nest", style = Type.Large)
-            if (editing) {
-                Text("Enganxa la clau de càmeres per vincular aquest dispositiu.", style = Type.Small)
+            if (pairing) {
+                NestPairingPanel(onLinked = { key ->
+                    onSaveKey(key)
+                    draft = ""
+                    editing = false
+                    pairing = false
+                }, onCancel = { pairing = false })
+            } else if (editing) {
+                PillButton("Vincular amb el mòbil", Modifier.fillMaxWidth(), primary = true,
+                    onClick = { draft = ""; pairing = true })
+                Text("També pots enganxar la clau aquí.", style = Type.Small)
                 OutlinedTextField(
                     value = draft,
                     onValueChange = { draft = it.trim().take(65) },

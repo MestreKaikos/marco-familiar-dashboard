@@ -23,4 +23,6 @@ jobs:
           node-version: "22"
       - name: Valida la PWA i el transport d'Apps Script
         working-directory: pwa
-        run: npm test
+        run: |
+          if [ -f package-lock.json ]; then npm ci; fi
+          npm test

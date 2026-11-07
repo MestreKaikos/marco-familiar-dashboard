@@ -147,6 +147,7 @@ fun DashboardApp(
     val nestPrefs = remember(context) { context.getSharedPreferences("marc_nest", Context.MODE_PRIVATE) }
     var nestKey by remember(nestPrefs) { mutableStateOf(nestPrefs.getString("camera_key", "").orEmpty()) }
     var nestDevice by remember { mutableStateOf<NestDevice?>(null) }
+    var nestPairing by remember { mutableStateOf(false) }
     var photosAvailable by remember {
         mutableStateOf(sharedPhotos.photos.isNotEmpty() ||
             context.getSharedPreferences("marc_fotos", Context.MODE_PRIVATE).getString("carpeta", null) != null)
@@ -229,9 +230,9 @@ fun DashboardApp(
 
     val hasPhotos = photosAvailable || sharedPhotos.photos.isNotEmpty()
     // Una sola màquina d'estats coordina les fotos i les visites periòdiques a Avui.
-    LaunchedEffect(frameMode.config, page, shownEvent, nestDevice, state.night, appResumed, pointerDown, hasPhotos, windowFocused, keyboardVisible) {
+    LaunchedEffect(frameMode.config, page, shownEvent, nestDevice, nestPairing, state.night, appResumed, pointerDown, hasPhotos, windowFocused, keyboardVisible) {
         val config = frameMode.config
-        if (!config.enabled || !appResumed || state.night || pointerDown || !windowFocused || keyboardVisible || page == Page.Settings || shownEvent != null || nestDevice != null || !hasPhotos) {
+        if (!config.enabled || !appResumed || state.night || pointerDown || !windowFocused || keyboardVisible || page == Page.Settings || shownEvent != null || nestDevice != null || nestPairing || !hasPhotos) {
             if (cycle.phase != FrameCyclePhase.MANUAL) page = Page.Today
             cycle = FrameCycle.interact(SystemClock.elapsedRealtime())
             cycleSuspended = true
@@ -259,8 +260,8 @@ fun DashboardApp(
         }
     }
     // Amb l'alternança desactivada, es conserva el retorn habitual de dos minuts.
-    LaunchedEffect(page, lastTouch, frameMode.config.enabled, nestDevice) {
-        if (nestDevice != null || frameMode.config.enabled || page == Page.Today || page == Page.Photos || page == Page.Settings) return@LaunchedEffect
+    LaunchedEffect(page, lastTouch, frameMode.config.enabled, nestDevice, nestPairing) {
+        if (nestDevice != null || nestPairing || frameMode.config.enabled || page == Page.Today || page == Page.Photos || page == Page.Settings) return@LaunchedEffect
         delay(IDLE_MILLIS)
         page = Page.Today
     }
@@ -335,7 +336,11 @@ fun DashboardApp(
                                         nestPrefs.edit().putString("camera_key", key).apply()
                                         nestKey = key
                                     },
-                                    onOpenNest = { onInteraction(); nestDevice = it })
+                                    onOpenNest = { onInteraction(); nestDevice = it },
+                                    onNestPairingChanged = { active ->
+                                        if (nestPairing && !active) onInteraction()
+                                        nestPairing = active
+                                    })
                             }
                         }
                         Page.Tasks -> LocalFamilyScreen(family, state.now.toLocalDate(), sync.connected, sync.pendingCount, sync.cloudTasks >= 0)
