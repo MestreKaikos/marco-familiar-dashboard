@@ -3,7 +3,6 @@ package com.lito.planify.dashboard.ui
 import android.annotation.SuppressLint
 import android.graphics.Color
 import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.*
@@ -17,7 +16,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.lito.planify.dashboard.ui.theme.Type
-import java.io.ByteArrayInputStream
 
 private const val NEST_ORIGIN = "https://marc-familiar-pwa.vercel.app"
 private val nestKeyPattern = Regex("[a-fA-F0-9]{64}")
@@ -94,17 +92,12 @@ fun NestCameraViewer(device: NestDevice, cameraKey: String, onClose: () -> Unit)
                         settings.mediaPlaybackRequiresUserGesture = false
                         webViewClient = object : WebViewClient() {
                             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) = true
-
-                            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-                                if (request.url.toString() == "$NEST_ORIGIN/api/nest" && request.method == "POST") return null
-                                return WebResourceResponse("text/plain", "UTF-8", ByteArrayInputStream(ByteArray(0)))
-                            }
                         }
                         loadDataWithBaseURL("$NEST_ORIGIN/", html, "text/html", "UTF-8", null)
                     }
                 },
                 onRelease = { view ->
-                    view.evaluateJavascript("window.endNestStream?.()", null)
+                    view.evaluateJavascript("if (window.endNestStream) window.endNestStream()", null)
                     // Dona temps a WebView per enviar el tancament abans de destruir-la.
                     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ view.destroy() }, 1000L)
                 }
