@@ -1,0 +1,126 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
+
+const API = 'https://smartdevicemanagement.googleapis.com/v1';
+const DEVICES = { timbre: 'sdm.devices.types.DOORBELL', camera: 'sdm.devices.types.CAMERA' };
+const COMMAND = 'sdm.devices.commands.CameraLiveStream.';
+let cached;
+
+function equal(a, b) {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+function signedSession(key, device, id) {
+  const payload = Buffer.from(JSON.stringify({ device, id, until: Date.now() + 300000 })).toString('base64url');
+  return payload + '.' + createHmac('sha256', key).update(payload).digest('base64url');
+}
+
+function readSession(key, value) {
+  if (typeof value !== 'string' || value.length > 4096) return null;
+  const [payload, signature, extra] = value.split('.');
+  if (!payload || !signature || extra !== undefined) return null;
+  if (!equal(signature, createHmac('sha256', key).update(payload).digest('base64url'))) return null;
+  const session = JSON.parse(Buffer.from(payload, 'base64url').toString());
+  return session.until > Date.now() ? session : null;
+}
+
+async function access(config) {
+  if (cached?.until > Date.now()) return cached.token;
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    body: new URLSearchParams({
+      client_id: config.client_id, client_secret: config.client_secret,
+      refresh_token: config.refresh_token, grant_type: 'refresh_token',
+    }),
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) throw new Error('Autorització Google (' + response.status + ')');
+  const token = await response.json();
+  if (!token.access_token) throw new Error('Resposta d’autorització incompleta');
+  cached = { token: token.access_token, until: Date.now() + Math.max(0, Number(token.expires_in) - 60) * 1000 };
+  return cached.token;
+}
+
+async function google(token, path, command, params) {
+  const headers = { Authorization: 'Bearer ' + token };
+  const options = { headers, signal: AbortSignal.timeout(10000) };
+  if (command) {
+    headers['Content-Type'] = 'application/json';
+    options.method = 'POST';
+    options.body = JSON.stringify({ command: COMMAND + command, params });
+  }
+  const response = await fetch(API + '/' + path, options);
+  if (!response.ok) throw new Error('Google Nest (' + response.status + ')');
+  return response.json();
+}
+
+export default async function handler(req, res) {
+  res.setHeader('Cache-Control', 'private, no-store');
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    return res.status(405).json({ error: 'Cal una petició POST.' });
+  }
+
+  let config;
+  try {
+    config = JSON.parse(process.env.NEST_CONFIG || '{}');
+    if (!config || !/^[a-f0-9-]{36}$/i.test(config.project_id ?? '') ||
+        !/^[a-f0-9]{64}$/i.test(config.key ?? '') ||
+        !config.client_id || !config.client_secret || !config.refresh_token) {
+      return res.status(503).json({ error: 'La connexió Nest encara no està configurada.' });
+    }
+  } catch {
+    return res.status(503).json({ error: 'La configuració Nest no és vàlida.' });
+  }
+
+  const auth = req.headers.authorization;
+  if (typeof auth !== 'string' || !equal(auth, 'Bearer ' + config.key)) {
+    return res.status(401).json({ error: 'La clau de càmeres és incorrecta.' });
+  }
+
+  let body;
+  try {
+    body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error();
+  } catch {
+    return res.status(400).json({ error: 'Petició incorrecta.' });
+  }
+
+  try {
+    const prefix = 'enterprises/' + config.project_id + '/devices';
+    if (body.action === 'stop') {
+      const session = readSession(config.key, body.session);
+      if (!session || !session.device.startsWith(prefix + '/')) {
+        return res.status(400).json({ error: 'Sessió de vídeo no vàlida o caducada.' });
+      }
+      await google(await access(config), session.device + ':executeCommand',
+        'StopWebRtcStream', { mediaSessionId: session.id });
+      return res.status(200).json({ ok: true });
+    }
+
+    if (body.action !== 'start' || !Object.hasOwn(DEVICES, body.device) ||
+        typeof body.sdp !== 'string' || body.sdp.length > 65536 || !body.sdp.startsWith('v=0')) {
+      return res.status(400).json({ error: 'Petició de vídeo incorrecta.' });
+    }
+
+    const token = await access(config);
+    const devices = await google(token, prefix);
+    const matches = (devices.devices ?? []).filter(device =>
+      device.type === DEVICES[body.device] && device.name.startsWith(prefix + '/'));
+    if (matches.length !== 1) {
+      return res.status(409).json({ error: 'Google no ha retornat un únic dispositiu d’aquest tipus.' });
+    }
+    const device = matches[0].name;
+    const { results } = await google(token, device + ':executeCommand',
+      'GenerateWebRtcStream', { offerSdp: body.sdp });
+    return res.status(200).json({
+      answerSdp: results.answerSdp,
+      session: signedSession(config.key, device, results.mediaSessionId),
+    });
+  } catch (error) {
+    const message = /^(Autorització Google|Google Nest) \(\d{3}\)$/.test(error.message)
+      ? error.message + '.' : 'No s’ha pogut completar la connexió amb Google Nest.';
+    return res.status(502).json({ error: message });
+  }
+}

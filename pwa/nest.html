@@ -1,0 +1,77 @@
+<!doctype html><html lang="ca"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prova de Google Nest</title>
+<style>body{margin:1em;background:#171717;color:white;font:20px system-ui}button,input,select{font:inherit;padding:.6em}video{display:block;width:100%;max-height:75vh;background:black}</style>
+<h1>Càmeres Nest</h1>
+<p><label>Clau de càmeres <input id="key" type="password" autocomplete="off" maxlength="64"></label></p>
+<p><label>Dispositiu <select id="device"><option value="timbre">Timbre</option><option value="camera">Càmera</option></select></label></p><button id="start">Obrir el directe</button>
+<button id="stop" disabled>Tancar</button><p id="status" role="status"></p>
+<video id="video" autoplay playsinline muted></video>
+<script>
+const start = document.getElementById('start'), stop = document.getElementById('stop');
+const status = document.getElementById('status'), video = document.getElementById('video');
+const key = document.getElementById('key'), device = document.getElementById('device');
+let pc, timer, session, accessKey;
+async function call(action, data = {}) {
+  const response = await fetch('/api/nest', {
+    method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + accessKey},
+    body: JSON.stringify({action, ...data}), cache: 'no-store'
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error);
+  return result;
+}
+async function close(message) {
+  clearTimeout(timer);
+  if (pc) pc.close();
+  pc = null;
+  video.srcObject = null;
+  stop.disabled = true;
+  const current = session;
+  session = null;
+  if (current) { try { await call('stop', {session:current}); } catch (_) {} }
+  accessKey = null;
+  status.textContent = message;
+  start.disabled = false;
+}
+stop.onclick = () => close('Directe tancat.');
+video.onplaying = () => { status.textContent = 'Vídeo en directe'; };
+start.onclick = async () => {
+  accessKey = key.value.trim();
+  if (!/^[a-f0-9]{64}$/i.test(accessKey)) { status.textContent = 'Introdueix la clau de càmeres.'; return; }
+  start.disabled = true;
+  status.textContent = 'Connectant amb Google Nest…';
+  try {
+    pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+    const peer = pc;
+    const stream = new MediaStream();
+    video.srcObject = stream;
+    peer.ontrack = e => { stream.addTrack(e.track); video.play().catch(() => {}); };
+    peer.addTransceiver('audio', {direction:'recvonly'});
+    peer.addTransceiver('video', {direction:'recvonly'});
+    peer.createDataChannel('data');
+    await peer.setLocalDescription(await peer.createOffer());
+    await new Promise(resolve => {
+      const check = () => { if (peer.iceGatheringState === 'complete') resolve(); };
+      peer.addEventListener('icegatheringstatechange', check);
+      setTimeout(resolve, 4000);
+      check();
+    });
+    const result = await call('start', {device:device.value, sdp:peer.localDescription.sdp});
+    session = result.session;
+    await peer.setRemoteDescription({type:'answer', sdp:result.answerSdp});
+    stop.disabled = false;
+    timer = setTimeout(() => close('Prova finalitzada.'), 90000);
+  } catch (error) {
+    await close(error.message);
+  }
+};
+window.addEventListener('pagehide', () => {
+  if (pc) pc.close();
+  if (session) fetch('/api/nest', {
+    method: 'POST', keepalive: true,
+    headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + accessKey},
+    body: JSON.stringify({action:'stop', session})
+  }).catch(() => {});
+});
+</script></html>

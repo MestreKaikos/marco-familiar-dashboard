@@ -1,5 +1,5 @@
 /* Marc Familiar: la interfície es pot obrir sense connexió, les dades NO es desen al cache. */
-const CACHE='marc-familiar-shell-v1';
+const CACHE='marc-familiar-shell-v2';
 const SHELL=['/','/manifest.webmanifest','/icon.svg'];
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting()));
@@ -11,6 +11,7 @@ self.addEventListener('fetch',event=>{
   const request=event.request,url=new URL(request.url);
   if(request.method!=='GET'||url.origin!==self.location.origin||url.pathname.startsWith('/api/'))return;
   if(request.mode==='navigate'){
+    if(url.pathname!=='/'&&url.pathname!=='/index.html')return;
     event.respondWith(fetch(request).then(response=>{
       if(response.ok){const copy=response.clone();caches.open(CACHE).then(c=>c.put('/',copy));}
       return response;
