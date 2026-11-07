@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
 const API = 'https://smartdevicemanagement.googleapis.com/v1';
 const DEVICES = { timbre: 'sdm.devices.types.DOORBELL', camera: 'sdm.devices.types.CAMERA' };
@@ -55,6 +55,29 @@ async function google(token, path, command, params) {
   return response.json();
 }
 
+async function pair(body, config, res, authorized) {
+  const lifetime = body.until - Date.now();
+  const approving = body.action === 'pair-approve';
+  const value = approving ? body.id : body.proof;
+  if (!Number.isSafeInteger(body.until) || lifetime <= 0 || lifetime > 360000 ||
+      typeof value !== 'string' || !/^[a-f0-9]{64}$/.test(value)) {
+    return res.status(400).json({ error: 'El QR ha caducat o no és vàlid. Obre’n un de nou al marc.' });
+  }
+  if (approving && !authorized) return res.status(401).json({ error: 'La clau de càmeres és incorrecta.' });
+
+  const id = approving ? value : createHash('sha256').update(value).digest('hex');
+  const entry = createHmac('sha256', config.key).update(id + ':' + body.until).digest('hex');
+  const { getCache } = await import('@vercel/functions');
+  const cache = getCache({ namespace: 'marc-familiar-nest-pair' });
+  if (approving) {
+    await cache.set(entry, true, { ttl: Math.ceil(lifetime / 1000) });
+    return res.status(200).json({ ok: true });
+  }
+  if (await cache.get(entry) !== true) return res.status(200).json({ waiting: true });
+  await cache.delete(entry);
+  return res.status(200).json({ key: config.key });
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
   if (req.method !== 'POST') {
@@ -75,9 +98,7 @@ export default async function handler(req, res) {
   }
 
   const auth = req.headers.authorization;
-  if (typeof auth !== 'string' || !equal(auth, 'Bearer ' + config.key)) {
-    return res.status(401).json({ error: 'La clau de càmeres és incorrecta.' });
-  }
+  const authorized = typeof auth === 'string' && equal(auth, 'Bearer ' + config.key);
 
   let body;
   try {
@@ -88,6 +109,11 @@ export default async function handler(req, res) {
   }
 
   try {
+    if (body.action === 'pair-approve' || body.action === 'pair-claim') {
+      return await pair(body, config, res, authorized);
+    }
+    if (!authorized) return res.status(401).json({ error: 'La clau de càmeres és incorrecta.' });
+
     const prefix = 'enterprises/' + config.project_id + '/devices';
     if (body.action === 'stop') {
       const session = readSession(config.key, body.session);

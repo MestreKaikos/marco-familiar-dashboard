@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Vincular càmeres · Marc Familiar</title>
+<style>
+body{background:#f7efe4;color:#24201c;font:1.05rem/1.5 system-ui;margin:0}
+main{max-width:30rem;margin:2rem auto;padding:1.25rem;background:#fffdf9;border-radius:1rem}
+input,button{box-sizing:border-box;width:100%;padding:.8rem;margin-top:.6rem;font:inherit;border-radius:.6rem;border:1px solid #75675a}
+button{background:#24201c;color:white;cursor:pointer}button:disabled{opacity:.55}
+</style>
+</head>
+<body><main>
+<h1>Vincular càmeres</h1>
+<p>Enganxa la clau de càmeres al mòbil i confirma per enviar-la al marc que mostra el QR.</p>
+<form id="pair">
+<label for="key">Clau de càmeres</label>
+<input id="key" type="password" maxlength="64" autocomplete="off" required>
+<button id="submit">Vincular el marc</button>
+</form>
+<p id="status" role="status"></p>
+</main>
+<script>
+const form = document.getElementById('pair');
+const key = document.getElementById('key');
+const submit = document.getElementById('submit');
+const status = document.getElementById('status');
+const [id, time] = location.hash.slice(1).split('.');
+const until = Number(time);
+function valid() {
+  return /^[a-f0-9]{64}$/.test(id) && Number.isSafeInteger(until) && until > Date.now();
+}
+if (!valid()) {
+  form.hidden = true;
+  status.textContent = 'Aquest QR no és vàlid o ha caducat. Obre’n un de nou al marc.';
+}
+form.onsubmit = async event => {
+  event.preventDefault();
+  if (!valid()) { status.textContent = 'El QR ha caducat. Obre’n un de nou al marc.'; return; }
+  const value = key.value.trim();
+  if (!/^[a-f0-9]{64}$/i.test(value)) { status.textContent = 'La clau ha de tenir 64 caràcters.'; return; }
+  submit.disabled = true;
+  try {
+    const response = await fetch('/api/nest', {
+      method: 'POST', cache: 'no-store',
+      headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + value},
+      body: JSON.stringify({action:'pair-approve', id, until})
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error);
+    key.value = '';
+    form.hidden = true;
+    status.textContent = 'Vinculació enviada. Espera uns segons i comprova el marc.';
+  } catch (error) {
+    status.textContent = error.message || 'No s’ha pogut vincular el marc.';
+    submit.disabled = false;
+  }
+};
+</script>
+</body></html>
