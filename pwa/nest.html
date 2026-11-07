@@ -1,21 +1,25 @@
 <!doctype html><html lang="ca"><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; media-src blob:; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Prova de Google Nest</title>
-<style>body{margin:1em;background:#171717;color:white;font:20px system-ui}button,input,select{font:inherit;padding:.6em}video{display:block;width:100%;max-height:75vh;background:black}</style>
-<h1>Càmeres Nest</h1>
+<style>body{margin:1em;background:#171717;color:white;font:20px system-ui}button,input,select{font:inherit;padding:.6em}video{display:block;width:100%;max-height:75vh;background:black}.embedded body{margin:0}.embedded #controls{display:none}.embedded video{height:100vh;max-height:none;object-fit:contain}.embedded #status{position:absolute;left:1rem;right:1rem;bottom:1rem;text-align:center;background:#171717d9}.embedded #status:empty{display:none}</style>
+<div id="controls"><h1>Càmeres Nest</h1>
 <p><label>Clau de càmeres <input id="key" type="password" autocomplete="off" maxlength="64"></label></p>
 <p><label>Dispositiu <select id="device"><option value="timbre">Timbre</option><option value="camera">Càmera</option></select></label></p><button id="start">Obrir el directe</button>
-<button id="stop" disabled>Tancar</button><p id="status" role="status"></p>
+<button id="stop" disabled>Tancar</button></div><p id="status" role="status"></p>
 <video id="video" autoplay playsinline muted></video>
 <script>
 const start = document.getElementById('start'), stop = document.getElementById('stop');
 const status = document.getElementById('status'), video = document.getElementById('video');
 const key = document.getElementById('key'), device = document.getElementById('device');
-let pc, timer, session, accessKey;
-async function call(action, data = {}) {
+let pc, timer, videoTimeout, session, accessKey;
+const embedded = new URLSearchParams(location.search).get('app') === '1';
+if (embedded) document.documentElement.classList.add('embedded');
+if (location.hash === '#camera') device.value = 'camera';
+async function call(action, data = {}, credential = accessKey) {
   const response = await fetch('/api/nest', {
-    method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + accessKey},
-    body: JSON.stringify({action, ...data}), cache: 'no-store'
+    method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + credential},
+    body: JSON.stringify({action, ...data}), cache: 'no-store', keepalive: action === 'stop'
   });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error);
@@ -23,6 +27,7 @@ async function call(action, data = {}) {
 }
 async function close(message) {
   clearTimeout(timer);
+  clearTimeout(videoTimeout);
   if (pc) pc.close();
   pc = null;
   video.srcObject = null;
@@ -35,11 +40,21 @@ async function close(message) {
   start.disabled = false;
 }
 stop.onclick = () => close('Directe tancat.');
-video.onplaying = () => { status.textContent = 'Vídeo en directe'; };
+function showVideo() {
+  if (!pc || video.videoWidth === 0) return;
+  clearTimeout(videoTimeout);
+  status.textContent = embedded ? '' : 'Vídeo en directe';
+}
+if (typeof video.requestVideoFrameCallback !== 'function') {
+  video.addEventListener('loadeddata', showVideo);
+  video.addEventListener('timeupdate', showVideo);
+}
 start.onclick = async () => {
   accessKey = key.value.trim();
   if (!/^[a-f0-9]{64}$/i.test(accessKey)) { status.textContent = 'Introdueix la clau de càmeres.'; return; }
   start.disabled = true;
+  const credential = accessKey;
+  if (embedded) key.value = "";
   status.textContent = 'Connectant amb Google Nest…';
   try {
     pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
@@ -57,8 +72,18 @@ start.onclick = async () => {
       setTimeout(resolve, 4000);
       check();
     });
+    if (pc !== peer) return;
     const result = await call('start', {device:device.value, sdp:peer.localDescription.sdp});
+    if (pc !== peer) {
+      await call('stop', {session:result.session}, credential).catch(() => {});
+      return;
+    }
     session = result.session;
+    status.textContent = 'Esperant la imatge…';
+    videoTimeout = setTimeout(() => close(embedded
+      ? 'No ha arribat cap imatge. Prova «Obrir al navegador».'
+      : 'No ha arribat cap imatge. Torna a obrir el directe.'), 20000);
+    if (typeof video.requestVideoFrameCallback === 'function') video.requestVideoFrameCallback(showVideo);
     await peer.setRemoteDescription({type:'answer', sdp:result.answerSdp});
     stop.disabled = false;
     timer = setTimeout(() => close('Prova finalitzada.'), 90000);
@@ -66,12 +91,13 @@ start.onclick = async () => {
     await close(error.message);
   }
 };
-window.addEventListener('pagehide', () => {
-  if (pc) pc.close();
-  if (session) fetch('/api/nest', {
-    method: 'POST', keepalive: true,
-    headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + accessKey},
-    body: JSON.stringify({action:'stop', session})
-  }).catch(() => {});
-});
+window.endNestStream = () => close('');
+window.addEventListener('pagehide', window.endNestStream);
+window.openNestInApp = (credential, selected) => {
+  if (!embedded || !['timbre', 'camera'].includes(selected) || start.disabled) return false;
+  key.value = credential;
+  device.value = selected;
+  start.onclick();
+  return true;
+};
 </script></html>
