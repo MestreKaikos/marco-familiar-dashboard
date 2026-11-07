@@ -68,7 +68,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -118,7 +117,6 @@ class DashboardActions(
 private const val IDLE_MILLIS = 120_000L
 
 /** Solape entre las líneas del reloj lateral: deja la distancia entre las cifras en el interlineado (52). */
-private val RAIL_CLOCK_OVERLAP = (-30).dp
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -380,8 +378,14 @@ private fun Rail(current: Page, state: UiState, onSelect: (Page) -> Unit, onSync
                 RailItem(Page.Settings.shortLabel, Page.Settings.icon, current == Page.Settings) { onSelect(Page.Settings) }
                 RailItem("Dormir", Icons.Outlined.Bedtime, false, onClick = onSleep)
             }
-            if (compact) Spacer(Modifier.height(18.dp)) else Spacer(Modifier.weight(1f))
-            RailClock(state)
+            if (!state.online || !state.connected) {
+                if (compact) Spacer(Modifier.height(18.dp)) else Spacer(Modifier.weight(1f))
+                Text(
+                    "Sense connexió",
+                    style = Type.Tiny.copy(color = Palette.Accent),
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 }
@@ -421,33 +425,6 @@ private fun RailItem(label: String, icon: ImageVector, selected: Boolean, rotati
             maxLines = 1,
             modifier = Modifier.padding(top = 4.dp)
         )
-    }
-}
-
-/** La hora, con horas y minutos en dos líneas. Debajo, solo si falla la sincronización, un aviso. */
-@Composable
-private fun RailClock(state: UiState) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        // Horas y minutos en dos líneas con las mismas métricas, cifras tabulares e interlineado ajustado a la
-        // altura de las cifras para que queden juntas. Las cifras que cambian se deslizan (RollingText).
-        val hour = if (state.clockValid) "%02d".format(state.now.hour) else "--"
-        val minute = if (state.clockValid) "%02d".format(state.now.minute) else "--"
-        val style = Type.Title.copy(
-            fontSize = 64.sp,
-            lineHeight = 52.sp,
-            fontWeight = FontWeight.Medium,
-            letterSpacing = (-2).sp,
-            fontFeatureSettings = "tnum",
-            lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both)
-        )
-        // Cada línea es su propio texto (para animar sus cifras): se solapan para dejar el mismo interlineado de 52.
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(RAIL_CLOCK_OVERLAP)) {
-            RollingText(hour, style)
-            RollingText(minute, style.copy(color = Palette.InkSoft))
-        }
-        if (!state.online || !state.connected) {
-            Text("Sense connexió", style = Type.Tiny.copy(color = Palette.Accent), textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
-        }
     }
 }
 
