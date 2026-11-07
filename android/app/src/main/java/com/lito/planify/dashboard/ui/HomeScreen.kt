@@ -2,6 +2,9 @@ package com.lito.planify.dashboard.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -258,33 +261,42 @@ private fun Chip(text: String, selected: Boolean, color: Color, modifier: Modifi
     }
 }
 
-/**
- * Prueba: Casa y Energía en una sola pestaña mientras faltan dispositivos por integrar. A la
- * izquierda la luz (precio de hoy y mejores horas); en el centro la calefacción y el coche; a la derecha el toldo, la
- * música y lo que vendrá, en una línea.
- */
 @Composable
-fun HomeEnergyScreen(state: UiState, actions: HomeCallbacks) {
+fun HomeEnergyScreen(
+    state: UiState,
+    actions: HomeCallbacks,
+    nestKey: String,
+    onSaveNestKey: (String) -> Unit,
+    onOpenNest: (NestDevice) -> Unit
+) {
     val casa = state.shopping?.casa
-    val now = state.now
-    val prices = state.energy?.prices.orEmpty()
     val car = state.shopping?.coche
-    ScreenPadding {
-        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            Column(Modifier.weight(1.2f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                // Con el precio de mañana publicado (≈20:30), las próximas 24 h; si no, el día de hoy
-                val tomorrowKnown = prices.any { it.time.toLocalDate() == now.toLocalDate().plusDays(1) }
-                PricePanel(if (tomorrowKnown) "Luz · próximas 24 h" else "Luz hoy", priceWindow(prices, now), now, Modifier.fillMaxWidth().weight(1f), big = true)
-                BestHoursPanel(prices, now, Modifier.fillMaxWidth())
-            }
-            Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                casa?.clima?.let { ClimatePanel(it, casa.estancias.orEmpty(), actions, Modifier.fillMaxWidth().weight(1f), compact = true) }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        if (maxWidth < 1050.dp || maxHeight < 700.dp) {
+            Column(
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                NestCameraPanel(nestKey, onSaveNestKey, onOpenNest, Modifier.fillMaxWidth())
+                MusicPanel(casa?.musica, actions, Modifier.fillMaxWidth().height(if (casa?.musica == null) 180.dp else 400.dp))
+                casa?.toldo?.let { AwningPanel(it, actions, Modifier.fillMaxWidth()) }
+                casa?.clima?.let { ClimatePanel(it, casa.estancias.orEmpty(), actions, Modifier.fillMaxWidth(), compact = true) }
                 car?.bateria?.let { CarPanel(car, Modifier.fillMaxWidth()) }
             }
-            Column(Modifier.weight(0.95f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                casa?.toldo?.let { AwningPanel(it, actions, Modifier.fillMaxWidth()) }
-                MusicPanel(casa?.musica, actions, Modifier.fillMaxWidth().weight(1f))
-                ComingSoonRow(Modifier.fillMaxWidth())
+        } else {
+            ScreenPadding {
+                Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    NestCameraPanel(nestKey, onSaveNestKey, onOpenNest, Modifier.weight(1.2f).fillMaxHeight())
+                    Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                        casa?.clima?.let { ClimatePanel(it, casa.estancias.orEmpty(), actions, Modifier.fillMaxWidth().weight(1f), compact = true) }
+                        car?.bateria?.let { CarPanel(car, Modifier.fillMaxWidth()) }
+                    }
+                    Column(Modifier.weight(0.95f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                        casa?.toldo?.let { AwningPanel(it, actions, Modifier.fillMaxWidth()) }
+                        MusicPanel(casa?.musica, actions, Modifier.fillMaxWidth().weight(1f))
+                        ComingSoonRow(Modifier.fillMaxWidth())
+                    }
+                }
             }
         }
     }

@@ -101,10 +101,9 @@ private val Page.shortLabel: String
         else -> label
     }
 
-/** Casa y energía solo con datos de Home Assistant (calendarios de la familia); el resto, siempre. */
-private fun Page.available(state: UiState) = when (this) {
+/** Energia queda integrada a Casa, que també permet vincular les càmeres Nest. */
+private fun Page.available() = when (this) {
     Page.Energy -> false // de momento dentro de «Casa y energía»
-    Page.Home -> state.shopping?.casa != null || state.energy != null
     else -> true
 }
 
@@ -145,6 +144,9 @@ fun DashboardApp(
     val frameMode = rememberFrameModeSettings()
     val sharedPhotos = rememberFamilyPhotoCache()
     val context = LocalContext.current
+    val nestPrefs = remember(context) { context.getSharedPreferences("marc_nest", Context.MODE_PRIVATE) }
+    var nestKey by remember(nestPrefs) { mutableStateOf(nestPrefs.getString("camera_key", "").orEmpty()) }
+    var nestDevice by remember { mutableStateOf<NestDevice?>(null) }
     var photosAvailable by remember {
         mutableStateOf(sharedPhotos.photos.isNotEmpty() ||
             context.getSharedPreferences("marc_fotos", Context.MODE_PRIVATE).getString("carpeta", null) != null)
@@ -211,7 +213,7 @@ fun DashboardApp(
         leavePhotos
     }
     val currentInteraction by rememberUpdatedState(onInteraction)
-    val selectPage: (Page) -> Unit = { selected -> onInteraction(); page = selected }
+    val selectPage: (Page) -> Unit = { selected -> onInteraction(); nestDevice = null; page = selected }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         appResumed = true
         onInteraction()
@@ -219,6 +221,7 @@ fun DashboardApp(
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
         onInteraction()
         pointerDown = false
+        nestDevice = null
         appResumed = false
     }
     /** Cita abierta en el aviso ([EventOverlay]); se cierra sola al volver a Hoy por inactividad. */
@@ -226,9 +229,9 @@ fun DashboardApp(
 
     val hasPhotos = photosAvailable || sharedPhotos.photos.isNotEmpty()
     // Una sola màquina d'estats coordina les fotos i les visites periòdiques a Avui.
-    LaunchedEffect(frameMode.config, page, shownEvent, state.night, appResumed, pointerDown, hasPhotos, windowFocused, keyboardVisible) {
+    LaunchedEffect(frameMode.config, page, shownEvent, nestDevice, state.night, appResumed, pointerDown, hasPhotos, windowFocused, keyboardVisible) {
         val config = frameMode.config
-        if (!config.enabled || !appResumed || state.night || pointerDown || !windowFocused || keyboardVisible || page == Page.Settings || shownEvent != null || !hasPhotos) {
+        if (!config.enabled || !appResumed || state.night || pointerDown || !windowFocused || keyboardVisible || page == Page.Settings || shownEvent != null || nestDevice != null || !hasPhotos) {
             if (cycle.phase != FrameCyclePhase.MANUAL) page = Page.Today
             cycle = FrameCycle.interact(SystemClock.elapsedRealtime())
             cycleSuspended = true
@@ -256,8 +259,8 @@ fun DashboardApp(
         }
     }
     // Amb l'alternança desactivada, es conserva el retorn habitual de dos minuts.
-    LaunchedEffect(page, lastTouch, frameMode.config.enabled) {
-        if (frameMode.config.enabled || page == Page.Today || page == Page.Photos || page == Page.Settings) return@LaunchedEffect
+    LaunchedEffect(page, lastTouch, frameMode.config.enabled, nestDevice) {
+        if (nestDevice != null || frameMode.config.enabled || page == Page.Today || page == Page.Photos || page == Page.Settings) return@LaunchedEffect
         delay(IDLE_MILLIS)
         page = Page.Today
     }
@@ -268,7 +271,15 @@ fun DashboardApp(
         shownEvent = null
     }
     // Es el launcher: "atrás" cierra el aviso o vuelve a Hoy, y nunca cierra la actividad.
-    BackHandler { onInteraction(); if (shownEvent != null) shownEvent = null else page = Page.Today }
+    BackHandler {
+        onInteraction()
+        when {
+            nestDevice != null -> nestDevice = null
+            shownEvent != null -> shownEvent = null
+            else -> page = Page.Today
+        }
+    }
+    LaunchedEffect(state.night) { if (state.night) nestDevice = null }
 
     Box(
         Modifier
@@ -314,7 +325,19 @@ fun DashboardApp(
                         Page.Weather -> WeatherScreen(state)
                         Page.Energy -> EnergyScreen(state)
                         // Prueba: Casa y Energía juntas (EnergyScreen y HomeScreen siguen por si se separan)
-                        Page.Home -> HomeEnergyScreen(state, home)
+                        Page.Home -> {
+                            val device = nestDevice
+                            if (device != null) {
+                                NestCameraViewer(device, nestKey, onClose = { onInteraction(); nestDevice = null })
+                            } else {
+                                HomeEnergyScreen(state, home, nestKey,
+                                    onSaveNestKey = { key ->
+                                        nestPrefs.edit().putString("camera_key", key).apply()
+                                        nestKey = key
+                                    },
+                                    onOpenNest = { onInteraction(); nestDevice = it })
+                            }
+                        }
                         Page.Tasks -> LocalFamilyScreen(family, state.now.toLocalDate(), sync.connected, sync.pendingCount, sync.cloudTasks >= 0)
                         Page.Reminders -> FamilyRemindersScreen(reminders, state.now.toLocalDate(), family, sync.connected, sync.pendingCount)
                         Page.Settings -> SettingsScreen(state, actions, settings, sync, dinners, family, frameMode, nightClock)
@@ -345,7 +368,7 @@ private fun Rail(current: Page, state: UiState, onSelect: (Page) -> Unit, onSync
                 .padding(vertical = if (compact) 12.dp else 48.dp)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 12.dp)) {
-                Page.entries.filter { it != Page.Settings && it.available(state) }.forEach { page ->
+                Page.entries.filter { it != Page.Settings && it.available() }.forEach { page ->
                     RailItem(page.shortLabel, page.icon, page == current) { onSelect(page) }
                 }
                 SyncItem(state.syncing, onSync)
