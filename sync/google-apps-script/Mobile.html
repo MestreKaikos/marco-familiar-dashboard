@@ -250,6 +250,34 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
       <div id="raiRewardList"></div>
       <h2 style="margin-top:20px">🔐 Peticions pendents</h2>
       <div id="raiPendingRewards"></div>
+      <details class="subpanel" id="raiAdultPoints" style="margin-top:16px">
+        <summary style="cursor:pointer;font-weight:750">🔒 Ajustar els punts · adults</summary>
+        <p style="margin:8px 0">Sumar, restar o reiniciar el saldo sense esborrar les feines ni les recompenses. Cal el PIN adult.</p>
+        <div class="row" style="flex-wrap:wrap;gap:8px;margin:10px 0">
+          <input id="raiAdultPin" type="password" inputmode="numeric" autocomplete="off"
+            minlength="4" maxlength="8" placeholder="PIN adult" aria-label="PIN dels adults"
+            style="max-width:150px;flex:1">
+          <input id="raiAdjustReason" maxlength="80" autocomplete="off"
+            placeholder="Motiu (opcional)" aria-label="Motiu de l'ajust" style="flex:2;min-width:150px">
+        </div>
+        <p style="margin:8px 0;font-weight:650">Sumar punts</p>
+        <div class="row" style="flex-wrap:wrap;gap:8px">
+          <button type="button" data-points-delta="1">+1</button>
+          <button type="button" data-points-delta="2">+2</button>
+          <button type="button" data-points-delta="5">+5</button>
+          <button type="button" data-points-delta="10">+10</button>
+        </div>
+        <p style="margin:12px 0 8px;font-weight:650">Restar punts</p>
+        <div class="row" style="flex-wrap:wrap;gap:8px">
+          <button type="button" data-points-delta="-1">−1</button>
+          <button type="button" data-points-delta="-2">−2</button>
+          <button type="button" data-points-delta="-5">−5</button>
+          <button type="button" data-points-delta="-10">−10</button>
+        </div>
+        <button id="raiResetPoints" type="button" style="margin-top:14px">Posar saldo a 0</button>
+        <p id="raiAdjustStatus" role="status" aria-live="polite"></p>
+        <div id="raiPointsHistory"></div>
+      </details>
       <form id="raiAddTask" class="row" style="margin-top:18px">
         <input id="raiTaskTitle" required maxlength="100" placeholder="Nova tasca…" aria-label="Títol de la tasca">
         <input id="raiTaskPoints" type="number" min="1" max="100" value="5" required aria-label="Punts" style="max-width:90px">
@@ -651,20 +679,276 @@ function raiAction(action,payload={},onDone){
   raiFlight=serverCall('familyTasksAction',key,action,payload).then(result=>{
     raiBusy=false;
     if(!result||!result.ok){
-      $('raiTaskStatus').textContent=(result&&result.error)||'No s’han pogut desar les tasques';return;
+      const message=(result&&result.error)||'No s’han pogut desar les tasques';
+      $('raiTaskStatus').textContent=message;
+      if(action==='points_adjust')$('raiAdjustStatus').textContent=message;
+      return;
+    }
+
+    lastRaiAt=Date.now();raiSnapshot=result.data;saveSessionSnapshot();renderRai();renderOverview();
+    $('raiTaskStatus').textContent='';
+    if(action!=='tasks_snapshot')call([]);
+    if(onDone)onDone();
+  }
+  if(dataFlight)return dataFlight;
+  if(!pendingOps.length&&minAgeMinutes&& !stale(lastDataAt,minAgeMinutes))return Promise.resolve();
+  const requestKey=key;
+  busy=true;message('Sincronitzant...',false);
+  dataFlight=(async()=>{
+    try{
+      do{
+        const batch=pendingOps.slice(0,60);
+        const result=await serverCall('apiAction',requestKey,'sync',{ops:batch});
+        if(key!==requestKey)return;
+        if(!result||!result.ok)throw new Error(result&&result.error||'No es pot sincronitzar');
+        const ack=new Set(batch.map(op=>op.mutationId));
+        pendingOps=pendingOps.filter(op=>!ack.has(op.mutationId));saveQueue();
+        data=result.data||{groceries:[],dinners:{},reminders:[]};
+        lastDataAt=Date.now();saveSessionSnapshot();
+      }while(pendingOps.length);
+      render();message('',false);
+      $('syncTime').textContent='Actualitzat a les '+new Date().toLocaleTimeString('ca-ES',{hour:'2-digit',minute:'2-digit'});
+    }catch(err){
+      message('Canvis pendents: '+pendingOps.length+'. '+(err.message||'Sense connexió'),true);
+    }finally{busy=false;dataFlight=null;}
+  })();
+  return dataFlight;
+}
+function showLogin(){
+  resetCalendarForm();$('calendarItems').replaceChildren();
+  photos=[];renderPhotos();raiSnapshot=null;
+  data={groceries:[],dinners:{}};lastDataAt=lastRaiAt=lastPhotosAt=0;queueStorageKey='';
+  key='';try { sessionStorage.removeItem('marc-sync-key'); } catch (_) {}
+  $('auth').hidden=false;$('application').hidden=true;$('disconnect').hidden=true;
+}
+async function showApp(){
+  await prepareQueue();
+  $('auth').hidden=true;$('application').hidden=false;$('disconnect').hidden=false;
+  render();renderPhotos();if(raiSnapshot)renderRai();renderOverview();
+  refreshAll(5);
+}
+function makeText(tag,text,cls){
+  const e=document.createElement(tag);e.textContent=text;if(cls)e.className=cls;return e;
+}
+function newId(){
+  if(self.crypto&&crypto.randomUUID)return crypto.randomUUID();
+  return String(Date.now())+'-'+Math.random().toString(36).slice(2);
+}
+function render(){
+  const groceries=(data.groceries||[]).slice().sort((a,b)=>Number(a.bought)-Number(b.bought));
+  const list=$('items');list.replaceChildren();
+  const pending=groceries.filter(x=>!x.bought).length;
+  $('pendingCount').textContent=pending+(pending===1?' pendent':' pendents');
+  if(!groceries.length)list.appendChild(makeText('p','La llista és buida. Afegeix-hi allò que falta a casa.'));
+  groceries.forEach(function(item){
+    const line=makeText('div','','item');
+    const box=document.createElement('input');box.type='checkbox';box.checked=!!item.bought;
+    box.setAttribute('aria-label','Marcar '+item.name+' com a comprat');
+    box.addEventListener('change',()=>call([{type:'grocery_set',id:item.id,name:item.name,bought:box.checked}]));
+    line.appendChild(box);line.appendChild(makeText('span',item.name,'name'+(item.bought?' bought':'')));
+    const del=makeText('button','Treure','small ghost');del.type='button';
+    del.setAttribute('aria-label','Eliminar '+item.name);
+    del.addEventListener('click',()=>call([{type:'grocery_delete',id:item.id}]));
+    line.appendChild(del);list.appendChild(line);
+  });
+  renderReminders();
+  renderCalendars();
+  renderOverview();
+}
+function calendarPayload(values){
+  const name=String(values.name||'').trim(),url=String(values.url||'').trim();
+  const color=String(values.color||'').toUpperCase();
+  if(!name||name.length>50)throw new Error('Posa un nom de fins a 50 caràcters.');
+  if(url.length>2048||!/^https:\/\/(calendar\.google\.com|www\.google\.com)\/calendar\/ical\/[^?#\s\\]+\/basic\.ics$/.test(url))
+    throw new Error('Copia l’adreça iCal de Google Calendar.');
+  if(!/^#[0-9A-F]{6}$/.test(color))throw new Error('Tria un color vàlid.');
+  return {type:'calendar_set',id:values.id||newId(),name,url,color,enabled:!!values.enabled};
+}
+function resetCalendarForm(){
+  $('calendarId').value='';$('calendarName').value='';$('calendarUrl').value='';
+  $('calendarUrl').type='password';$('calendarReveal').textContent="Mostrar l'enllaç";
+  $('calendarEnabled').checked=true;$('calendarSave').textContent='Afegir calendari';
+}
+function renderCalendars(){
+  const supported=Array.isArray(data.calendars),calendars=data.calendars||[];
+  $('calendarSave').disabled=!supported;
+  $('calendarNotice').textContent=supported
+    ? calendars.length+' de 10 calendaris. Els canvis arribaran al marc amb la sincronització familiar.'
+    : 'Per activar aquesta opció, actualitza també Code.gs a Apps Script i publica una versió nova de la mateixa implementació.';
+  const list=$('calendarItems');list.replaceChildren();
+  calendars.forEach(calendar=>{
+    const row=makeText('div','','item');
+    const active=document.createElement('input');active.type='checkbox';active.checked=calendar.enabled;
+    active.setAttribute('aria-label','Activar '+calendar.name);
+    active.addEventListener('change',()=>call([{type:'calendar_enabled',id:calendar.id,enabled:active.checked}]));
+    const name=makeText('span',calendar.name+(calendar.enabled?'':' · desactivat'),'name');
+    name.style.borderLeft='5px solid '+(/^#[0-9a-f]{6}$/i.test(calendar.color)?calendar.color:'#3977CB');
+    name.style.paddingLeft='8px';
+    const edit=makeText('button','Editar','small');edit.type='button';
+    edit.addEventListener('click',()=>{
+      $('calendarId').value=calendar.id;$('calendarName').value=calendar.name;
+      $('calendarUrl').value=calendar.url;$('calendarColor').value=calendar.color;
+      $('calendarEnabled').checked=calendar.enabled;$('calendarSave').textContent='Desar calendari';
+      $('calendarUrl').type='password';$('calendarReveal').textContent="Mostrar l'enllaç";
+    });
+    const remove=makeText('button','Eliminar','small ghost');remove.type='button';
+    remove.addEventListener('click',()=>{
+      if(confirm('Deixar de mostrar «'+calendar.name+'» als marcs connectats?'))
+        call([{type:'calendar_delete',id:calendar.id}],()=>{if($('calendarId').value===calendar.id)resetCalendarForm();});
+    });
+    row.append(active,name,edit,remove);list.appendChild(row);
+  });
+}
+$('calendarForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  if(!Array.isArray(data.calendars))return;
+  try{
+    const op=calendarPayload({id:$('calendarId').value,name:$('calendarName').value,url:$('calendarUrl').value,
+      color:$('calendarColor').value,enabled:$('calendarEnabled').checked});
+    if(data.calendars.some(c=>c.url===op.url&&c.id!==op.id))throw new Error('Aquest calendari ja està afegit.');
+    if(!op.id||(!data.calendars.some(c=>c.id===op.id)&&data.calendars.length>=10))throw new Error('Ja hi ha deu calendaris.');
+    call([op],resetCalendarForm);
+  }catch(err){$('calendarNotice').textContent=err.message;}
+});
+$('calendarCancel').addEventListener('click',resetCalendarForm);
+$('calendarReveal').addEventListener('click',()=>{
+  const show=$('calendarUrl').type==='password';$('calendarUrl').type=show?'text':'password';
+  $('calendarReveal').textContent=show?"Amagar l'enllaç":"Mostrar l'enllaç";
+});
+function renderOverview(){
+  const now=new Date(),today=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
+  const hour=now.getHours();
+  $('welcomeTitle').textContent=hour<12?'Bon dia! ☀️':hour<20?'Bona tarda! 🌿':'Bona nit! 🌙';
+  $('todayDate').textContent=now.toLocaleDateString('ca-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const pendingRem=(data.reminders||[]).filter(x=>!x.done),overdue=pendingRem.filter(x=>x.date&&x.date<today);
+  const dueToday=pendingRem.filter(x=>x.date===today);
+  $('overviewReminders').textContent=pendingRem.length;
+  $('overviewRemindersDetail').textContent=overdue.length?overdue.length+' vençuts · prioritari':dueToday.length?dueToday.length+' per avui':'Per fer';
+  $('overviewGroceries').textContent=(data.groceries||[]).filter(x=>!x.bought).length;
+  $('overviewPhotos').textContent=photos.length;
+  if(raiSnapshot){
+    const completed=new Set((raiSnapshot.done||[]).filter(d=>d.date===raiSnapshot.today).map(d=>d.taskId+'|'+d.slot));
+    const due=(raiSnapshot.tasks||[]).filter(t=>t.active&&t.dueToday);
+    const open=due.reduce((n,t)=>n+(t.slots||'única').split(',').filter(slot=>!completed.has(t.id+'|'+slot)).length,0);
+    $('overviewRai').textContent=open;
+    $('overviewRaiDetail').textContent=(raiSnapshot.points||0)+' punts disponibles';
+  }
+  const items=pendingRem.slice().sort((a,b)=>(a.date||'9999-99-99').localeCompare(b.date||'9999-99-99')).slice(0,4);
+  const list=$('overviewUpcoming');list.replaceChildren();
+  if(!items.length){list.appendChild(makeText('p','Tot al dia! No hi ha recordatoris pendents.'));return;}
+  items.forEach(rem=>{
+    const row=makeText('div','','upcoming-item'),badge=makeText('span','📌','upcoming-dot');
+    const content=makeText('div','','upcoming-content');
+    const heading=makeText('strong',rem.title),date=makeText('small',rem.date?(rem.date<today?'Vençut · ':rem.date===today?'Avui · ':'')+reminderDateLabel(rem.date):'Sense data límit');
+    if(rem.date&&rem.date<=today)date.classList.add('urgent');
+    content.append(heading,date);row.append(badge,content);list.appendChild(row);
+  });
+}
+// Data límit opcional, estat pendent/fet i edició, sincronitzats al mateix Sheets.
+function reminderDateLabel(value){
+  if(!value)return 'Sense data límit';
+  const parsed=new Date(value+'T12:00:00');
+  return Number.isNaN(parsed.getTime())?value:
+    parsed.toLocaleDateString('ca-ES',{day:'numeric',month:'short',year:'numeric'});
+}
+function resetReminderForm(){
+  $('reminderId').value='';$('reminderTitle').value='';
+  $('reminderDate').value='';$('reminderNotes').value='';
+  $('saveReminder').textContent='Afegir recordatori';$('cancelReminder').hidden=true;
+}
+function renderReminders(){
+  const list=$('reminderItems');list.replaceChildren();
+  const entries=data.reminders||[], pending=entries.filter(x=>!x.done);
+  $('reminderCount').textContent=pending.length+(pending.length===1?' pendent':' pendents');
+  if(!entries.length){
+    list.appendChild(makeText('p','Cap recordatori. Afegeix el primer, amb data o sense.'));return;
+  }
+  const now=new Date();
+  const today=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+
+    '-'+String(now.getDate()).padStart(2,'0');
+  entries.forEach(item=>{
+    const line=makeText('div','','item');
+    const check=document.createElement('input');check.type='checkbox';check.checked=!!item.done;
+    check.setAttribute('aria-label','Marcar com a fet: '+item.title);
+    check.addEventListener('change',()=>call([{type:'reminder_done',id:item.id,done:check.checked}]));
+    const body=document.createElement('div');body.style.flex='1';body.style.minWidth='0';
+    const title=makeText('div',item.title,'name'+(item.done?' bought':''));title.style.fontWeight='650';
+    let label=reminderDateLabel(item.date);
+    if(!item.done&&item.date===today)label='Avui · '+label;
+    if(!item.done&&item.date&&item.date<today)label='Vençut · '+label;
+    if(item.done)label='✓ Fet · '+label;
+    const due=makeText('small',label);
+    due.style.color=(!item.done&&item.date&&item.date<today)?'#ac3434':'#777';
+    body.append(title,due);
+    if(item.notes){
+      const notes=makeText('div',item.notes);notes.style.fontSize='13px';notes.style.color='#716a60';
+      body.appendChild(notes);
+    }
+    const edit=makeText('button','Editar','small');edit.type='button';
+    edit.addEventListener('click',()=>{
+      $('reminderId').value=item.id;$('reminderTitle').value=item.title;
+      $('reminderDate').value=item.date||'';$('reminderNotes').value=item.notes||'';
+      $('saveReminder').textContent='Desar canvis';$('cancelReminder').hidden=false;
+      $('reminderTitle').focus();
+    });
+    const del=makeText('button','Treure','small ghost');del.type='button';
+    del.addEventListener('click',()=>{if(confirm('Eliminar el recordatori «'+item.title+'»?'))
+      call([{type:'reminder_delete',id:item.id}]);});
+    line.append(check,body,edit,del);list.appendChild(line);
+  });
+}
+$('cancelReminder').addEventListener('click',resetReminderForm);
+$('addReminder').addEventListener('submit',e=>{
+  e.preventDefault();
+  const id=$('reminderId').value||newId(),title=$('reminderTitle').value.trim(),
+    date=$('reminderDate').value,notes=$('reminderNotes').value.trim();
+  if(!title)return;
+  call([{type:'reminder_set',id,title:title.slice(0,120),date,notes:notes.slice(0,240)}],
+    resetReminderForm);
+});
+// L'API familiar existent continua sent la font de veritat de dies, franges i premis.
+let raiBusy=false,raiSnapshot=null;
+function raiAction(action,payload={},onDone){
+  if(!key)return Promise.resolve();
+  if(raiFlight){
+    if(action==='tasks_snapshot')return raiFlight;
+    return raiFlight.then(()=>raiAction(action,payload,onDone));
+  }
+  raiBusy=true;$('raiTaskStatus').textContent='Sincronitzant les tasques…';
+  raiFlight=serverCall('familyTasksAction',key,action,payload).then(result=>{
+    raiBusy=false;
+    if(!result||!result.ok){
+      const message=(result&&result.error)||'No s’han pogut desar les tasques';
+      $('raiTaskStatus').textContent=message;
+      if(action==='points_adjust')$('raiAdjustStatus').textContent=message;
+      return;
     }
     lastRaiAt=Date.now();raiSnapshot=result.data;saveSessionSnapshot();renderRai();renderOverview();
     $('raiTaskStatus').textContent='';
     if(action!=='tasks_snapshot')call([]);
     if(onDone)onDone();
   }).catch(err=>{
-    raiBusy=false;$('raiTaskStatus').textContent=err&&err.message||'Error de connexió';
+    raiBusy=false;
+    const message=err&&err.message||'Error de connexió';
+    $('raiTaskStatus').textContent=message;
+    if(action==='points_adjust')$('raiAdjustStatus').textContent=message;
   }).finally(()=>{raiFlight=null;});
   return raiFlight;
 }
 function renderRai(){
   const snapshot=raiSnapshot;if(!snapshot)return;
   $('raiPoints').textContent='Saldo: '+snapshot.points+' punts · '+snapshot.today;
+  const history=$('raiPointsHistory');history.replaceChildren();
+  const movements=(snapshot.adjustments||[]).slice(0,5);
+  if(movements.length){
+    history.appendChild(makeText('p','Últims ajustos dels adults',''));
+    movements.forEach(m=>{
+      const sign=m.delta>0?'+':'';
+      const label=(m.type==='reinici'?'Saldo a 0 · ':'')+
+        sign+m.delta+' punts · '+m.date+(m.reason?' · '+m.reason:'');
+      history.appendChild(makeText('p',label,''));
+    });
+  }
   const completed=new Set(snapshot.done.filter(d=>d.date===snapshot.today)
     .map(d=>d.taskId+'|'+d.slot));
   const tasks=snapshot.tasks.filter(t=>t.active&&t.dueToday);
@@ -715,6 +999,33 @@ function renderRai(){
     row.append(yes,no);approvals.appendChild(row);
   });
 }
+// Cap canvi de punts és vàlid sense el PIN de l'adult; no se'n desa cap còpia.
+function adjustRaiPoints(delta,reset=false){
+  if(!key||raiBusy)return;
+  const pin=$('raiAdultPin').value.trim();
+  if(!/^[0-9]{4,8}$/.test(pin)){
+    $('raiAdjustStatus').textContent='Escriu el PIN adult (4 a 8 xifres).';return;
+  }
+  const current=Number(raiSnapshot?.points||0);
+  if(!reset&&current+delta<0){
+    $('raiAdjustStatus').textContent='El saldo no pot quedar en negatiu.';return;
+  }
+  if(reset&&!confirm('Vols deixar els punts disponibles d’en Rai a 0? Les feines i els premis es conservaran.'))return;
+  const payload={id:newId(),pin,reason:$('raiAdjustReason').value.trim().slice(0,80)};
+  if(reset)payload.reset=true;
+  else payload.delta=delta;
+  $('raiAdultPin').value='';
+  $('raiAdjustStatus').textContent='Desant l’ajust…';
+  raiAction('points_adjust',payload,()=>{
+    $('raiAdjustReason').value='';
+    $('raiAdjustStatus').textContent='Saldo actualitzat correctament.';
+  });
+}
+document.querySelectorAll('#raiAdultPoints [data-points-delta]').forEach(button=>{
+  button.addEventListener('click',()=>adjustRaiPoints(Number(button.dataset.pointsDelta)));
+});
+$('raiResetPoints').addEventListener('click',()=>adjustRaiPoints(0,true));
+
 $('raiTaskFrequency').addEventListener('change',()=>{
   const frequency=$('raiTaskFrequency').value;
   $('raiDays').hidden=!['weekdays','weekly'].includes(frequency);
