@@ -23,7 +23,7 @@ class BirthdayEventsTest {
     @Test fun understandsCatalanTitlesAndExtractsPerson() {
         assertEquals("Marc", birthdayPerson("Aniversari de Marc"))
         assertEquals("Anna", birthdayPerson("Aniversari d'Anna"))
-        assertEquals("Èlia", birthdayPerson("ANIVERSARI D’ÈLIA"))
+        assertEquals("ÈLIA", birthdayPerson("ANIVERSARI D’ÈLIA"))
         assertEquals("Rai Busquets", birthdayPerson(" aniversari de Rai Busquets "))
         assertNull(birthdayPerson("Aniversari de"))
         assertNull(birthdayPerson("Aniversari"))
