@@ -39,8 +39,11 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import java.io.File
 
 private data class LocalPhoto(val uri: Uri, val name: String)
-private data class GalleryPhoto(val name: String, val uri: Uri? = null, val file: File? = null) {
-    val key: String get() = uri?.toString() ?: file?.absolutePath.orEmpty()
+private data class GalleryPhoto(
+    val name: String, val uri: Uri? = null, val file: File? = null, val revision: String = ""
+) {
+    // Si Drive canvia el contingut sense canviar el nom/ID, força a recarregar el bitmap actual.
+    val key: String get() = (uri?.toString() ?: file?.absolutePath.orEmpty()) + "|" + revision
 }
 
 /**
@@ -112,7 +115,7 @@ fun PhotosScreen(
     }
 
     val photos = localPhotos.map { GalleryPhoto(it.name, uri = it.uri) } +
-        shared.photos.map { GalleryPhoto(it.name, file = it.file) }
+        shared.photos.map { GalleryPhoto(it.name, file = it.file, revision = it.revision) }
 
     LaunchedEffect(photos.size, localChecked, cloudChecked, shared.refreshing) {
         if (localChecked && cloudChecked && !shared.refreshing) availabilityListener(photos.isNotEmpty())
