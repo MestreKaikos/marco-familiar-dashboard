@@ -32,7 +32,7 @@ class BirthdayEventsTest {
     @Test fun doesNotHideUnrelatedAllDayEvents() {
         assertFalse(isBirthdayEvent(e(1, "Dia festiu")))
         assertFalse(isBirthdayEvent(e(2, "Reunió de família")))
-        assertFalse(isBirthdayEvent(e(3, "Aniversari de l'empresa: 10 anys")))
+        assertFalse(isBirthdayEvent(e(3, "Celebració dels 10 anys de l'empresa")))
         assertTrue(isBirthdayEvent(e(4, "Aniversari de Marc")))
     }
 
