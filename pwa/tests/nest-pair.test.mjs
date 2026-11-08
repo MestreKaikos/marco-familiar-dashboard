@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { Script } from 'node:vm';
 import test from 'node:test';
-import handler from '../api/nest.js';
+import handler, { safeNestOfferReason } from '../api/nest.js';
 
 const key = 'a'.repeat(64);
 process.env.NEST_CONFIG = JSON.stringify({
@@ -57,4 +57,21 @@ test('El reproductor de Nest és compatible amb Unified Plan a WebView 74', () =
   for (const [, code] of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) {
     assert.doesNotThrow(() => new Script(code));
   }
+});
+
+test('Error Nest 400 SDP: missatges útils sense dades privades', () => {
+  assert.match(safeNestOfferReason('Invalid Offer SDP m-lines. Each of audio, video and application'), /tres canals SDP/);
+  assert.match(safeNestOfferReason('Invalid Offer SDP audio must be recvonly'), /recvonly/);
+  assert.match(safeNestOfferReason('Invalid Offer SDP is missing CRLF'), /salt de línia/);
+  assert.match(safeNestOfferReason('Unsupported OPUS'), /Opus/);
+  assert.match(safeNestOfferReason('Invalid Offer SDP'), /SDP no és vàlid/);
+  const secret = 'TEST-secret-should-never-leak';
+  assert.ok(!safeNestOfferReason('Device '+secret+' unauthorized').includes(secret));
+});
+test('El diagnòstic Nest mostra la forma de l’oferta, no l’SDP complet', () => {
+  const html = readFileSync(new URL('../nest.html', import.meta.url), 'utf8');
+  assert.match(html, /describeOffer\(offerSdp\)/);
+  assert.match(html, /mark\('offer',describeOffer\(offerSdp\)\)/);
+  for(const label of ['Opus:', 'H.264:', 'candidats', 'final de línia:'])
+    assert.ok(html.includes(label));
 });
