@@ -65,6 +65,7 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
     val today = now.toLocalDate()
     val events = state.content?.events.orEmpty()
     val shifts = state.content?.sessions.orEmpty()
+    val birthdayNames = birthdaysToday(events, today)
     // Cites en curs i totes les properes de la setmana: no amaguem la segona cita del mateix dia.
     val upcoming = nextCalendarEvents(events + shifts, now)
     Column(Modifier.fillMaxSize().padding(horizontal = 36.dp, vertical = 28.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -78,14 +79,14 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
             )
         }
         if (state.personalCalendars.isNotEmpty()) {
-            CalendarLegend(state.personalCalendars)
+            CalendarLegend(state.personalCalendars, birthdays = birthdayNames)
         }
         Row(Modifier.fillMaxWidth().weight(0.46f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             (0 until WEEK_DAYS).forEach { i ->
                 val day = today.plusDays(i.toLong())
                 WeekDay(
                     day, today, now,
-                    events.filter { it.at.toLocalDate() == day },
+                    events.filter { it.at.toLocalDate() == day && !isBirthdayEvent(it) },
                     shifts.filter { it.at.toLocalDate() == day },
                     reminders.dueOn(day).take(2).joinToString(" · ") { it.title }.ifBlank { null },
                     Modifier.weight(1f).fillMaxHeight(),
@@ -112,7 +113,7 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
  */
 internal fun nextCalendarEvents(events: List<Event>, now: LocalDateTime): List<Event> {
     val lastDay = now.toLocalDate().plusDays(WEEK_DAYS.toLong())
-    return events.asSequence().filter { event ->
+    return events.asSequence().filterNot(::isBirthdayEvent).filter { event ->
         val end = event.end ?: if (event.all_day) event.at.plusDays(1) else event.at.plusHours(1)
         end.isAfter(now) && event.at.toLocalDate().isBefore(lastDay)
     }.distinctBy { listOf(it.calendar_id.toString(), it.id.toString(), it.date_at, it.title) }
