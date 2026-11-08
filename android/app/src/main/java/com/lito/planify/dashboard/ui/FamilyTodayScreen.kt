@@ -331,7 +331,8 @@ private data class HomeSummaryItem(
     val title: String,
     val detail: String? = null,
     val glyph: String = "☐",
-    val onMark: (() -> Unit)? = null
+    val onMark: (() -> Unit)? = null,
+    val actionLabel: String = "Marcar com fet"
 )
 
 @Composable
@@ -339,7 +340,7 @@ private fun HomeSummaryRow(item: HomeSummaryItem, tint: Color) {
     val action = item.onMark
     Row(Modifier.fillMaxWidth()
         .background(tint.copy(alpha = 0.055f), RoundedCornerShape(8.dp))
-        .then(if (action != null) Modifier.clickable(onClick = action) else Modifier)
+        .then(if (action != null) Modifier.clickable(onClickLabel = item.actionLabel, onClick = action) else Modifier)
         .padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(item.glyph, style = Type.Small.copy(fontSize = 24.sp, lineHeight = 32.sp,
@@ -366,22 +367,23 @@ private fun LocalShoppingTile(store: LocalFamilyStore, modifier: Modifier, onCli
         modifier = modifier, onClick = onClick)
 }
 
-/** Primer les feines que esperen validació, després les que queden per fer. */
+/** Primer les feines accionables; les que esperen validació no han de tapar-les. */
 @Composable
 private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Modifier, onClick: () -> Unit) {
     val tasks = store.chores.filter { it.owner == "Rai" }
     val awaiting = tasks.filter { store.status(it, today) == "pending" }
     val remaining = tasks.filter { store.status(it, today) in setOf("todo", "slots") }
-    val items = awaiting.map {
-        HomeSummaryItem(title = it.title, detail = "Per validar", glyph = "⏳")
-    } + remaining.map { task ->
+    val items = remaining.map { task ->
         if (store.status(task, today) == "slots") {
             // Les feines per franges necessiten escollir una franja a la vista de gestió.
-            HomeSummaryItem(title = task.title, detail = "Per franges", glyph = "›", onMark = onClick)
+            HomeSummaryItem(title = task.title, detail = "Per franges", glyph = "›",
+                onMark = onClick, actionLabel = "Obrir feines per franges")
         } else {
             HomeSummaryItem(title = task.title, detail = "Avui",
                 onMark = { store.requestDone(task.id, today) })
         }
+    } + awaiting.map {
+        HomeSummaryItem(title = it.title, detail = "Per validar", glyph = "⏳")
     }
     HomeSummaryTile("Feines d'en Rai", "⭐", parseColor("#7857BC"),
         summary = "${store.stars} estrelles · ${items.size} pendent${if (items.size == 1) "" else "s"}",
