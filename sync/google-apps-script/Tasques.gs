@@ -10,6 +10,7 @@ const TASK_DONE_TAB_='TasquesFetes';
 const REWARDS_TAB_='Recompenses';
 const REWARD_CLAIMS_TAB_='CanvisPunts';
 const REWARD_REQUESTS_TAB_='PeticionsPremis';
+const POINT_ADJUSTMENTS_TAB_='AjustosPunts';
 const MAX_FAMILY_TASKS_=100;
 const MAX_FAMILY_REWARDS_=50;
 
@@ -22,6 +23,7 @@ function setupFamilyTasks() {
   familyTaskSheet_(REWARDS_TAB_,['id','recompensa','cost','activa']);
   familyTaskSheet_(REWARD_CLAIMS_TAB_,['id','data','persona','recompensaId','cost']);
   familyTaskSheet_(REWARD_REQUESTS_TAB_,['id','data','persona','recompensaId','cost','estat']);
+  familyTaskSheet_(POINT_ADJUSTMENTS_TAB_,['id','data','persona','variacio','motiu','tipus']);
   Logger.log('Tasques familiars preparades; no s’ha modificat la clau de sincronització.');
 }
 function taskDate_(){
@@ -70,9 +72,19 @@ function familyTasksSnapshot_(){
   const requests=rows_(familyTaskSheet_(REWARD_REQUESTS_TAB_,['id','data','persona','recompensaId','cost','estat']),6)
     .filter(r=>r[0]).map(r=>({id:String(r[0]),date:String(r[1]),kid:String(r[2]),
       rewardId:String(r[3]),cost:Number(r[4])||0,status:String(r[5])}));
+  // Historial independent: mai no esborrem tasques fetes ni recompenses bescanviades.
+  const adjustments=rows_(familyTaskSheet_(POINT_ADJUSTMENTS_TAB_,
+    ['id','data','persona','variacio','motiu','tipus']),6)
+    .filter(r=>r[0]&&r[2]==='Rai').map(r=>({
+      id:String(r[0]),date:String(r[1]),kid:String(r[2]),delta:Number(r[3])||0,
+      reason:String(r[4]||''),type:String(r[5]||'manual')
+    }));
   const earned=done.filter(r=>r.kid==='Rai').reduce((s,r)=>s+r.points,0);
   const spent=claims.filter(r=>r.kid==='Rai').reduce((s,r)=>s+r.cost,0);
-  return {kid:'Rai',today:taskDate_(),tasks:tasks,done:done,rewards:rewards,claims:claims,requests:requests,points:earned-spent};
+  const manual=adjustments.reduce((s,r)=>s+r.delta,0);
+  return {kid:'Rai',today:taskDate_(),tasks:tasks,done:done,rewards:rewards,
+    claims:claims,requests:requests,points:earned-spent+manual,
+    adjustments:adjustments.slice(-15).reverse()};
 }
 /** Només per ús amb la clau familiar existent; no habilita canvis sense autenticació. */
 function familyTasksAction(key,action,payload){
@@ -123,6 +135,32 @@ function familyTasksAction(key,action,payload){
       const token=Utilities.getUuid();
       familyTaskSheet_(REWARD_REQUESTS_TAB_,['id','data','persona','recompensaId','cost','estat'])
         .appendRow([token,date,'Rai',id,reward.cost,'pendent']);
+    }else if(action==='points_adjust'){
+      // Mateix PIN que aprova les recompenses, mai desat ni retornat al navegador.
+      const pin=String(payload.pin||'');
+      const pinHash=PropertiesService.getScriptProperties().getProperty('FAMILY_ADULT_PIN_HASH');
+      if(!pinHash || !/^[0-9]{4,8}$/.test(pin) || digest_(pin)!==pinHash)
+        throw Error('PIN adult incorrecte');
+      const id=familyTaskId_(payload.id);
+      const tab=familyTaskSheet_(POINT_ADJUSTMENTS_TAB_,
+        ['id','data','persona','variacio','motiu','tipus']);
+      const rows=rows_(tab,6);
+      if(!rows.some(r=>String(r[0])===id)){
+        const snapshot=familyTasksSnapshot_();
+        const reset=payload.reset===true;
+        const delta=reset ? -snapshot.points : Number(payload.delta);
+        if(!reset && ![-10,-5,-2,-1,1,2,5,10].includes(delta))
+          throw Error('Tria 1, 2, 5 o 10 punts');
+        if(!Number.isSafeInteger(delta) || snapshot.points+delta<0)
+          throw Error('No es pot deixar el saldo en negatiu');
+        if(snapshot.points+delta>100000)throw Error('Saldo massa alt');
+        const reserved=snapshot.requests.filter(r=>r.status==='pendent'&&r.kid==='Rai')
+          .reduce((sum,r)=>sum+r.cost,0);
+        if(snapshot.points+delta<reserved)
+          throw Error('Cal resoldre primer les recompenses pendents');
+        const reason=safeText_(payload.reason||'',80);
+        tab.appendRow([id,date,'Rai',delta,reason,reset?'reinici':'manual']);
+      }
     }else if(action==='rewards_decide'){
       const pin=String(payload.pin||'');
       const pinHash=PropertiesService.getScriptProperties().getProperty('FAMILY_ADULT_PIN_HASH');
