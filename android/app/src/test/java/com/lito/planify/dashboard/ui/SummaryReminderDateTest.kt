@@ -8,6 +8,10 @@ import java.time.LocalDate
 class SummaryReminderDateTest {
     private val today = LocalDate.of(2026, 11, 8)
 
+    @Test fun showsCompactDateForRaiChores() {
+        assertTrue(summaryShortDate(today).startsWith("8 "))
+    }
+
     @Test fun showsDateForTodayInMutedSummaryText() {
         val label = summaryReminderDate(FamilyReminder("1", "Trucar", today.toString()), today)
         assertTrue(label.startsWith("Avui · 8 "))
