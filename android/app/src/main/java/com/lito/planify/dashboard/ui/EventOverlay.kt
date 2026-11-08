@@ -87,7 +87,7 @@ fun EventOverlay(event: Event?, onDismiss: () -> Unit) {
                 Box(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) { Detail("📝", text.trim()) }
             }
             Text(
-                "Cerrar",
+                "TANCAR",
                 style = Type.Body.copy(color = color, fontWeight = FontWeight.SemiBold),
                 modifier = Modifier
                     .align(Alignment.End)
@@ -109,11 +109,11 @@ private fun Detail(icon: String, text: String) {
 
 /** «Miércoles 21 de octubre · 17:00–18:30»; los de día completo, «Todo el día» (y hasta qué día, si son varios). */
 private fun whenLabel(event: Event): String {
-    fun day(d: LocalDate) = "${d.weekdayName()} ${d.dayOfMonth} de ${d.month.getDisplayName(TextStyle.FULL, Spanish)}"
+    fun day(d: LocalDate) = "${d.weekdayName()} ${d.dayOfMonth} ${d.monthWithArticle()}"
     val start = event.at.toLocalDate()
     if (event.all_day) {
         val last = event.end?.toLocalDate()?.minusDays(1)
-        return if (last != null && last > start) "${day(start)} – ${day(last)} · Todo el día" else "${day(start)} · Todo el día"
+        return if (last != null && last > start) "${day(start)} – ${day(last)} · Tot el dia" else "${day(start)} · Tot el dia"
     }
     return "${day(start)} · ${event.rangeLabel() ?: event.timeLabel()}"
 }
