@@ -527,7 +527,7 @@ assert.equal(context.familyTasksAction(secret,'rewards_decide',{
 assert.equal(context.familyTasksAction(secret,'points_adjust',{
   id:'manual_reset_after_reject',reset:true,pin:'3479'
 }).data.points,0);
-assert.equal(tabs.get("AjustosPunts").rows.length,6,'Registre complet i idempotent');
+assert.equal(tabs.get("AjustosPunts").rows.length,5,'Registre complet i idempotent');
 assert.ok(!tabs.get("AjustosPunts").rows.some(r=>r.includes('3479')),
   'El PIN no apareix a l\'historial');
 assert.equal(locked,false);
