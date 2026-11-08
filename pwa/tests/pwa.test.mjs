@@ -32,6 +32,16 @@ test('Conserva les seccions i formularis de producció',()=>{
   const js=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(x=>x[1]);
   js.forEach(source=>assert.doesNotThrow(()=>new Script(source)));
 });
+test('Pujada de fotos grans i reintent sense perdre la selecció',()=>{
+  assert.ok(html.includes('await uploadOriginal(file,await compressedPhotoForPwa(file),id)'));
+  assert.ok(html.includes('pendingPhotoItems=files.map(file=>({file,id:newId()}))'));
+  assert.ok(html.includes('pendingPhotoItems=failed'));
+  assert.ok(html.includes('failed.push(item)'));
+  assert.ok(html.includes('Reintentar '+ '${failed.length}' + ' pendents') ||
+    html.includes("'Reintentar '+failed.length+' pendents'"));
+  assert.ok(!html.includes('f.size>5*1024*1024'));
+  assert.ok(!html.includes('Les fotos han de ser JPG, PNG o WebP de fins a 5 MB'));
+});
 test('Les icones PNG són imatges reals per 192 i 512',()=>{
   for(const size of [192,512]){
     const res={
