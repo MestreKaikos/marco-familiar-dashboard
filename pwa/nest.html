@@ -139,6 +139,11 @@ start.onclick = async () => {
     const localSdp = peer.localDescription.sdp;
     const offerSdp = /\r?\n$/.test(localSdp) ? localSdp : localSdp + '\r\n';
     mark('offer',describeOffer(offerSdp));
+    // Les Nest Cam i Doorbell amb bateria només ofereixen H.264.
+    // Si aquest navegador antic no el negocia, no gastem una petició
+    // que Google rebutjaria amb Invalid Offer SDP.
+    if (!/^a=rtpmap:\d+ H264\//im.test(offerSdp))
+      throw new Error('WebView 74: no ofereix H.264 per WebRTC. Cal el visor natiu de la nova APK.');
     mark('nest','demanant vídeo a Google');
     const result = await call('start', {device:device.value, sdp:offerSdp});
     mark('nest','Google ha acceptat la petició');
