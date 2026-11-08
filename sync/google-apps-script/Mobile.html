@@ -793,9 +793,11 @@ function refreshPhotos(minAgeMinutes=0){
 // Manté la pujada d'originals de fins a 5 MB. Les fotos més grans es redueixen
 // al navegador abans d'enviar-les al mateix uploadFamilyPhoto() de Fotos.gs.
 let previewUrl='';
+let pendingPhotoFiles=null; // Es conserven només les fotos fallides per reintentar-les.
 $('photoInput').addEventListener('change',()=>{
   if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl='';}
   const files=Array.from($('photoInput').files||[]);
+  pendingPhotoFiles=files;
   const preview=$('photoPreview');preview.style.display=files.length?'block':'none';
   if(files.length){previewUrl=URL.createObjectURL(files[0]);preview.src=previewUrl;}
   photoStatus(files.length?files.length+' fotografies seleccionades':'',false);
@@ -838,30 +840,38 @@ function uploadOriginal(file,base64,compressed){
 $('uploadPhotos').addEventListener('submit',async e=>{
   e.preventDefault();
   if(photoBusy||!key)return;
-  const files=Array.from($('photoInput').files||[]);
+  const files=pendingPhotoFiles||Array.from($('photoInput').files||[]);
   if(!files.length){photoStatus('Selecciona almenys una fotografia.',true);return;}
   if(files.length>20){photoStatus('Selecciona un màxim de 20 fotografies per tanda.',true);return;}
   const types=['image/jpeg','image/png','image/webp'];
-  if(files.some(f=>!types.includes(f.type)||!f.size||f.size>50*1024*1024)){
-    photoStatus('Selecciona JPG, PNG o WebP de fins a 50 MB per original.',true);return;
-  }
   photoBusy=true;$('photoUploadButton').disabled=true;
   let uploaded=0;
+  const failed=[];
+  let firstError='';
   try{
-    for(const file of files){
-      photoStatus('Enviant '+(uploaded+1)+' de '+files.length+'…',false);
-      const compressed=!!window.MARC_PWA_MODE||file.size>5*1024*1024;
-      await uploadOriginal(file,compressed
-        ? await compressedPhotoForPwa(file) : await readPhotoOriginal(file),compressed);
-      uploaded++;
+    for(const [i,file] of files.entries()){
+      photoStatus('Enviant '+(i+1)+' de '+files.length+'…',false);
+      try{
+        if(!types.includes(file.type)||!file.size)throw new Error('Format no compatible: '+file.name);
+        const compressed=!!window.MARC_PWA_MODE||file.size>5*1024*1024;
+        await uploadOriginal(file,compressed
+          ? await compressedPhotoForPwa(file) : await readPhotoOriginal(file),compressed);
+        uploaded++;
+      }catch(err){
+        failed.push(file);
+        if(!firstError)firstError=(err.message||'Error temporal').slice(0,120);
+      }
     }
-    $('photoInput').value='';$('photoPreview').style.display='none';
-    if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl='';}
-    photoStatus(uploaded+(uploaded===1?' fotografia enviada':' fotografies enviades')+' correctament.',false);
+    pendingPhotoFiles=failed;
+    if(!failed.length){
+      $('photoInput').value='';$('photoPreview').style.display='none';
+      if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl='';}
+      photoStatus(uploaded+(uploaded===1?' fotografia enviada':' fotografies enviades')+' correctament.',false);
+    }else{
+      photoStatus(uploaded+' enviades, '+failed.length+' pendents. '+firstError+
+        '. Prem «Enviar fotografies» per reintentar només les pendents, sense tornar-les a triar.',true);
+    }
     // La galeria es refresca després d'alliberar el bloqueig de la pujada.
-  }catch(err){
-    photoStatus(uploaded+' de '+files.length+' enviades. '+(err.message||'Error temporal')+
-      '. Pots tornar a seleccionar les que faltin.',true);
   }finally{
     photoBusy=false;$('photoUploadButton').disabled=false;
     if(uploaded>0){if(photoFlight)await photoFlight;await refreshPhotos();}
