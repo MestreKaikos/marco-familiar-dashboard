@@ -136,11 +136,8 @@ function familyTasksAction(key,action,payload){
       familyTaskSheet_(REWARD_REQUESTS_TAB_,['id','data','persona','recompensaId','cost','estat'])
         .appendRow([token,date,'Rai',id,reward.cost,'pendent']);
     }else if(action==='points_adjust'){
-      // Mateix PIN que aprova les recompenses, mai desat ni retornat al navegador.
-      const pin=String(payload.pin||'');
-      const pinHash=PropertiesService.getScriptProperties().getProperty('FAMILY_ADULT_PIN_HASH');
-      if(!pinHash || !/^[0-9]{4,8}$/.test(pin) || digest_(pin)!==pinHash)
-        throw Error('PIN adult incorrecte');
+      // L'accés a l'app mòbil requereix la clau familiar; familyTasksAction
+      // ja l'ha validat. Conservem el PIN obligatori per a les recompenses.
       const id=familyTaskId_(payload.id);
       const tab=familyTaskSheet_(POINT_ADJUSTMENTS_TAB_,
         ['id','data','persona','variacio','motiu','tipus']);
