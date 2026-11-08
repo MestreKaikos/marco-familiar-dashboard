@@ -42,6 +42,18 @@ test('Pujada de fotos grans i reintent sense perdre la selecció',()=>{
   assert.ok(!html.includes('f.size>5*1024*1024'));
   assert.ok(!html.includes('Les fotos han de ser JPG, PNG o WebP de fins a 5 MB'));
 });
+test('Ajustos de punts dels pares amb PIN i botons petits',()=>{
+  for(const id of ['raiAdultPoints','raiAdultPin','raiAdjustReason','raiAdjustStatus',
+    'raiPointsHistory','raiResetPoints']) assert.ok(html.includes('id="'+id+'"'));
+  for(const delta of ['1','2','5','10','-1','-2','-5','-10'])
+    assert.ok(html.includes('data-points-delta="'+delta+'"'));
+  assert.ok(html.includes("raiAction('points_adjust',payload"));
+  assert.ok(html.includes("payload.reset=true"));
+  assert.ok(html.includes("if(!/^[0-9]{4,8}$/.test(pin))"));
+  assert.ok(html.includes("$('raiAdultPin').value=''"));
+  const proxy=fs.readFileSync(new URL('api/relay.js',root),'utf8');
+  assert.ok(proxy.includes("'points_adjust'"),'El proxy ha de permetre l\'acció a Tasques.gs');
+});
 test('Les icones PNG són imatges reals per 192 i 512',()=>{
   for(const size of [192,512]){
     const res={
