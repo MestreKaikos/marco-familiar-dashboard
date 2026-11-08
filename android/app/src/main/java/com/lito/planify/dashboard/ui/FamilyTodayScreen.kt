@@ -379,7 +379,7 @@ private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Mo
             HomeSummaryItem(title = task.title, detail = "Per franges", glyph = "›",
                 onMark = onClick, actionLabel = "Obrir feines per franges")
         } else {
-            HomeSummaryItem(title = task.title, detail = "Avui",
+            HomeSummaryItem(title = task.title, detail = summaryShortDate(today),
                 onMark = { store.requestDone(task.id, today) })
         }
     } + awaiting.map {
@@ -391,10 +391,14 @@ private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Mo
         modifier = modifier, alert = awaiting.isNotEmpty(), onClick = onClick)
 }
 
+/** Data curta que es veu al costat de les feines i recordatoris de la portada. */
+internal fun summaryShortDate(day: LocalDate): String =
+    "${day.dayOfMonth} ${day.month.getDisplayName(TextStyle.SHORT, Locale.forLanguageTag("ca-ES")).trimEnd('.')}"
+
 /** Data de venciment compacta, visible però més discreta que el títol. */
 internal fun summaryReminderDate(reminder: FamilyReminder, today: LocalDate): String {
     val deadline = reminder.deadline ?: return "Sense data"
-    val day = "${deadline.dayOfMonth} ${deadline.month.getDisplayName(TextStyle.SHORT, Locale.forLanguageTag("ca-ES")).trimEnd('.')}"
+    val day = summaryShortDate(deadline)
     return when {
         deadline.isBefore(today) -> "$day · vençut"
         deadline == today -> "Avui · $day"
