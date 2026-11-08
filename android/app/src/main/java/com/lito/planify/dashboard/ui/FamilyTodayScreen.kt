@@ -68,7 +68,7 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
     val live = events.firstOrNull { !it.all_day && !it.at.isAfter(now) && (it.end ?: it.at.plusHours(1)).isAfter(now) }
     val next = live ?: events.firstOrNull { !it.at.isBefore(now) && it.at.toLocalDate() < today.plusDays(WEEK_DAYS.toLong()) }
     Column(Modifier.fillMaxSize().padding(horizontal = 36.dp, vertical = 28.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        Row(Modifier.fillMaxWidth().weight(0.25f), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+        Row(Modifier.fillMaxWidth().weight(0.32f), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             // Hora, fecha y tiempo en un solo bloque ancho (dos tercios); lo siguiente, a la derecha
             HeaderBlock(state, Modifier.weight(2f).fillMaxHeight())
             Box(Modifier.weight(1f).fillMaxHeight()) {
@@ -81,7 +81,7 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
         if (state.personalCalendars.isNotEmpty()) {
             CalendarLegend(state.personalCalendars)
         }
-        Row(Modifier.fillMaxWidth().weight(0.48f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth().weight(0.46f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             (0 until WEEK_DAYS).forEach { i ->
                 val day = today.plusDays(i.toLong())
                 WeekDay(
