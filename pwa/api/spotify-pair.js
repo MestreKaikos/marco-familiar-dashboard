@@ -10,6 +10,7 @@ const MAX_LIFETIME_MS = 300000;
 const NAMESPACE = 'marc-familiar-spotify-pair';
 const SHA256 = /^[0-9a-f]{64}$/;
 const CLIENT_ID = /^[a-zA-Z0-9]{32}$/;
+const PLAYLIST = /^spotify:playlist:[A-Za-z0-9]+$/;
 
 function reply(res, code, body) {
   res.setHeader('Cache-Control', 'private, no-store');
@@ -49,7 +50,7 @@ export default async function handler(req, res) {
 
   try {
     if (body.action === 'approve') {
-      const { id, until, client_id, access_token, refresh_token, expires_at } = body;
+      const { id, until, client_id, access_token, refresh_token, expires_at, favourites } = body;
       if (!SHA256.test(id ?? '') || !isValidExpiry(until) ||
           !CLIENT_ID.test(client_id ?? '') ||
           typeof access_token !== 'string' || access_token.length < 12 || access_token.length > 4096 ||
@@ -63,7 +64,8 @@ export default async function handler(req, res) {
       const exists = await cache.get(key);
       if (exists === 'claimed')
         return reply(res, 409, { error: 'Aquest QR ja s’ha utilitzat.' });
-      await cache.set(key, { client_id, access_token, refresh_token, expires_at },
+      await cache.set(key, { client_id, access_token, refresh_token, expires_at,
+        favourites: Array.isArray(favourites) ? favourites.filter(x => typeof x === 'string' && PLAYLIST.test(x)).slice(0, 30) : [] },
         { ttl: Math.max(1, Math.ceil((until - Date.now()) / 1000)) });
       return reply(res, 200, { ok: true });
     }
@@ -80,7 +82,8 @@ export default async function handler(req, res) {
       return reply(res, 200, {
         linked: true,
         client_id: data.client_id, access_token: data.access_token,
-        refresh_token: data.refresh_token, expires_at: data.expires_at
+        refresh_token: data.refresh_token, expires_at: data.expires_at,
+        favourites: data.favourites || []
       });
     }
     return reply(res, 400, { error: 'Acció de vinculació desconeguda.' });
