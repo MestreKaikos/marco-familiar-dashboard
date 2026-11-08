@@ -522,7 +522,7 @@ assert.equal(context.familyTasksAction(secret,'points_adjust',{
 const pendingAfterAdjustment=context.familyTasksSnapshot_().requests.find(
   x=>x.status==='pendent'&&x.rewardId==='cheap_reward');
 assert.equal(context.familyTasksAction(secret,'rewards_decide',{
-  id:pendingAfterAdjustment.id,approve:false
+  id:pendingAfterAdjustment.id,approve:false,pin:'3479'
 }).ok,true);
 assert.equal(context.familyTasksAction(secret,'points_adjust',{
   id:'manual_reset_after_reject',reset:true
