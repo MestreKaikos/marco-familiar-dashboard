@@ -78,7 +78,7 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
                 modifier = Modifier.weight(1f).fillMaxHeight()
             )
         }
-        if (state.personalCalendars.isNotEmpty()) {
+        if (state.personalCalendars.isNotEmpty() || birthdayNames.isNotEmpty()) {
             CalendarLegend(state.personalCalendars, birthdays = birthdayNames)
         }
         Row(Modifier.fillMaxWidth().weight(0.46f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
