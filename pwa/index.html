@@ -300,7 +300,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
       <div class="row" style="justify-content:space-between;margin-bottom:12px">
         <h2 style="margin:0">📸 Fotografies familiars</h2><span class="pill" id="photoCount">0 fotos</span>
       </div>
-      <p>Envia JPG, PNG o WebP de fins a 5 MB, com abans. Pots triar-ne fins a 20 per tanda.</p>
+      <p>Selecciona fins a 20 fotos JPG, PNG o WebP. Les imatges grans es redueixen automàticament abans de pujar-les.</p>
       <form id="uploadPhotos">
         <input id="photoInput" type="file" accept="image/jpeg,image/png,image/webp" multiple required aria-label="Fotografies">
         <img id="photoPreview" alt="Vista prèvia de la fotografia">
@@ -834,9 +834,12 @@ function refreshPhotos(minAgeMinutes=0){
 // Manté el comportament de producció: pujada d'originals JPG/PNG/WebP de fins a 5 MB.
 // Utilitza la funció uploadFamilyPhoto() de Fotos.gs, que ja valida la signatura del fitxer.
 let previewUrl='';
+let pendingPhotoItems=[]; // Fitxer i identificador estable: reintents sense duplicar pujades.
 $('photoInput').addEventListener('change',()=>{
   if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl='';}
   const files=Array.from($('photoInput').files||[]);
+  pendingPhotoItems=files.map(file=>({file,id:newId()}));
+  $('photoUploadButton').textContent='Enviar fotografies';
   const preview=$('photoPreview');preview.style.display=files.length?'block':'none';
   if(files.length){previewUrl=URL.createObjectURL(files[0]);preview.src=previewUrl;}
   photoStatus(files.length?files.length+' fotografies seleccionades':'',false);
@@ -867,10 +870,10 @@ async function compressedPhotoForPwa(file){
     throw new Error('No s’ha pogut reduir aquesta fotografia');
   }finally{picture.close();}
 }
-function uploadOriginal(file,base64){
+function uploadOriginal(file,base64,id){
   return serverCall('uploadFamilyPhoto',key,{
     name:file.name,mime:window.MARC_PWA_MODE?'image/jpeg':file.type,
-    base64,id:newId()
+    base64,id
   }).then(result=>{
     if(!result||!result.ok)throw new Error(result&&result.error||'Error en pujar '+file.name);
     return result;
@@ -879,29 +882,39 @@ function uploadOriginal(file,base64){
 $('uploadPhotos').addEventListener('submit',async e=>{
   e.preventDefault();
   if(photoBusy||!key)return;
-  const files=Array.from($('photoInput').files||[]);
-  if(!files.length){photoStatus('Selecciona almenys una fotografia.',true);return;}
-  if(files.length>20){photoStatus('Selecciona un màxim de 20 fotografies per tanda.',true);return;}
+  const items=pendingPhotoItems;
+  if(!items.length){photoStatus('Selecciona almenys una fotografia.',true);return;}
+  if(items.length>20){photoStatus('Selecciona un màxim de 20 fotografies per tanda.',true);return;}
   const types=['image/jpeg','image/png','image/webp'];
-  if(files.some(f=>!types.includes(f.type)||!f.size||f.size>5*1024*1024)){
-    photoStatus('Les fotos han de ser JPG, PNG o WebP de fins a 5 MB.',true);return;
-  }
   photoBusy=true;$('photoUploadButton').disabled=true;
   let uploaded=0;
+  const failed=[];
+  let firstError='';
   try{
-    for(const file of files){
-      photoStatus('Enviant '+(uploaded+1)+' de '+files.length+'…',false);
-      await uploadOriginal(file,window.MARC_PWA_MODE
-        ? await compressedPhotoForPwa(file) : await readPhotoOriginal(file));
-      uploaded++;
+    for(const [i,item] of items.entries()){
+      const {file,id}=item;
+      photoStatus('Enviant '+(i+1)+' de '+items.length+'…',false);
+      try{
+        if(!types.includes(file.type)||!file.size)throw new Error('Format no compatible: '+file.name);
+        await uploadOriginal(file,await compressedPhotoForPwa(file),id);
+        uploaded++;
+      }catch(err){
+        failed.push(item);
+        if(!firstError)firstError=(err.message||'Error temporal').slice(0,120);
+      }
     }
-    $('photoInput').value='';$('photoPreview').style.display='none';
-    if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl='';}
-    photoStatus(uploaded+(uploaded===1?' fotografia enviada':' fotografies enviades')+' correctament.',false);
+    pendingPhotoItems=failed;
+    if(!failed.length){
+      $('photoInput').value='';$('photoPreview').style.display='none';
+      $('photoUploadButton').textContent='Enviar fotografies';
+      if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl='';}
+      photoStatus(uploaded+(uploaded===1?' fotografia enviada':' fotografies enviades')+' correctament.',false);
+    }else{
+      $('photoUploadButton').textContent='Reintentar '+failed.length+' pendents';
+      photoStatus(uploaded+' enviades, '+failed.length+' pendents. '+firstError+
+        '. Pots reintentar només les pendents sense tornar-les a triar.',true);
+    }
     // La galeria es refresca després d'alliberar el bloqueig de la pujada.
-  }catch(err){
-    photoStatus(uploaded+' de '+files.length+' enviades. '+(err.message||'Error temporal')+
-      '. Pots tornar a seleccionar les que faltin.',true);
   }finally{
     photoBusy=false;$('photoUploadButton').disabled=false;
     if(uploaded>0){if(photoFlight)await photoFlight;await refreshPhotos();}
