@@ -44,6 +44,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.TextStyle
+import java.util.Locale
 import kotlin.math.roundToInt
 
 /** Días que enseña la franja de la semana (hoy incluido). */
@@ -249,7 +250,7 @@ private fun Tile(title: String, emoji: String, tint: Color, modifier: Modifier, 
 @Composable
 private fun HomeSummaryTile(
     title: String, emoji: String, tint: Color, summary: String,
-    items: List<String>, emptyMessage: String, modifier: Modifier,
+    items: List<HomeSummaryItem>, emptyMessage: String, modifier: Modifier,
     alert: Boolean = false, onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(24.dp)
@@ -258,13 +259,12 @@ private fun HomeSummaryTile(
         modifier.clip(shape)
             .background(Brush.verticalGradient(listOf(Palette.Card, tint.copy(alpha = 0.07f).compositeOver(Palette.Card))))
             .border(1.dp, tint.copy(alpha = 0.20f), shape)
-            .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 12.dp)
     ) { constraints ->
         val width = constraints.maxWidth
         val childConstraints = constraints.copy(minHeight = 0)
         val header = subcompose("headerMeasure") {
-            HomeSummaryHeader(title, emoji, accent, summary, hiddenCount = 0)
+            HomeSummaryHeader(title, emoji, accent, summary, hiddenCount = 0, onClick = onClick)
         }.single().measure(childConstraints)
         val headerGap = 8.dp.roundToPx()
         val rowGap = 2.dp.roundToPx()
@@ -277,11 +277,11 @@ private fun HomeSummaryTile(
             SummaryTileLayout.visibleItems(bodyHeight, sample.height, rowGap, items.size)
         }
         val finalHeader = subcompose("header") {
-            HomeSummaryHeader(title, emoji, accent, summary, hiddenCount = items.size - visibleCount)
+            HomeSummaryHeader(title, emoji, accent, summary, hiddenCount = items.size - visibleCount, onClick = onClick)
         }.single().measure(childConstraints)
         val body = subcompose("items") {
             if (items.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
+                Box(Modifier.fillMaxSize().clickable(onClick = onClick), contentAlignment = Alignment.CenterStart) {
                     Text(emptyMessage, style = Type.Body.copy(fontSize = 24.sp, lineHeight = 30.sp,
                         color = Palette.InkSoft), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
@@ -299,8 +299,8 @@ private fun HomeSummaryTile(
 }
 
 @Composable
-private fun HomeSummaryHeader(title: String, emoji: String, tint: Color, summary: String, hiddenCount: Int) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+private fun HomeSummaryHeader(title: String, emoji: String, tint: Color, summary: String, hiddenCount: Int, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(Modifier.size(36.dp).background(tint.copy(alpha = 0.12f), RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center) {
@@ -323,15 +323,34 @@ private fun HomeSummaryHeader(title: String, emoji: String, tint: Color, summary
     }
 }
 
+/**
+ * Cada línia pot completar l'element sense abandonar «Avui».
+ * Només la capçalera de la targeta obre la pantalla de gestió.
+ */
+private data class HomeSummaryItem(
+    val title: String,
+    val detail: String? = null,
+    val glyph: String = "☐",
+    val onMark: (() -> Unit)? = null
+)
+
 @Composable
-private fun HomeSummaryRow(title: String, tint: Color) {
-    Row(Modifier.fillMaxWidth().background(tint.copy(alpha = 0.045f), RoundedCornerShape(8.dp))
-        .padding(horizontal = 8.dp, vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Box(Modifier.size(6.dp).background(tint.copy(alpha = 0.75f), RoundedCornerShape(3.dp)))
-        Text(title, style = Type.Body.copy(fontSize = 26.sp, lineHeight = 32.sp,
+private fun HomeSummaryRow(item: HomeSummaryItem, tint: Color) {
+    val action = item.onMark
+    Row(Modifier.fillMaxWidth()
+        .background(tint.copy(alpha = 0.055f), RoundedCornerShape(8.dp))
+        .then(if (action != null) Modifier.clickable(onClick = action) else Modifier)
+        .padding(horizontal = 8.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(item.glyph, style = Type.Small.copy(fontSize = 24.sp, lineHeight = 32.sp,
+            color = tint, fontWeight = FontWeight.Medium))
+        Text(item.title, style = Type.Body.copy(fontSize = 23.sp, lineHeight = 32.sp,
             color = Palette.Ink, fontWeight = FontWeight.Medium),
             modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        item.detail?.let {
+            Text(it, style = Type.Tiny.copy(color = Palette.InkMuted, fontSize = 16.sp,
+                lineHeight = 21.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 
@@ -341,7 +360,9 @@ private fun LocalShoppingTile(store: LocalFamilyStore, modifier: Modifier, onCli
     val pending = store.groceries.filterNot { it.bought }
     HomeSummaryTile("Compra", "🛒", Palette.Online,
         summary = if (pending.isEmpty()) "No falta res" else "${pending.size} producte${if (pending.size == 1) " pendent" else "s pendents"}",
-        items = pending.map { it.name }, emptyMessage = "Toca per afegir productes",
+        items = pending.map { product ->
+            HomeSummaryItem(title = product.name, onMark = { store.toggleGrocery(product.id) })
+        }, emptyMessage = "Toca per afegir productes",
         modifier = modifier, onClick = onClick)
 }
 
@@ -351,11 +372,33 @@ private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Mo
     val tasks = store.chores.filter { it.owner == "Rai" }
     val awaiting = tasks.filter { store.status(it, today) == "pending" }
     val remaining = tasks.filter { store.status(it, today) in setOf("todo", "slots") }
-    val items = awaiting.map { "${it.title} · per validar" } + remaining.map { it.title }
+    val items = awaiting.map {
+        HomeSummaryItem(title = it.title, detail = "Per validar", glyph = "⏳")
+    } + remaining.map { task ->
+        if (store.status(task, today) == "slots") {
+            // Les feines per franges necessiten escollir una franja a la vista de gestió.
+            HomeSummaryItem(title = task.title, detail = "Per franges", glyph = "›", onMark = onClick)
+        } else {
+            HomeSummaryItem(title = task.title, detail = "Avui",
+                onMark = { store.requestDone(task.id, today) })
+        }
+    }
     HomeSummaryTile("Feines d'en Rai", "⭐", parseColor("#7857BC"),
         summary = "${store.stars} estrelles · ${items.size} pendent${if (items.size == 1) "" else "s"}",
         items = items, emptyMessage = if (tasks.isEmpty()) "Toca per afegir feines" else "Tot fet per avui!",
         modifier = modifier, alert = awaiting.isNotEmpty(), onClick = onClick)
+}
+
+/** Data de venciment compacta, visible però més discreta que el títol. */
+internal fun summaryReminderDate(reminder: FamilyReminder, today: LocalDate): String {
+    val deadline = reminder.deadline ?: return "Sense data"
+    val day = "${deadline.dayOfMonth} ${deadline.month.getDisplayName(TextStyle.SHORT, Locale.forLanguageTag("ca-ES")).trimEnd('.')}"
+    return when {
+        deadline.isBefore(today) -> "$day · vençut"
+        deadline == today -> "Avui · $day"
+        deadline == today.plusDays(1) -> "Demà · $day"
+        else -> day
+    }
 }
 
 /** Recordatoris prioritzats: vençuts, avui, futurs i sense data. */
@@ -374,7 +417,11 @@ private fun ReminderTile(store: FamilyReminders, today: LocalDate, modifier: Mod
         else -> "Tot al dia!"
     }
     HomeSummaryTile("Recordatoris", "📌", Palette.Warm, summary,
-        items = priority.map { it.title }, emptyMessage = "Toca per afegir-ne un",
+        items = priority.map { reminder ->
+            HomeSummaryItem(title = reminder.title,
+                detail = summaryReminderDate(reminder, today),
+                onMark = { store.toggle(reminder.id, true) })
+        }, emptyMessage = "Toca per afegir-ne un",
         modifier = modifier, alert = overdue.isNotEmpty(), onClick = onClick)
 }
 
