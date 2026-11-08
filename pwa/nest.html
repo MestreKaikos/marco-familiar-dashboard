@@ -57,11 +57,25 @@ start.onclick = async () => {
   if (embedded) key.value = "";
   status.textContent = 'Connectant amb Google Nest…';
   try {
-    pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+    // Nest exigeix SDP Unified Plan. Chromium/WebView 74 encara usa Plan B
+    // per defecte, i addTransceiver() falla sense aquesta opció explícita.
+    pc = new RTCPeerConnection({
+      iceServers:[{urls:'stun:stun.l.google.com:19302'}],
+      sdpSemantics:'unified-plan'
+    });
+    if (typeof pc.addTransceiver !== 'function') {
+      throw new Error('El navegador del marc no admet el vídeo WebRTC necessari.');
+    }
     const peer = pc;
     const stream = new MediaStream();
     video.srcObject = stream;
     peer.ontrack = e => { stream.addTrack(e.track); video.play().catch(() => {}); };
+    peer.oniceconnectionstatechange = () => {
+      if (pc !== peer) return;
+      if (peer.iceConnectionState === 'failed') {
+        status.textContent = 'La connexió WebRTC ha fallat (ICE). Comprova la xarxa del marc.';
+      }
+    };
     peer.addTransceiver('audio', {direction:'recvonly'});
     peer.addTransceiver('video', {direction:'recvonly'});
     peer.createDataChannel('data');
@@ -69,7 +83,7 @@ start.onclick = async () => {
     await new Promise(resolve => {
       const check = () => { if (peer.iceGatheringState === 'complete') resolve(); };
       peer.addEventListener('icegatheringstatechange', check);
-      setTimeout(resolve, 4000);
+      setTimeout(resolve, 8000);
       check();
     });
     if (pc !== peer) return;
