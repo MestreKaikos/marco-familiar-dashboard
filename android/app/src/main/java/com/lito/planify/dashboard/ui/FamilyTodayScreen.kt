@@ -64,19 +64,17 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
     val today = now.toLocalDate()
     val events = state.content?.events.orEmpty()
     val shifts = state.content?.sessions.orEmpty()
-    // Lo que está pasando ahora (con hora, empezado y sin terminar) va antes que lo próximo
-    val live = events.firstOrNull { !it.all_day && !it.at.isAfter(now) && (it.end ?: it.at.plusHours(1)).isAfter(now) }
-    val next = live ?: events.firstOrNull { !it.at.isBefore(now) && it.at.toLocalDate() < today.plusDays(WEEK_DAYS.toLong()) }
+    // Cites en curs i totes les properes de la setmana: no amaguem la segona cita del mateix dia.
+    val upcoming = nextCalendarEvents(events + shifts, now)
     Column(Modifier.fillMaxSize().padding(horizontal = 36.dp, vertical = 28.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Row(Modifier.fillMaxWidth().weight(0.32f), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             // Hora, fecha y tiempo en un solo bloque ancho (dos tercios); lo siguiente, a la derecha
             HeaderBlock(state, Modifier.weight(2f).fillMaxHeight())
-            Box(Modifier.weight(1f).fillMaxHeight()) {
-                if (next != null) EventTapTarget(next, Modifier.fillMaxSize()) { NextCompact(next, now, live = next === live) }
-                else Box(Modifier.fillMaxSize().background(Palette.Card, RoundedCornerShape(28.dp)), contentAlignment = Alignment.Center) {
-                    Text(if (state.token == null && !state.ics) "Calendaris per configurar" else "Setmana sense activitats", style = Type.Body.copy(color = Palette.InkMuted))
-                }
-            }
+            UpcomingEventsCard(
+                upcoming, now,
+                noCalendar = state.token == null && !state.ics,
+                modifier = Modifier.weight(1f).fillMaxHeight()
+            )
         }
         if (state.personalCalendars.isNotEmpty()) {
             CalendarLegend(state.personalCalendars)
@@ -106,31 +104,100 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
 
 // --- Arriba ---
 
-/** Lo próximo (o, mientras dura, lo de ahora), del color de su calendario: cuánto falta o hasta cuándo, título y cuándo. */
+/**
+ * Totes les cites de la setmana que encara no han acabat, ordenades per inici.
+ * Una cita de tot el dia també és vigent fins a final de dia, i les de diversos
+ * dies es conserven mentre siguin actives. S'inclouen calendari i torns.
+ */
+internal fun nextCalendarEvents(events: List<Event>, now: LocalDateTime): List<Event> {
+    val lastDay = now.toLocalDate().plusDays(WEEK_DAYS.toLong())
+    return events.asSequence().filter { event ->
+        val end = event.end ?: if (event.all_day) event.at.plusDays(1) else event.at.plusHours(1)
+        end.isAfter(now) && event.at.toLocalDate().isBefore(lastDay)
+    }.distinctBy { listOf(it.calendar_id.toString(), it.id.toString(), it.date_at, it.title) }
+        .sortedWith(compareBy<Event> {
+            // Les cites actuals es mostren al davant de les futures.
+            if (it.at.isBefore(now)) now else it.at
+        }.thenBy { it.at })
+        .toList()
+}
+
+/** Llista navegable: es veuen tantes cites com caben i es pot desplaçar la resta. */
 @Composable
-private fun NextCompact(event: Event, now: LocalDateTime, live: Boolean) {
-    val color = parseColor(event.calendar_color, Palette.Accent)
-    val ink = onColor(color)
-    val left = countdown(now, event.at, maxMinutes = 24 * 60)?.removePrefix("en ") ?: relativeBadge(now, event.at).lowercase(Spanish)
+private fun UpcomingEventsCard(
+    events: List<Event>, now: LocalDateTime, noCalendar: Boolean, modifier: Modifier = Modifier
+) {
+    val today = now.toLocalDate()
     Column(
-        Modifier.fillMaxSize().background(color, RoundedCornerShape(28.dp)).padding(horizontal = 30.dp, vertical = 22.dp),
-        verticalArrangement = Arrangement.Center
+        modifier.background(Palette.Card, RoundedCornerShape(28.dp))
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(if (live) "● ARA" else "EL SEGÜENT", style = Type.Label.copy(color = ink.copy(alpha = 0.9f), fontSize = 17.sp), modifier = Modifier.weight(1f))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                if (live) "fins a les ${(event.end ?: event.at.plusHours(1)).format(HourMinute)}" else "en $left",
-                style = Type.Small.copy(color = ink, fontWeight = FontWeight.Bold),
-                modifier = Modifier.background(ink.copy(alpha = 0.18f), RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 2.dp)
+                if (events.size == 1) "EL SEGÜENT" else "ELS SEGÜENTS",
+                style = Type.Label.copy(color = Palette.Accent, fontSize = 17.sp),
+                modifier = Modifier.weight(1f),
+                maxLines = 1
+            )
+            if (events.isNotEmpty()) Text(
+                "${events.size} ${if (events.size == 1) "cita" else "cites"}",
+                style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 17.sp),
+                maxLines = 1
             )
         }
-        Text(event.title, style = Type.Large.copy(color = ink, fontWeight = FontWeight.SemiBold), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
-        Text(
-            "${relativeDay(event.at.toLocalDate(), now.toLocalDate())} · ${event.rangeLabel() ?: event.timeLabel()}",
-            style = Type.Small.copy(color = ink.copy(alpha = 0.85f)),
-            maxLines = 1,
-            modifier = Modifier.padding(top = 4.dp)
-        )
+        if (events.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    if (noCalendar) "Calendaris per configurar" else "Setmana sense activitats",
+                    style = Type.Body.copy(color = Palette.InkMuted)
+                )
+            }
+        } else {
+            Column(
+                Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                events.forEach { event ->
+                    val tint = parseColor(event.calendar_color, Palette.Accent)
+                    val ongoing = !event.at.isAfter(now)
+                    val whenText = when {
+                        event.all_day -> "Tot el dia"
+                        ongoing -> "Ara · ${event.rangeLabel() ?: event.timeLabel()}"
+                        else -> event.rangeLabel() ?: event.timeLabel()
+                    }
+                    EventTapTarget(event, Modifier.fillMaxWidth()) {
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .background(tint.copy(alpha = 0.11f), RoundedCornerShape(15.dp))
+                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                Modifier.width(5.dp).height(39.dp)
+                                    .background(tint, RoundedCornerShape(4.dp))
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    event.title,
+                                    style = Type.Small.copy(
+                                        color = Palette.Ink, fontWeight = FontWeight.SemiBold,
+                                        fontSize = 21.sp, lineHeight = 26.sp
+                                    ),
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    "${relativeDay(event.at.toLocalDate(), today)} · $whenText",
+                                    style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 17.sp),
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
