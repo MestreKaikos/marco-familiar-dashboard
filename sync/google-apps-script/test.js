@@ -27,6 +27,7 @@ class FakeDriveFile {
   }
   getId() { return this.id; }
   getBlob() { if(this.trashed) throw new Error("File deleted"); return this.blob; }
+  getThumbnail() { if(this.trashed) throw new Error("File deleted"); return this.thumbnail || null; }
   getSize() { return this.blob.getSize(); }
   getName() { return this.name; }
   getMimeType() { return this.blob.getContentType(); }
@@ -282,27 +283,44 @@ assert.equal(store.get('PHOTO_FOLDER_ID'),existingFolder.getId());
 assert.equal(store.get('PHOTO_READ_KEY_HASH'),crypto.createHash('sha256').update(oldReaderKey).digest('hex'));
 assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,1);
 assert.equal(context.apiAction(secret,'photo_get',{id:existingPng.getId()}).photo.mimeType,"image/png");
+// Els originals grans copiats manualment al Drive han d'aparèixer a la llista,
+// però s'envia al marc només la miniatura sense modificar ni duplicar l'original.
+const largeOriginal = Buffer.alloc(6 * 1024 * 1024, 42);
+const largePhoto = existingFolder.createFile(new FakeBlob(largeOriginal, "image/jpeg"));
+largePhoto.name = "Vacances-original-6MB.jpg";
+const smallJpeg = Buffer.from([255,216,1,2,3,255,217]);
+largePhoto.thumbnail = new FakeBlob(smallJpeg, "image/jpeg");
+const photoListWithLarge = context.apiAction(secret,'photo_list',{}).photos;
+assert.equal(photoListWithLarge.length,2, "El Drive ha d'incloure les fotos de més de 5 MB");
+const largeResponse = context.apiAction(secret,'photo_get',{id:largePhoto.getId()});
+assert.equal(largeResponse.ok,true,largeResponse.error);
+assert.equal(largeResponse.photo.mimeType,"image/jpeg");
+assert.equal(largeResponse.photo.base64,smallJpeg.toString("base64"));
+assert.equal(largePhoto.getSize(),6*1024*1024,"L'original no s'ha de modificar");
+assert.equal(context.apiAction(secret,'photo_delete',{id:largePhoto.getId()}).ok,false,
+  "Cap fotografia original gran no es pot esborrar per l'API del marc");
+
 assert.equal(context.apiAction(secret,'photo_delete',{id:existingPng.getId()}).ok,false,
   'Les fotos originals de Drive no s’han de poder eliminar amb la nova API');
 assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,1);
 const jpeg=Buffer.from([255,216,1,2,3,255,217]).toString('base64');
 const addPhoto=context.apiAction(secret,'photo_upload',{id:'photo_1',name:'Platja.jpg',base64:jpeg});
 assert.equal(addPhoto.ok,true,addPhoto.error);
-assert.equal(addPhoto.photos.length,2);
+assert.equal(addPhoto.photos.length,3);
 assert.ok(addPhoto.photos.some(p=>p.name.includes('Platja')));
 const newPhoto=addPhoto.photo;
 assert.ok(newPhoto.id !== 'photo_1','La llista utilitza els IDs reals de Drive');
 assert.equal(addPhoto.photos[0].base64,undefined,'No enviem base64 a la llista');
 assert.ok(store.get('PHOTO_FOLDER_ID'),'La carpeta privada és al Drive');
 assert.equal(context.apiAction(secret,'photo_get',{id:newPhoto.id}).photo.base64,jpeg);
-assert.equal(context.apiAction(secret,'photo_upload',{id:'photo_1',name:'Platja.jpg',base64:jpeg}).photos.length,2);
+assert.equal(context.apiAction(secret,'photo_upload',{id:'photo_1',name:'Platja.jpg',base64:jpeg}).photos.length,3);
 assert.equal(context.apiAction(secret,'photo_get',{id:'../../x'}).ok,false);
 assert.equal(context.apiAction(secret,'photo_upload',{id:'photo_2',name:'Engany',base64:'AAAAAA=='}).ok,false);
 assert.equal(context.apiAction(secret,'photo_get',{id:'photo_2'}).ok,false);
 const invalidRequest=context.doPost({postData:{contents:JSON.stringify({key:secret,action:'photo_upload',payload:{id:'photo_3',base64:'AAA'}})}});
 assert.equal(JSON.parse(invalidRequest.text).ok,false);
 assert.equal(context.apiAction(secret,'photo_delete',{id:newPhoto.id}).ok,true);
-assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,1);
+assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,2);
 assert.equal(context.apiAction(secret,'photo_get',{id:newPhoto.id}).ok,false);
 assert.equal(locked,false);
 
