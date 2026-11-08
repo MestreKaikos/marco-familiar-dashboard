@@ -42,6 +42,25 @@ async function access(config) {
   return cached.token;
 }
 
+/**
+ * Tradueix exclusivament errors SDP coneguts de Google. No enviem mai
+ * missatges arbitraris del servidor ni l'SDP original al dispositiu.
+ */
+export function safeNestOfferReason(rawMessage) {
+  const message = typeof rawMessage === 'string' ? rawMessage.slice(0, 1000) : '';
+  if (/CRLF|newline|new.line|final.*line/i.test(message))
+    return 'falta el salt de línia al final de la petició SDP';
+  if (/m.lines|media lines|each of audio, video and application|audio.*video.*application/i.test(message))
+    return 'calen tres canals SDP en ordre: àudio, vídeo i dades';
+  if (/recvonly|receive.only|audio.*receive/i.test(message))
+    return 'el canal d’àudio ha de tenir a=recvonly';
+  if (/opus/i.test(message))
+    return 'el canal d’àudio requereix el còdec Opus';
+  if (/invalid offer|invalid.*sdp|sdp.*invalid/i.test(message))
+    return 'el format SDP no és vàlid; comprova els canals a la pantalla';
+  return 'Google ha rebutjat l’oferta WebRTC (400); comprova els canals a la pantalla';
+}
+
 async function google(token, path, command, params) {
   const headers = { Authorization: 'Bearer ' + token };
   const options = { headers, signal: AbortSignal.timeout(10000) };
@@ -51,7 +70,13 @@ async function google(token, path, command, params) {
     options.body = JSON.stringify({ command: COMMAND + command, params });
   }
   const response = await fetch(API + '/' + path, options);
-  if (!response.ok) throw new Error('Google Nest (' + response.status + ')');
+  if (!response.ok) {
+    if (command === 'GenerateWebRtcStream' && response.status === 400) {
+      const details = await response.json().catch(() => ({}));
+      throw new Error('Oferta Nest: ' + safeNestOfferReason(details?.error?.message));
+    }
+    throw new Error('Google Nest (' + response.status + ')');
+  }
   return response.json();
 }
 
@@ -146,7 +171,8 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     const message = /^(Autorització Google|Google Nest) \(\d{3}\)$/.test(error.message)
-      ? error.message + '.' : 'No s’ha pogut completar la connexió amb Google Nest.';
+      ? error.message + '.' : error.message.startsWith('Oferta Nest: ')
+        ? error.message : 'No s’ha pogut completar la connexió amb Google Nest.';
     return res.status(502).json({ error: message });
   }
 }
