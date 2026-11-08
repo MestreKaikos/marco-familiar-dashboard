@@ -3,7 +3,7 @@
  * La clau de 64 caràcters és la mateixa de la família i s'envia només en el cos HTTPS.
  */
 const ALLOWED_METHODS=new Set(['apiAction','familyTasksAction','uploadFamilyPhoto']);
-const TASK_ACTIONS=new Set(['tasks_snapshot','tasks_set','tasks_done','tasks_undo','rewards_set','rewards_claim','rewards_decide']);
+const TASK_ACTIONS=new Set(['tasks_snapshot','tasks_set','tasks_done','tasks_undo','rewards_set','rewards_claim','rewards_decide','points_adjust']);
 const API_ACTIONS=new Set(['sync','photo_list','photo_get']);
 const MAX_BODY=1_530_000;
 const scriptUrl=process.env.MARC_APPS_SCRIPT_URL;

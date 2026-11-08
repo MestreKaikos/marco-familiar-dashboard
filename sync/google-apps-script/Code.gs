@@ -16,7 +16,7 @@ const MAX_DINNERS = 366;
 const REMINDERS = "Recordatoris";
 const MAX_REMINDERS = 250;
 const MAX_PHOTOS = 300; // Mateix límit que Fotos.gs.
-const PHOTO_MAX_BYTES = 5 * 1024 * 1024; // Fotos.gs accepta imatges existents de fins a 5 MB.
+const PHOTO_MAX_BYTES = 5 * 1024 * 1024; // Límit de la còpia que enviem al marc; no dels originals del Drive.
 const PHOTO_UPLOAD_MAX_BYTES = 1100000; // Les pujades del panell unificat són JPEG comprimits.
 
 /** Executa-la una sola vegada des de l'editor d'Apps Script; no des del mòbil. */
@@ -452,8 +452,7 @@ function familyDrivePhotos_() {
   let seen = 0;
   while (files.hasNext() && seen < MAX_PHOTOS) {
     const file = files.next(); seen++;
-    if (!unifiedPhotoFormat_(file.getMimeType()) || file.getSize() < 6 ||
-        file.getSize() > PHOTO_MAX_BYTES) continue;
+    if (!unifiedPhotoFormat_(file.getMimeType()) || file.getSize() < 6) continue;
     photos.push({
       id: file.getId(), name: file.getName(),
       createdAt: file.getLastUpdated().toISOString(),
@@ -506,8 +505,18 @@ function photoGet_(payload) {
   const photo = familyDrivePhotos_().find(p => p.id === id);
   if (!photo) throw new Error("Fotografia no disponible a la carpeta familiar");
   const file = DriveApp.getFileById(id);
-  return { id: id, name: photo.name, mimeType: photo.mimeType,
-    base64: Utilities.base64Encode(file.getBlob().getBytes()) };
+  // Evita enviar originals de molts MB dins el JSON d'Apps Script: podrien
+  // saturar la transferència i la memòria limitada del marc Android.
+  // Drive genera la miniatura; l'original privat queda completament intacte.
+  let blob = photo.size <= PHOTO_UPLOAD_MAX_BYTES ? file.getBlob() : file.getThumbnail();
+  if (!blob && photo.size <= PHOTO_MAX_BYTES) blob = file.getBlob();
+  if (!blob) throw new Error("Google Drive encara no té una miniatura d'aquesta foto");
+  const mime = blob.getContentType();
+  const bytes = blob.getBytes();
+  if (!unifiedPhotoFormat_(mime) || bytes.length < 6 || bytes.length > PHOTO_MAX_BYTES)
+    throw new Error("La miniatura no és una imatge compatible o és massa gran");
+  return { id: id, name: photo.name, mimeType: mime,
+    base64: Utilities.base64Encode(bytes) };
 }
 
 /** Com a Fotos.gs, la baixa només afecta un fitxer real de la carpeta. */

@@ -27,6 +27,7 @@ class FakeDriveFile {
   }
   getId() { return this.id; }
   getBlob() { if(this.trashed) throw new Error("File deleted"); return this.blob; }
+  getThumbnail() { if(this.trashed) throw new Error("File deleted"); return this.thumbnail || null; }
   getSize() { return this.blob.getSize(); }
   getName() { return this.name; }
   getMimeType() { return this.blob.getContentType(); }
@@ -282,27 +283,44 @@ assert.equal(store.get('PHOTO_FOLDER_ID'),existingFolder.getId());
 assert.equal(store.get('PHOTO_READ_KEY_HASH'),crypto.createHash('sha256').update(oldReaderKey).digest('hex'));
 assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,1);
 assert.equal(context.apiAction(secret,'photo_get',{id:existingPng.getId()}).photo.mimeType,"image/png");
+// Els originals grans copiats manualment al Drive han d'aparèixer a la llista,
+// però s'envia al marc només la miniatura sense modificar ni duplicar l'original.
+const largeOriginal = Buffer.alloc(6 * 1024 * 1024, 42);
+const largePhoto = existingFolder.createFile(new FakeBlob(largeOriginal, "image/jpeg"));
+largePhoto.name = "Vacances-original-6MB.jpg";
+const smallJpeg = Buffer.from([255,216,1,2,3,255,217]);
+largePhoto.thumbnail = new FakeBlob(smallJpeg, "image/jpeg");
+const photoListWithLarge = context.apiAction(secret,'photo_list',{}).photos;
+assert.equal(photoListWithLarge.length,2, "El Drive ha d'incloure les fotos de més de 5 MB");
+const largeResponse = context.apiAction(secret,'photo_get',{id:largePhoto.getId()});
+assert.equal(largeResponse.ok,true,largeResponse.error);
+assert.equal(largeResponse.photo.mimeType,"image/jpeg");
+assert.equal(largeResponse.photo.base64,smallJpeg.toString("base64"));
+assert.equal(largePhoto.getSize(),6*1024*1024,"L'original no s'ha de modificar");
+assert.equal(context.apiAction(secret,'photo_delete',{id:largePhoto.getId()}).ok,false,
+  "Cap fotografia original gran no es pot esborrar per l'API del marc");
+
 assert.equal(context.apiAction(secret,'photo_delete',{id:existingPng.getId()}).ok,false,
   'Les fotos originals de Drive no s’han de poder eliminar amb la nova API');
-assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,1);
+assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,2);
 const jpeg=Buffer.from([255,216,1,2,3,255,217]).toString('base64');
 const addPhoto=context.apiAction(secret,'photo_upload',{id:'photo_1',name:'Platja.jpg',base64:jpeg});
 assert.equal(addPhoto.ok,true,addPhoto.error);
-assert.equal(addPhoto.photos.length,2);
+assert.equal(addPhoto.photos.length,3);
 assert.ok(addPhoto.photos.some(p=>p.name.includes('Platja')));
 const newPhoto=addPhoto.photo;
 assert.ok(newPhoto.id !== 'photo_1','La llista utilitza els IDs reals de Drive');
 assert.equal(addPhoto.photos[0].base64,undefined,'No enviem base64 a la llista');
 assert.ok(store.get('PHOTO_FOLDER_ID'),'La carpeta privada és al Drive');
 assert.equal(context.apiAction(secret,'photo_get',{id:newPhoto.id}).photo.base64,jpeg);
-assert.equal(context.apiAction(secret,'photo_upload',{id:'photo_1',name:'Platja.jpg',base64:jpeg}).photos.length,2);
+assert.equal(context.apiAction(secret,'photo_upload',{id:'photo_1',name:'Platja.jpg',base64:jpeg}).photos.length,3);
 assert.equal(context.apiAction(secret,'photo_get',{id:'../../x'}).ok,false);
 assert.equal(context.apiAction(secret,'photo_upload',{id:'photo_2',name:'Engany',base64:'AAAAAA=='}).ok,false);
 assert.equal(context.apiAction(secret,'photo_get',{id:'photo_2'}).ok,false);
 const invalidRequest=context.doPost({postData:{contents:JSON.stringify({key:secret,action:'photo_upload',payload:{id:'photo_3',base64:'AAA'}})}});
 assert.equal(JSON.parse(invalidRequest.text).ok,false);
 assert.equal(context.apiAction(secret,'photo_delete',{id:newPhoto.id}).ok,true);
-assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,1);
+assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,2);
 assert.equal(context.apiAction(secret,'photo_get',{id:newPhoto.id}).ok,false);
 assert.equal(locked,false);
 
@@ -452,6 +470,69 @@ assert.ok(!mobileSource.includes('data-tab="sopars"'),
   'Sopars deixa de ser una pestanya visible');
 assert.ok(!mobileSource.includes("photoCall('photo_delete'"),
   'El Mobile original no permetia esborrar fotos: la galeria no ho ha de fer');
+
+
+// Ajustos manuals dels pares: clau familiar, historial separat, reintents i saldo zero.
+const basePoints=context.familyTasksSnapshot_().points;
+const baselineDone=tabs.get("TasquesFetes").rows.length;
+const baselineClaims=tabs.get("CanvisPunts").rows.length;
+assert.equal(context.familyTasksAction("0".repeat(64),'points_adjust',{
+  id:'manual_no_auth',delta:5
+}).ok,false,'La clau familiar continua sent obligatòria');
+assert.equal(context.familyTasksAction(secret,'points_adjust',{
+  id:'manual_bad_value',delta:'desconegut'
+}).ok,false,'Un canvi invàlid no altera els punts');
+assert.equal(context.familyTasksAction(secret,'points_adjust',{
+  id:'manual_bad_delta',delta:100
+}).ok,false,'Només salts petits');
+assert.equal(context.familyTasksAction(secret,'points_adjust',{
+  id:'manual_bonus',delta:5,reason:'Bona iniciativa'
+}).ok,true);
+assert.equal(context.familyTasksSnapshot_().points,basePoints+5);
+assert.equal(context.familyTasksAction(secret,'points_adjust',{
+  id:'manual_bonus',delta:5
+}).ok,true,'Repetir una petició no duplica punts');
+assert.equal(context.familyTasksSnapshot_().points,basePoints+5);
+assert.equal(context.familyTasksAction(secret,'points_adjust',{
+  id:'manual_minus',delta:-2,reason:'Ajust'
+}).ok,true);
+assert.equal(context.familyTasksSnapshot_().points,basePoints+3);
+assert.equal(context.familyTasksAction(secret,'points_adjust',{
+  id:'manual_negative',delta:-10
+}).ok,false,'No permet saldos negatius');
+assert.equal(context.familyTasksSnapshot_().adjustments[0].delta,-2);
+assert.equal(context.familyTasksAction(secret,'points_adjust',{
+  id:'manual_reset',reset:true,reason:'Nou començament'
+}).ok,true,'Els pares poden reiniciar el saldo');
+assert.equal(context.familyTasksSnapshot_().points,0);
+assert.equal(tabs.get("TasquesFetes").rows.length,baselineDone,'No esborra feines fetes');
+assert.equal(tabs.get("CanvisPunts").rows.length,baselineClaims,'No esborra premis');
+assert.equal(context.familyTasksAction(secret,'points_adjust',{
+  id:'manual_post_reset',delta:1
+}).ok,true);
+assert.equal(context.familyTasksAction(secret,'points_adjust',{
+  id:'manual_reset',reset:true
+}).data.points,1,'Reintentar el reset no torna a posar a zero');
+assert.equal(context.apiAction(secret,'sync',{}).data.stars,1,
+  'L\'Android veu el saldo ajustat a través del mateix sync');
+assert.equal(context.familyTasksAction(secret,'rewards_claim',{id:'cheap_reward'}).ok,true);
+assert.equal(context.familyTasksAction(secret,'points_adjust',{
+  id:'manual_reset_reserved',reset:true
+}).ok,false,'No esborra punts reservats per recompenses');
+const pendingAfterAdjustment=context.familyTasksSnapshot_().requests.find(
+  x=>x.status==='pendent'&&x.rewardId==='cheap_reward');
+assert.equal(context.familyTasksAction(secret,'rewards_decide',{
+  id:pendingAfterAdjustment.id,approve:false,pin:'3479'
+}).ok,true);
+assert.equal(context.familyTasksAction(secret,'points_adjust',{
+  id:'manual_reset_after_reject',reset:true
+}).data.points,0);
+assert.equal(tabs.get("AjustosPunts").rows.length,6,'Capçalera i cinc moviments manuals');
+assert.equal(tabs.get("AjustosPunts").rows.filter(r=>r[0]==='manual_bonus').length,1,
+  'El reintent no pot afegir el mateix bonus dues vegades');
+assert.ok(!tabs.get("AjustosPunts").rows.some(r=>r.includes('3479')),
+  'El PIN no apareix a l\'historial');
+assert.equal(locked,false);
 
 console.log("OK · Tasques.gs real: freqüències, dies, franges, PIN, recompenses pendents, dos secrets i fotos de Drive.");
 

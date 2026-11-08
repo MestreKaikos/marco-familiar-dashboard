@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,6 +45,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.TextStyle
+import java.util.Locale
 import kotlin.math.roundToInt
 
 /** Días que enseña la franja de la semana (hoy incluido). */
@@ -63,24 +65,22 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
     val today = now.toLocalDate()
     val events = state.content?.events.orEmpty()
     val shifts = state.content?.sessions.orEmpty()
-    // Lo que está pasando ahora (con hora, empezado y sin terminar) va antes que lo próximo
-    val live = events.firstOrNull { !it.all_day && !it.at.isAfter(now) && (it.end ?: it.at.plusHours(1)).isAfter(now) }
-    val next = live ?: events.firstOrNull { !it.at.isBefore(now) && it.at.toLocalDate() < today.plusDays(WEEK_DAYS.toLong()) }
+    // Cites en curs i totes les properes de la setmana: no amaguem la segona cita del mateix dia.
+    val upcoming = nextCalendarEvents(events + shifts, now)
     Column(Modifier.fillMaxSize().padding(horizontal = 36.dp, vertical = 28.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        Row(Modifier.fillMaxWidth().weight(0.25f), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+        Row(Modifier.fillMaxWidth().weight(0.32f), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             // Hora, fecha y tiempo en un solo bloque ancho (dos tercios); lo siguiente, a la derecha
             HeaderBlock(state, Modifier.weight(2f).fillMaxHeight())
-            Box(Modifier.weight(1f).fillMaxHeight()) {
-                if (next != null) EventTapTarget(next, Modifier.fillMaxSize()) { NextCompact(next, now, live = next === live) }
-                else Box(Modifier.fillMaxSize().background(Palette.Card, RoundedCornerShape(28.dp)), contentAlignment = Alignment.Center) {
-                    Text(if (state.token == null && !state.ics) "Calendaris per configurar" else "Setmana sense activitats", style = Type.Body.copy(color = Palette.InkMuted))
-                }
-            }
+            UpcomingEventsCard(
+                upcoming, now,
+                noCalendar = state.token == null && !state.ics,
+                modifier = Modifier.weight(1f).fillMaxHeight()
+            )
         }
         if (state.personalCalendars.isNotEmpty()) {
             CalendarLegend(state.personalCalendars)
         }
-        Row(Modifier.fillMaxWidth().weight(0.48f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth().weight(0.46f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             (0 until WEEK_DAYS).forEach { i ->
                 val day = today.plusDays(i.toLong())
                 WeekDay(
@@ -105,31 +105,100 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
 
 // --- Arriba ---
 
-/** Lo próximo (o, mientras dura, lo de ahora), del color de su calendario: cuánto falta o hasta cuándo, título y cuándo. */
+/**
+ * Totes les cites de la setmana que encara no han acabat, ordenades per inici.
+ * Una cita de tot el dia també és vigent fins a final de dia, i les de diversos
+ * dies es conserven mentre siguin actives. S'inclouen calendari i torns.
+ */
+internal fun nextCalendarEvents(events: List<Event>, now: LocalDateTime): List<Event> {
+    val lastDay = now.toLocalDate().plusDays(WEEK_DAYS.toLong())
+    return events.asSequence().filter { event ->
+        val end = event.end ?: if (event.all_day) event.at.plusDays(1) else event.at.plusHours(1)
+        end.isAfter(now) && event.at.toLocalDate().isBefore(lastDay)
+    }.distinctBy { listOf(it.calendar_id.toString(), it.id.toString(), it.date_at, it.title) }
+        .sortedWith(compareBy<Event> {
+            // Les cites actuals es mostren al davant de les futures.
+            if (it.at.isBefore(now)) now else it.at
+        }.thenBy { it.at })
+        .toList()
+}
+
+/** Llista navegable: es veuen tantes cites com caben i es pot desplaçar la resta. */
 @Composable
-private fun NextCompact(event: Event, now: LocalDateTime, live: Boolean) {
-    val color = parseColor(event.calendar_color, Palette.Accent)
-    val ink = onColor(color)
-    val left = countdown(now, event.at, maxMinutes = 24 * 60)?.removePrefix("en ") ?: relativeBadge(now, event.at).lowercase(Spanish)
+private fun UpcomingEventsCard(
+    events: List<Event>, now: LocalDateTime, noCalendar: Boolean, modifier: Modifier = Modifier
+) {
+    val today = now.toLocalDate()
     Column(
-        Modifier.fillMaxSize().background(color, RoundedCornerShape(28.dp)).padding(horizontal = 30.dp, vertical = 22.dp),
-        verticalArrangement = Arrangement.Center
+        modifier.background(Palette.Card, RoundedCornerShape(28.dp))
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(if (live) "● ARA" else "EL SEGÜENT", style = Type.Label.copy(color = ink.copy(alpha = 0.9f), fontSize = 17.sp), modifier = Modifier.weight(1f))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                if (live) "fins a les ${(event.end ?: event.at.plusHours(1)).format(HourMinute)}" else "en $left",
-                style = Type.Small.copy(color = ink, fontWeight = FontWeight.Bold),
-                modifier = Modifier.background(ink.copy(alpha = 0.18f), RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 2.dp)
+                if (events.size == 1) "EL SEGÜENT" else "ELS SEGÜENTS",
+                style = Type.Label.copy(color = Palette.Accent, fontSize = 17.sp),
+                modifier = Modifier.weight(1f),
+                maxLines = 1
+            )
+            if (events.isNotEmpty()) Text(
+                "${events.size} ${if (events.size == 1) "cita" else "cites"}",
+                style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 17.sp),
+                maxLines = 1
             )
         }
-        Text(event.title, style = Type.Large.copy(color = ink, fontWeight = FontWeight.SemiBold), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
-        Text(
-            "${relativeDay(event.at.toLocalDate(), now.toLocalDate())} · ${event.rangeLabel() ?: event.timeLabel()}",
-            style = Type.Small.copy(color = ink.copy(alpha = 0.85f)),
-            maxLines = 1,
-            modifier = Modifier.padding(top = 4.dp)
-        )
+        if (events.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    if (noCalendar) "Calendaris per configurar" else "Setmana sense activitats",
+                    style = Type.Body.copy(color = Palette.InkMuted)
+                )
+            }
+        } else {
+            Column(
+                Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                events.forEach { event ->
+                    val tint = parseColor(event.calendar_color, Palette.Accent)
+                    val ongoing = !event.at.isAfter(now)
+                    val whenText = when {
+                        event.all_day -> "Tot el dia"
+                        ongoing -> "Ara · ${event.rangeLabel() ?: event.timeLabel()}"
+                        else -> event.rangeLabel() ?: event.timeLabel()
+                    }
+                    EventTapTarget(event, Modifier.fillMaxWidth()) {
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .background(tint.copy(alpha = 0.11f), RoundedCornerShape(15.dp))
+                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                Modifier.width(5.dp).height(39.dp)
+                                    .background(tint, RoundedCornerShape(4.dp))
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    event.title,
+                                    style = Type.Small.copy(
+                                        color = Palette.Ink, fontWeight = FontWeight.SemiBold,
+                                        fontSize = 21.sp, lineHeight = 26.sp
+                                    ),
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    "${relativeDay(event.at.toLocalDate(), today)} · $whenText",
+                                    style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 17.sp),
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -249,8 +318,8 @@ private fun Tile(title: String, emoji: String, tint: Color, modifier: Modifier, 
 @Composable
 private fun HomeSummaryTile(
     title: String, emoji: String, tint: Color, summary: String,
-    items: List<String>, emptyMessage: String, modifier: Modifier,
-    alert: Boolean = false, onClick: () -> Unit
+    items: List<HomeSummaryItem>, emptyMessage: String, modifier: Modifier,
+    alert: Boolean = false, pointsBadge: Int? = null, onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(24.dp)
     val accent = if (alert) Palette.Accent else tint
@@ -258,13 +327,12 @@ private fun HomeSummaryTile(
         modifier.clip(shape)
             .background(Brush.verticalGradient(listOf(Palette.Card, tint.copy(alpha = 0.07f).compositeOver(Palette.Card))))
             .border(1.dp, tint.copy(alpha = 0.20f), shape)
-            .clickable(onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 12.dp)
     ) { constraints ->
         val width = constraints.maxWidth
         val childConstraints = constraints.copy(minHeight = 0)
         val header = subcompose("headerMeasure") {
-            HomeSummaryHeader(title, emoji, accent, summary, hiddenCount = 0)
+            HomeSummaryHeader(title, emoji, accent, summary, hiddenCount = 0, pointsBadge = pointsBadge, onClick = onClick)
         }.single().measure(childConstraints)
         val headerGap = 8.dp.roundToPx()
         val rowGap = 2.dp.roundToPx()
@@ -277,11 +345,11 @@ private fun HomeSummaryTile(
             SummaryTileLayout.visibleItems(bodyHeight, sample.height, rowGap, items.size)
         }
         val finalHeader = subcompose("header") {
-            HomeSummaryHeader(title, emoji, accent, summary, hiddenCount = items.size - visibleCount)
+            HomeSummaryHeader(title, emoji, accent, summary, hiddenCount = items.size - visibleCount, pointsBadge = pointsBadge, onClick = onClick)
         }.single().measure(childConstraints)
         val body = subcompose("items") {
             if (items.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
+                Box(Modifier.fillMaxSize().clickable(onClick = onClick), contentAlignment = Alignment.CenterStart) {
                     Text(emptyMessage, style = Type.Body.copy(fontSize = 24.sp, lineHeight = 30.sp,
                         color = Palette.InkSoft), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
@@ -299,8 +367,8 @@ private fun HomeSummaryTile(
 }
 
 @Composable
-private fun HomeSummaryHeader(title: String, emoji: String, tint: Color, summary: String, hiddenCount: Int) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+private fun HomeSummaryHeader(title: String, emoji: String, tint: Color, summary: String, hiddenCount: Int, pointsBadge: Int?, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(Modifier.size(36.dp).background(tint.copy(alpha = 0.12f), RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center) {
@@ -314,24 +382,58 @@ private fun HomeSummaryHeader(title: String, emoji: String, tint: Color, summary
                 fontWeight = FontWeight.Normal, color = Palette.InkSoft),
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Text(if (hiddenCount > 0) "+$hiddenCount més ›" else "›",
-            style = Type.Small.copy(fontSize = if (hiddenCount > 0) 16.sp else 28.sp,
-                lineHeight = 28.sp, fontWeight = FontWeight.Medium, color = tint),
-            modifier = Modifier.background(tint.copy(alpha = 0.09f), RoundedCornerShape(10.dp))
-                .padding(horizontal = 8.dp, vertical = 2.dp),
-            maxLines = 1)
+        if (pointsBadge != null) {
+            Column(horizontalAlignment = Alignment.End) {
+                Text("⭐ $pointsBadge", style = Type.Small.copy(
+                    fontSize = 24.sp, lineHeight = 30.sp,
+                    fontWeight = FontWeight.Bold, color = tint),
+                    modifier = Modifier.background(tint.copy(alpha = 0.11f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                    maxLines = 1)
+                if (hiddenCount > 0) Text("+$hiddenCount més",
+                    style = Type.Tiny.copy(color = tint, fontSize = 14.sp),
+                    maxLines = 1)
+            }
+        } else {
+            Text(if (hiddenCount > 0) "+$hiddenCount més ›" else "›",
+                style = Type.Small.copy(fontSize = if (hiddenCount > 0) 16.sp else 28.sp,
+                    lineHeight = 28.sp, fontWeight = FontWeight.Medium, color = tint),
+                modifier = Modifier.background(tint.copy(alpha = 0.09f), RoundedCornerShape(10.dp))
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                maxLines = 1)
+        }
     }
 }
 
+/**
+ * Cada línia pot completar l'element sense abandonar «Avui».
+ * Només la capçalera de la targeta obre la pantalla de gestió.
+ */
+private data class HomeSummaryItem(
+    val title: String,
+    val detail: String? = null,
+    val glyph: String = "☐",
+    val onMark: (() -> Unit)? = null,
+    val actionLabel: String = "Marcar com fet"
+)
+
 @Composable
-private fun HomeSummaryRow(title: String, tint: Color) {
-    Row(Modifier.fillMaxWidth().background(tint.copy(alpha = 0.045f), RoundedCornerShape(8.dp))
-        .padding(horizontal = 8.dp, vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Box(Modifier.size(6.dp).background(tint.copy(alpha = 0.75f), RoundedCornerShape(3.dp)))
-        Text(title, style = Type.Body.copy(fontSize = 26.sp, lineHeight = 32.sp,
+private fun HomeSummaryRow(item: HomeSummaryItem, tint: Color) {
+    val action = item.onMark
+    Row(Modifier.fillMaxWidth()
+        .background(tint.copy(alpha = 0.055f), RoundedCornerShape(8.dp))
+        .then(if (action != null) Modifier.clickable(onClickLabel = item.actionLabel, onClick = action) else Modifier)
+        .padding(horizontal = 8.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(item.glyph, style = Type.Small.copy(fontSize = 24.sp, lineHeight = 32.sp,
+            color = tint, fontWeight = FontWeight.Medium))
+        Text(item.title, style = Type.Body.copy(fontSize = 23.sp, lineHeight = 32.sp,
             color = Palette.Ink, fontWeight = FontWeight.Medium),
             modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        item.detail?.let {
+            Text(it, style = Type.Tiny.copy(color = Palette.InkMuted, fontSize = 16.sp,
+                lineHeight = 21.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 
@@ -341,21 +443,50 @@ private fun LocalShoppingTile(store: LocalFamilyStore, modifier: Modifier, onCli
     val pending = store.groceries.filterNot { it.bought }
     HomeSummaryTile("Compra", "🛒", Palette.Online,
         summary = if (pending.isEmpty()) "No falta res" else "${pending.size} producte${if (pending.size == 1) " pendent" else "s pendents"}",
-        items = pending.map { it.name }, emptyMessage = "Toca per afegir productes",
+        items = pending.map { product ->
+            HomeSummaryItem(title = product.name, onMark = { store.toggleGrocery(product.id) })
+        }, emptyMessage = "Toca per afegir productes",
         modifier = modifier, onClick = onClick)
 }
 
-/** Primer les feines que esperen validació, després les que queden per fer. */
+/** Primer les feines accionables; les que esperen validació no han de tapar-les. */
 @Composable
 private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Modifier, onClick: () -> Unit) {
     val tasks = store.chores.filter { it.owner == "Rai" }
     val awaiting = tasks.filter { store.status(it, today) == "pending" }
     val remaining = tasks.filter { store.status(it, today) in setOf("todo", "slots") }
-    val items = awaiting.map { "${it.title} · per validar" } + remaining.map { it.title }
+    val items = remaining.map { task ->
+        if (store.status(task, today) == "slots") {
+            // Les feines per franges necessiten escollir una franja a la vista de gestió.
+            HomeSummaryItem(title = task.title, detail = "Per franges", glyph = "›",
+                onMark = onClick, actionLabel = "Obrir feines per franges")
+        } else {
+            HomeSummaryItem(title = task.title, detail = summaryShortDate(today),
+                onMark = { store.requestDone(task.id, today) })
+        }
+    } + awaiting.map {
+        HomeSummaryItem(title = it.title, detail = "Per validar", glyph = "⏳")
+    }
     HomeSummaryTile("Feines d'en Rai", "⭐", parseColor("#7857BC"),
-        summary = "${store.stars} estrelles · ${items.size} pendent${if (items.size == 1) "" else "s"}",
+        summary = "${items.size} feina${if (items.size == 1) "" else "s"} per fer o validar",
         items = items, emptyMessage = if (tasks.isEmpty()) "Toca per afegir feines" else "Tot fet per avui!",
-        modifier = modifier, alert = awaiting.isNotEmpty(), onClick = onClick)
+        modifier = modifier, alert = awaiting.isNotEmpty(), pointsBadge = store.stars, onClick = onClick)
+}
+
+/** Data curta que es veu al costat de les feines i recordatoris de la portada. */
+internal fun summaryShortDate(day: LocalDate): String =
+    "${day.dayOfMonth} ${day.month.getDisplayName(TextStyle.SHORT, Locale.forLanguageTag("ca-ES")).trimEnd('.')}"
+
+/** Data de venciment compacta, visible però més discreta que el títol. */
+internal fun summaryReminderDate(reminder: FamilyReminder, today: LocalDate): String {
+    val deadline = reminder.deadline ?: return "Sense data"
+    val day = summaryShortDate(deadline)
+    return when {
+        deadline.isBefore(today) -> "$day · vençut"
+        deadline == today -> "Avui · $day"
+        deadline == today.plusDays(1) -> "Demà · $day"
+        else -> day
+    }
 }
 
 /** Recordatoris prioritzats: vençuts, avui, futurs i sense data. */
@@ -374,7 +505,11 @@ private fun ReminderTile(store: FamilyReminders, today: LocalDate, modifier: Mod
         else -> "Tot al dia!"
     }
     HomeSummaryTile("Recordatoris", "📌", Palette.Warm, summary,
-        items = priority.map { it.title }, emptyMessage = "Toca per afegir-ne un",
+        items = priority.map { reminder ->
+            HomeSummaryItem(title = reminder.title,
+                detail = summaryReminderDate(reminder, today),
+                onMark = { store.toggle(reminder.id, true) })
+        }, emptyMessage = "Toca per afegir-ne un",
         modifier = modifier, alert = overdue.isNotEmpty(), onClick = onClick)
 }
 

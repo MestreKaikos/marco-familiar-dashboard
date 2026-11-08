@@ -250,6 +250,31 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
       <div id="raiRewardList"></div>
       <h2 style="margin-top:20px">🔐 Peticions pendents</h2>
       <div id="raiPendingRewards"></div>
+      <details class="subpanel" id="raiAdultPoints" style="margin-top:16px">
+        <summary style="cursor:pointer;font-weight:750">⭐ Ajustar els punts · pares</summary>
+        <p style="margin:8px 0">Sumar, restar o reiniciar el saldo sense esborrar les feines ni les recompenses. Els canvis queden registrats.</p>
+        <div class="row" style="flex-wrap:wrap;gap:8px;margin:10px 0">
+          <input id="raiAdjustReason" maxlength="80" autocomplete="off"
+            placeholder="Motiu (opcional)" aria-label="Motiu de l'ajust" style="flex:2;min-width:150px">
+        </div>
+        <p style="margin:8px 0;font-weight:650">Sumar punts</p>
+        <div class="row" style="flex-wrap:wrap;gap:8px">
+          <button type="button" data-points-delta="1">+1</button>
+          <button type="button" data-points-delta="2">+2</button>
+          <button type="button" data-points-delta="5">+5</button>
+          <button type="button" data-points-delta="10">+10</button>
+        </div>
+        <p style="margin:12px 0 8px;font-weight:650">Restar punts</p>
+        <div class="row" style="flex-wrap:wrap;gap:8px">
+          <button type="button" data-points-delta="-1">−1</button>
+          <button type="button" data-points-delta="-2">−2</button>
+          <button type="button" data-points-delta="-5">−5</button>
+          <button type="button" data-points-delta="-10">−10</button>
+        </div>
+        <button id="raiResetPoints" type="button" style="margin-top:14px">Posar saldo a 0</button>
+        <p id="raiAdjustStatus" role="status" aria-live="polite"></p>
+        <div id="raiPointsHistory"></div>
+      </details>
       <form id="raiAddTask" class="row" style="margin-top:18px">
         <input id="raiTaskTitle" required maxlength="100" placeholder="Nova tasca…" aria-label="Títol de la tasca">
         <input id="raiTaskPoints" type="number" min="1" max="100" value="5" required aria-label="Punts" style="max-width:90px">
@@ -286,7 +311,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
       <div class="row" style="justify-content:space-between;margin-bottom:12px">
         <h2 style="margin:0">📸 Fotografies familiars</h2><span class="pill" id="photoCount">0 fotos</span>
       </div>
-      <p>Envia JPG, PNG o WebP de fins a 5 MB, com abans. Pots triar-ne fins a 20 per tanda.</p>
+      <p>Envia JPG, PNG o WebP, també si superen els 5 MB: les fotos grans es redueixen automàticament abans de pujar-les. Pots triar-ne fins a 20 per tanda.</p>
       <form id="uploadPhotos">
         <input id="photoInput" type="file" accept="image/jpeg,image/png,image/webp" multiple required aria-label="Fotografies">
         <img id="photoPreview" alt="Vista prèvia de la fotografia">
@@ -651,20 +676,37 @@ function raiAction(action,payload={},onDone){
   raiFlight=serverCall('familyTasksAction',key,action,payload).then(result=>{
     raiBusy=false;
     if(!result||!result.ok){
-      $('raiTaskStatus').textContent=(result&&result.error)||'No s’han pogut desar les tasques';return;
+      const message=(result&&result.error)||'No s’han pogut desar les tasques';
+      $('raiTaskStatus').textContent=message;
+      if(action==='points_adjust')$('raiAdjustStatus').textContent=message;
+      return;
     }
     lastRaiAt=Date.now();raiSnapshot=result.data;saveSessionSnapshot();renderRai();renderOverview();
     $('raiTaskStatus').textContent='';
     if(action!=='tasks_snapshot')call([]);
     if(onDone)onDone();
   }).catch(err=>{
-    raiBusy=false;$('raiTaskStatus').textContent=err&&err.message||'Error de connexió';
+    raiBusy=false;
+    const message=err&&err.message||'Error de connexió';
+    $('raiTaskStatus').textContent=message;
+    if(action==='points_adjust')$('raiAdjustStatus').textContent=message;
   }).finally(()=>{raiFlight=null;});
   return raiFlight;
 }
 function renderRai(){
   const snapshot=raiSnapshot;if(!snapshot)return;
   $('raiPoints').textContent='Saldo: '+snapshot.points+' punts · '+snapshot.today;
+  const history=$('raiPointsHistory');history.replaceChildren();
+  const movements=(snapshot.adjustments||[]).slice(0,5);
+  if(movements.length){
+    history.appendChild(makeText('p','Últims ajustos dels adults',''));
+    movements.forEach(m=>{
+      const sign=m.delta>0?'+':'';
+      const label=(m.type==='reinici'?'Saldo a 0 · ':'')+
+        sign+m.delta+' punts · '+m.date+(m.reason?' · '+m.reason:'');
+      history.appendChild(makeText('p',label,''));
+    });
+  }
   const completed=new Set(snapshot.done.filter(d=>d.date===snapshot.today)
     .map(d=>d.taskId+'|'+d.slot));
   const tasks=snapshot.tasks.filter(t=>t.active&&t.dueToday);
@@ -715,6 +757,28 @@ function renderRai(){
     row.append(yes,no);approvals.appendChild(row);
   });
 }
+// Només cal la clau familiar ja utilitzada per la sessió mòbil.
+function adjustRaiPoints(delta,reset=false){
+  if(!key||raiBusy)return;
+  const current=Number(raiSnapshot?.points||0);
+  if(!reset&&current+delta<0){
+    $('raiAdjustStatus').textContent='El saldo no pot quedar en negatiu.';return;
+  }
+  if(reset&&!confirm('Vols deixar els punts disponibles d’en Rai a 0? Les feines i els premis es conservaran.'))return;
+  const payload={id:newId(),reason:$('raiAdjustReason').value.trim().slice(0,80)};
+  if(reset)payload.reset=true;
+  else payload.delta=delta;
+  $('raiAdjustStatus').textContent='Desant l’ajust…';
+  raiAction('points_adjust',payload,()=>{
+    $('raiAdjustReason').value='';
+    $('raiAdjustStatus').textContent='Saldo actualitzat correctament.';
+  });
+}
+document.querySelectorAll('#raiAdultPoints [data-points-delta]').forEach(button=>{
+  button.addEventListener('click',()=>adjustRaiPoints(Number(button.dataset.pointsDelta)));
+});
+$('raiResetPoints').addEventListener('click',()=>adjustRaiPoints(0,true));
+
 $('raiTaskFrequency').addEventListener('change',()=>{
   const frequency=$('raiTaskFrequency').value;
   $('raiDays').hidden=!['weekdays','weekly'].includes(frequency);
@@ -790,12 +854,14 @@ function refreshPhotos(minAgeMinutes=0){
   })();
   return photoFlight;
 }
-// Manté el comportament de producció: pujada d'originals JPG/PNG/WebP de fins a 5 MB.
-// Utilitza la funció uploadFamilyPhoto() de Fotos.gs, que ja valida la signatura del fitxer.
+// Manté la pujada d'originals de fins a 5 MB. Les fotos més grans es redueixen
+// al navegador abans d'enviar-les al mateix uploadFamilyPhoto() de Fotos.gs.
 let previewUrl='';
+let pendingPhotoFiles=null; // Es conserven només les fotos fallides per reintentar-les.
 $('photoInput').addEventListener('change',()=>{
   if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl='';}
   const files=Array.from($('photoInput').files||[]);
+  pendingPhotoFiles=files;
   const preview=$('photoPreview');preview.style.display=files.length?'block':'none';
   if(files.length){previewUrl=URL.createObjectURL(files[0]);preview.src=previewUrl;}
   photoStatus(files.length?files.length+' fotografies seleccionades':'',false);
@@ -826,9 +892,9 @@ async function compressedPhotoForPwa(file){
     throw new Error('No s’ha pogut reduir aquesta fotografia');
   }finally{picture.close();}
 }
-function uploadOriginal(file,base64){
+function uploadOriginal(file,base64,compressed){
   return serverCall('uploadFamilyPhoto',key,{
-    name:file.name,mime:window.MARC_PWA_MODE?'image/jpeg':file.type,
+    name:file.name,mime:compressed?'image/jpeg':file.type,
     base64,id:newId()
   }).then(result=>{
     if(!result||!result.ok)throw new Error(result&&result.error||'Error en pujar '+file.name);
@@ -838,29 +904,38 @@ function uploadOriginal(file,base64){
 $('uploadPhotos').addEventListener('submit',async e=>{
   e.preventDefault();
   if(photoBusy||!key)return;
-  const files=Array.from($('photoInput').files||[]);
+  const files=pendingPhotoFiles||Array.from($('photoInput').files||[]);
   if(!files.length){photoStatus('Selecciona almenys una fotografia.',true);return;}
   if(files.length>20){photoStatus('Selecciona un màxim de 20 fotografies per tanda.',true);return;}
   const types=['image/jpeg','image/png','image/webp'];
-  if(files.some(f=>!types.includes(f.type)||!f.size||f.size>5*1024*1024)){
-    photoStatus('Les fotos han de ser JPG, PNG o WebP de fins a 5 MB.',true);return;
-  }
   photoBusy=true;$('photoUploadButton').disabled=true;
   let uploaded=0;
+  const failed=[];
+  let firstError='';
   try{
-    for(const file of files){
-      photoStatus('Enviant '+(uploaded+1)+' de '+files.length+'…',false);
-      await uploadOriginal(file,window.MARC_PWA_MODE
-        ? await compressedPhotoForPwa(file) : await readPhotoOriginal(file));
-      uploaded++;
+    for(const [i,file] of files.entries()){
+      photoStatus('Enviant '+(i+1)+' de '+files.length+'…',false);
+      try{
+        if(!types.includes(file.type)||!file.size)throw new Error('Format no compatible: '+file.name);
+        const compressed=!!window.MARC_PWA_MODE||file.size>5*1024*1024;
+        await uploadOriginal(file,compressed
+          ? await compressedPhotoForPwa(file) : await readPhotoOriginal(file),compressed);
+        uploaded++;
+      }catch(err){
+        failed.push(file);
+        if(!firstError)firstError=(err.message||'Error temporal').slice(0,120);
+      }
     }
-    $('photoInput').value='';$('photoPreview').style.display='none';
-    if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl='';}
-    photoStatus(uploaded+(uploaded===1?' fotografia enviada':' fotografies enviades')+' correctament.',false);
+    pendingPhotoFiles=failed;
+    if(!failed.length){
+      $('photoInput').value='';$('photoPreview').style.display='none';
+      if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl='';}
+      photoStatus(uploaded+(uploaded===1?' fotografia enviada':' fotografies enviades')+' correctament.',false);
+    }else{
+      photoStatus(uploaded+' enviades, '+failed.length+' pendents. '+firstError+
+        '. Prem «Enviar fotografies» per reintentar només les pendents, sense tornar-les a triar.',true);
+    }
     // La galeria es refresca després d'alliberar el bloqueig de la pujada.
-  }catch(err){
-    photoStatus(uploaded+' de '+files.length+' enviades. '+(err.message||'Error temporal')+
-      '. Pots tornar a seleccionar les que faltin.',true);
   }finally{
     photoBusy=false;$('photoUploadButton').disabled=false;
     if(uploaded>0){if(photoFlight)await photoFlight;await refreshPhotos();}
