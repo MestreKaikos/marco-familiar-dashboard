@@ -73,7 +73,7 @@ fun HomeScreen(state: UiState, actions: HomeCallbacks) {
             }
             Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                 casa?.toldo?.let { AwningPanel(it, actions, Modifier.fillMaxWidth()) }
-                MusicPanel(casa?.musica, actions, Modifier.fillMaxWidth().weight(1f))
+                SpotifyPanel(Modifier.fillMaxWidth().weight(1f))
             }
             Column(Modifier.weight(0.62f).fillMaxHeight()) {
                 ComingSoonPanel(Modifier.fillMaxSize())
@@ -279,7 +279,7 @@ fun HomeEnergyScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 NestCameraPanel(nestKey, onSaveNestKey, onOpenNest, onNestPairingChanged, Modifier.fillMaxWidth())
-                MusicPanel(casa?.musica, actions, Modifier.fillMaxWidth().height(if (casa?.musica == null) 180.dp else 400.dp))
+                SpotifyPanel(Modifier.fillMaxWidth().height(485.dp))
                 casa?.toldo?.let { AwningPanel(it, actions, Modifier.fillMaxWidth()) }
                 casa?.clima?.let { ClimatePanel(it, casa.estancias.orEmpty(), actions, Modifier.fillMaxWidth(), compact = true) }
                 car?.bateria?.let { CarPanel(car, Modifier.fillMaxWidth()) }
