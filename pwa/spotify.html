@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ca">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://accounts.spotify.com https://api.spotify.com 'self'; img-src 'self' data:; form-action 'self'; base-uri 'none'; object-src 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#12201a">
+  <title>Marc Familiar · Spotify</title>
+  <link rel="stylesheet" href="/spotify.css">
+  <script src="/spotify.js" defer></script>
+</head>
+<body>
+<main>
+  <header class="top">
+    <a href="/" class="back">‹ Marc Familiar</a>
+    <p class="eyebrow">MÚSICA A CASA</p>
+    <h1>Spotify <span>als Nest</span></h1>
+    <p class="sub">Tria les teves playlists i envia-les als altaveus. El marc només fa de comandament.</p>
+  </header>
+
+  <section id="setup" class="panel">
+    <h2>Connecta Spotify</h2>
+    <p>Fes servir el <strong>Client ID</strong> de la teva aplicació personal de Spotify per iniciar sessió de manera segura. No cal cap Client Secret ni contrasenyes aquí.</p>
+    <label for="clientId">Spotify Client ID</label>
+    <input id="clientId" type="text" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="Client ID de Spotify" maxlength="64">
+    <button id="connect" class="primary">Connectar amb Spotify</button>
+    <p class="hint">A <a href="https://developer.spotify.com/dashboard/" target="_blank" rel="noopener noreferrer">Spotify for Developers</a> afegeix l'URL exacta de redirecció <code>https://marc-familiar-pwa.vercel.app/spotify.html</code> i selecciona Web API.</p>
+  </section>
+
+  <section id="connected" hidden>
+    <div class="panel flex-head">
+      <div>
+        <p class="eyebrow">COMANDAMENT REMOT</p>
+        <h2>Spotify connectat</h2>
+        <p id="account" class="muted">Compte autoritzat</p>
+      </div>
+      <button id="disconnect" class="secondary small">Desconnectar</button>
+    </div>
+
+    <section class="panel">
+      <div class="flex-head">
+        <h2>On vols escoltar?</h2>
+        <button id="reloadDevices" class="secondary small">Actualitzar</button>
+      </div>
+      <label for="devices">Dispositius Spotify Connect</label>
+      <select id="devices"><option value="">Cercant altaveus…</option></select>
+      <p class="hint">Els grups de Nest es mostren com un únic dispositiu, quan Spotify els detecta. Si no surt un Nest, inicia-hi Spotify des del mòbil i actualitza aquesta llista.</p>
+      <p id="now" class="muted"></p>
+    </section>
+
+    <section class="panel">
+      <div class="flex-head">
+        <h2>Les teves playlists</h2>
+        <button id="reloadLists" class="secondary small">Actualitzar</button>
+      </div>
+      <div id="favourites" class="items"><p class="muted">Encara no tens playlists favorites.</p></div>
+      <h3>Afegeix una playlist</h3>
+      <label for="searchLists">Cerca entre les teves playlists</label>
+      <input id="searchLists" type="search" placeholder="Nom de la playlist">
+      <div id="playlists" class="items"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Reproducció</h2>
+      <div class="buttons">
+        <button id="previous" class="secondary" aria-label="Anterior">⏮</button>
+        <button id="pause" class="secondary">⏸ Pausa</button>
+        <button id="resume" class="primary">▶ Continua</button>
+        <button id="next" class="secondary" aria-label="Següent">⏭</button>
+      </div>
+    </section>
+
+    <section id="pairing" class="panel" hidden>
+      <h2>Vincula Spotify al marc</h2>
+      <p>El marc està esperant aquesta autorització. Confirma-ho només si acabes d'escanejar-ne el codi QR.</p>
+      <button id="approvePair" class="primary">Autoritzar aquest marc</button>
+      <button id="cancelPair" class="secondary">Cancel·lar</button>
+    </section>
+  </section>
+
+  <p id="status" class="notice" role="status" aria-live="polite">Preparat per connectar.</p>
+  <footer>La música sonarà únicament al dispositiu seleccionat. Spotify Premium és necessari.</footer>
+</main>
+</body>
+</html>
