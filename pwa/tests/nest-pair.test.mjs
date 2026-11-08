@@ -75,3 +75,12 @@ test('El diagnòstic Nest mostra la forma de l’oferta, no l’SDP complet', ()
   for(const label of ['Opus:', 'H.264:', 'candidats', 'final de línia:'])
     assert.ok(html.includes(label));
 });
+
+test('El WebView sense H.264 no envia una oferta invàlida a les càmeres', () => {
+  const html = readFileSync(new URL('../nest.html', import.meta.url), 'utf8');
+  assert.match(html, /no ofereix H\.264 per WebRTC/);
+  const check = html.indexOf("if (!/^a=rtpmap:");
+  const request = html.indexOf("const result = await call('start'");
+  assert.ok(check > 0 && request > check,
+    'Cal comprovar el còdec abans de contactar amb Google');
+});
