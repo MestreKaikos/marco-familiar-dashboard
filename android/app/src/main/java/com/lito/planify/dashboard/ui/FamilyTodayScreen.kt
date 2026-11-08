@@ -251,7 +251,7 @@ private fun Tile(title: String, emoji: String, tint: Color, modifier: Modifier, 
 private fun HomeSummaryTile(
     title: String, emoji: String, tint: Color, summary: String,
     items: List<HomeSummaryItem>, emptyMessage: String, modifier: Modifier,
-    alert: Boolean = false, onClick: () -> Unit
+    alert: Boolean = false, pointsBadge: Int? = null, onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(24.dp)
     val accent = if (alert) Palette.Accent else tint
@@ -264,7 +264,7 @@ private fun HomeSummaryTile(
         val width = constraints.maxWidth
         val childConstraints = constraints.copy(minHeight = 0)
         val header = subcompose("headerMeasure") {
-            HomeSummaryHeader(title, emoji, accent, summary, hiddenCount = 0, onClick = onClick)
+            HomeSummaryHeader(title, emoji, accent, summary, hiddenCount = 0, pointsBadge = pointsBadge, onClick = onClick)
         }.single().measure(childConstraints)
         val headerGap = 8.dp.roundToPx()
         val rowGap = 2.dp.roundToPx()
@@ -277,7 +277,7 @@ private fun HomeSummaryTile(
             SummaryTileLayout.visibleItems(bodyHeight, sample.height, rowGap, items.size)
         }
         val finalHeader = subcompose("header") {
-            HomeSummaryHeader(title, emoji, accent, summary, hiddenCount = items.size - visibleCount, onClick = onClick)
+            HomeSummaryHeader(title, emoji, accent, summary, hiddenCount = items.size - visibleCount, pointsBadge = pointsBadge, onClick = onClick)
         }.single().measure(childConstraints)
         val body = subcompose("items") {
             if (items.isEmpty()) {
@@ -299,7 +299,7 @@ private fun HomeSummaryTile(
 }
 
 @Composable
-private fun HomeSummaryHeader(title: String, emoji: String, tint: Color, summary: String, hiddenCount: Int, onClick: () -> Unit) {
+private fun HomeSummaryHeader(title: String, emoji: String, tint: Color, summary: String, hiddenCount: Int, pointsBadge: Int?, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(Modifier.size(36.dp).background(tint.copy(alpha = 0.12f), RoundedCornerShape(12.dp)),
@@ -314,12 +314,26 @@ private fun HomeSummaryHeader(title: String, emoji: String, tint: Color, summary
                 fontWeight = FontWeight.Normal, color = Palette.InkSoft),
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Text(if (hiddenCount > 0) "+$hiddenCount més ›" else "›",
-            style = Type.Small.copy(fontSize = if (hiddenCount > 0) 16.sp else 28.sp,
-                lineHeight = 28.sp, fontWeight = FontWeight.Medium, color = tint),
-            modifier = Modifier.background(tint.copy(alpha = 0.09f), RoundedCornerShape(10.dp))
-                .padding(horizontal = 8.dp, vertical = 2.dp),
-            maxLines = 1)
+        if (pointsBadge != null) {
+            Column(horizontalAlignment = Alignment.End) {
+                Text("⭐ $pointsBadge", style = Type.Small.copy(
+                    fontSize = 24.sp, lineHeight = 30.sp,
+                    fontWeight = FontWeight.Bold, color = tint),
+                    modifier = Modifier.background(tint.copy(alpha = 0.11f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                    maxLines = 1)
+                if (hiddenCount > 0) Text("+$hiddenCount més",
+                    style = Type.Tiny.copy(color = tint, fontSize = 14.sp),
+                    maxLines = 1)
+            }
+        } else {
+            Text(if (hiddenCount > 0) "+$hiddenCount més ›" else "›",
+                style = Type.Small.copy(fontSize = if (hiddenCount > 0) 16.sp else 28.sp,
+                    lineHeight = 28.sp, fontWeight = FontWeight.Medium, color = tint),
+                modifier = Modifier.background(tint.copy(alpha = 0.09f), RoundedCornerShape(10.dp))
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                maxLines = 1)
+        }
     }
 }
 
@@ -386,9 +400,9 @@ private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Mo
         HomeSummaryItem(title = it.title, detail = "Per validar", glyph = "⏳")
     }
     HomeSummaryTile("Feines d'en Rai", "⭐", parseColor("#7857BC"),
-        summary = "${store.stars} estrelles · ${items.size} pendent${if (items.size == 1) "" else "s"}",
+        summary = "${items.size} feina${if (items.size == 1) "" else "s"} per fer o validar",
         items = items, emptyMessage = if (tasks.isEmpty()) "Toca per afegir feines" else "Tot fet per avui!",
-        modifier = modifier, alert = awaiting.isNotEmpty(), onClick = onClick)
+        modifier = modifier, alert = awaiting.isNotEmpty(), pointsBadge = store.stars, onClick = onClick)
 }
 
 /** Data curta que es veu al costat de les feines i recordatoris de la portada. */
