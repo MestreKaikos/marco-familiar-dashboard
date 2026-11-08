@@ -472,60 +472,60 @@ assert.ok(!mobileSource.includes("photoCall('photo_delete'"),
   'El Mobile original no permetia esborrar fotos: la galeria no ho ha de fer');
 
 
-// Ajustos manuals dels adults: PIN, historial separat, reintents i saldo zero.
+// Ajustos manuals dels pares: clau familiar, historial separat, reintents i saldo zero.
 const basePoints=context.familyTasksSnapshot_().points;
 const baselineDone=tabs.get("TasquesFetes").rows.length;
 const baselineClaims=tabs.get("CanvisPunts").rows.length;
 assert.equal(context.familyTasksAction("0".repeat(64),'points_adjust',{
-  id:'manual_no_auth',delta:5,pin:'3479'
+  id:'manual_no_auth',delta:5
 }).ok,false,'La clau familiar continua sent obligatòria');
 assert.equal(context.familyTasksAction(secret,'points_adjust',{
-  id:'manual_wrong_pin',delta:5,pin:'0000'
-}).ok,false,'La clau de sincronització no substitueix el PIN adult');
+  id:'manual_bad_value',delta:'desconegut'
+}).ok,false,'Un canvi invàlid no altera els punts');
 assert.equal(context.familyTasksAction(secret,'points_adjust',{
-  id:'manual_bad_delta',delta:100,pin:'3479'
+  id:'manual_bad_delta',delta:100
 }).ok,false,'Només salts petits');
 assert.equal(context.familyTasksAction(secret,'points_adjust',{
-  id:'manual_bonus',delta:5,pin:'3479',reason:'Bona iniciativa'
+  id:'manual_bonus',delta:5,reason:'Bona iniciativa'
 }).ok,true);
 assert.equal(context.familyTasksSnapshot_().points,basePoints+5);
 assert.equal(context.familyTasksAction(secret,'points_adjust',{
-  id:'manual_bonus',delta:5,pin:'3479'
+  id:'manual_bonus',delta:5
 }).ok,true,'Repetir una petició no duplica punts');
 assert.equal(context.familyTasksSnapshot_().points,basePoints+5);
 assert.equal(context.familyTasksAction(secret,'points_adjust',{
-  id:'manual_minus',delta:-2,pin:'3479',reason:'Ajust'
+  id:'manual_minus',delta:-2,reason:'Ajust'
 }).ok,true);
 assert.equal(context.familyTasksSnapshot_().points,basePoints+3);
 assert.equal(context.familyTasksAction(secret,'points_adjust',{
-  id:'manual_negative',delta:-10,pin:'3479'
+  id:'manual_negative',delta:-10
 }).ok,false,'No permet saldos negatius');
 assert.equal(context.familyTasksSnapshot_().adjustments[0].delta,-2);
 assert.equal(context.familyTasksAction(secret,'points_adjust',{
-  id:'manual_reset',reset:true,pin:'3479',reason:'Nou començament'
+  id:'manual_reset',reset:true,reason:'Nou començament'
 }).ok,true,'Els pares poden reiniciar el saldo');
 assert.equal(context.familyTasksSnapshot_().points,0);
 assert.equal(tabs.get("TasquesFetes").rows.length,baselineDone,'No esborra feines fetes');
 assert.equal(tabs.get("CanvisPunts").rows.length,baselineClaims,'No esborra premis');
 assert.equal(context.familyTasksAction(secret,'points_adjust',{
-  id:'manual_post_reset',delta:1,pin:'3479'
+  id:'manual_post_reset',delta:1
 }).ok,true);
 assert.equal(context.familyTasksAction(secret,'points_adjust',{
-  id:'manual_reset',reset:true,pin:'3479'
+  id:'manual_reset',reset:true
 }).data.points,1,'Reintentar el reset no torna a posar a zero');
 assert.equal(context.apiAction(secret,'sync',{}).data.stars,1,
   'L\'Android veu el saldo ajustat a través del mateix sync');
 assert.equal(context.familyTasksAction(secret,'rewards_claim',{id:'cheap_reward'}).ok,true);
 assert.equal(context.familyTasksAction(secret,'points_adjust',{
-  id:'manual_reset_reserved',reset:true,pin:'3479'
+  id:'manual_reset_reserved',reset:true
 }).ok,false,'No esborra punts reservats per recompenses');
 const pendingAfterAdjustment=context.familyTasksSnapshot_().requests.find(
   x=>x.status==='pendent'&&x.rewardId==='cheap_reward');
 assert.equal(context.familyTasksAction(secret,'rewards_decide',{
-  id:pendingAfterAdjustment.id,approve:false,pin:'3479'
+  id:pendingAfterAdjustment.id,approve:false
 }).ok,true);
 assert.equal(context.familyTasksAction(secret,'points_adjust',{
-  id:'manual_reset_after_reject',reset:true,pin:'3479'
+  id:'manual_reset_after_reject',reset:true
 }).data.points,0);
 assert.equal(tabs.get("AjustosPunts").rows.length,6,'Capçalera i cinc moviments manuals');
 assert.equal(tabs.get("AjustosPunts").rows.filter(r=>r[0]==='manual_bonus').length,1,
