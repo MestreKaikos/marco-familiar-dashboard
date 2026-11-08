@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash, randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { Script } from 'node:vm';
 import test from 'node:test';
 import handler from '../api/nest.js';
 
@@ -35,4 +37,18 @@ test('només el marc que té la prova privada pot reclamar una autorització apr
   assert.deepEqual(await post(claim), { status: 200, data: { key } });
   assert.deepEqual(await post(claim), { status: 200, data: { waiting: true } });
   assert.equal((await post({ ...claim, until: Date.now() - 1000 })).status, 400);
+});
+
+test('El reproductor de Nest és compatible amb Unified Plan a WebView 74', () => {
+  const html = readFileSync(new URL('../nest.html', import.meta.url), 'utf8');
+  assert.match(html, /sdpSemantics:\s*'unified-plan'/);
+  const p = html.indexOf("peer.addTransceiver('audio'");
+  const q = html.indexOf("peer.addTransceiver('video'");
+  const r = html.indexOf("peer.createDataChannel('data'");
+  assert.ok(p >= 0 && p < q && q < r,
+    'Nest exigeix audio, video i application en aquest ordre');
+  assert.match(html, /setTimeout\(resolve, 8000\)/);
+  for (const [, code] of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) {
+    assert.doesNotThrow(() => new Script(code));
+  }
 });
