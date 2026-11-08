@@ -19,6 +19,21 @@ const browserVersion = (navigator.userAgent.match(/(?:Chrome|Chromium)\/(\d+)/) 
 const supportRtc = typeof RTCPeerConnection === 'function';
 const videoCodec = (video.canPlayType('video/mp4; codecs="avc1.42E01E"') || '?');
 const diag = { nest:'sense iniciar', ice:'sense iniciar', track:'sense pista', video:'cap fotograma' };
+function describeOffer(sdp) {
+  const lines = sdp.split(/\r?\n/);
+  const media = lines.filter(line => line.startsWith('m=')).map(line => line.split(' ')[0].slice(2));
+  const audioStart = lines.findIndex(line => line.startsWith('m=audio '));
+  const audioEnd = audioStart >= 0 ? lines.findIndex((line, i) => i > audioStart && line.startsWith('m=')) : -1;
+  const audio = audioStart < 0 ? [] : lines.slice(audioStart, audioEnd < 0 ? undefined : audioEnd);
+  const receiveOnly = audio.includes('a=recvonly');
+  const opus = audio.some(line => /^a=rtpmap:\d+ opus\//i.test(line));
+  const h264 = lines.some(line => /^a=rtpmap:\d+ H264\//i.test(line));
+  const ice = lines.filter(line => line.startsWith('a=candidate:')).length;
+  const newline = /\r?\n$/.test(sdp);
+  return 'SDP ' + media.join('/') + ' · àudio només rep: ' + (receiveOnly?'sí':'NO') +
+    ' · Opus: ' + (opus?'sí':'NO') + ' · H.264: ' + (h264?'sí':'NO') +
+    ' · ICE: ' + ice + ' candidats · final de línia: ' + (newline?'sí':'NO');
+}
 function report() {
   diagnostic.textContent =
     'Motor: Chromium ' + browserVersion + ' · WebRTC: ' + (supportRtc?'sí':'no') +
@@ -120,8 +135,10 @@ start.onclick = async () => {
       check();
     });
     if (pc !== peer) return;
-    mark('nest','demanant vídeo a Google');
-    const result = await call('start', {device:device.value, sdp:peer.localDescription.sdp});
+    const localSdp = peer.localDescription.sdp;
+    const offerSdp = /\r?\n$/.test(localSdp) ? localSdp : localSdp + '\r\n';
+    mark('nest','demanant vídeo a Google · '+ describeOffer(offerSdp));
+    const result = await call('start', {device:device.value, sdp:offerSdp});
     mark('nest','Google ha acceptat la petició');
     if (pc !== peer) {
       await call('stop', {session:result.session}, credential).catch(() => {});
