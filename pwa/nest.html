@@ -2,17 +2,32 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; media-src blob:; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Prova de Google Nest</title>
-<style>body{margin:1em;background:#171717;color:white;font:20px system-ui}button,input,select{font:inherit;padding:.6em}video{display:block;width:100%;max-height:75vh;background:black}.embedded body{margin:0}.embedded #controls{display:none}.embedded video{height:100vh;max-height:none;object-fit:contain}.embedded #status{position:absolute;left:1rem;right:1rem;bottom:1rem;text-align:center;background:#171717d9}.embedded #status:empty{display:none}</style>
+<style>body{margin:1em;background:#171717;color:white;font:20px system-ui}button,input,select{font:inherit;padding:.6em}video{display:block;width:100%;max-height:75vh;background:black}.embedded body{margin:0}.embedded #controls{display:none}.embedded video{height:100vh;max-height:none;object-fit:contain}.embedded #status{position:absolute;left:1rem;right:1rem;bottom:1rem;text-align:center;background:#171717d9}.embedded #status:empty{display:none}.embedded #diagnostic{position:absolute;top:12px;left:12px;right:12px;z-index:3;padding:10px 14px;background:#101722e8;color:#e5f2ff;border-radius:12px;font:14px/1.5 system-ui;white-space:pre-line;pointer-events:none}#diagnostic{font-size:.75em;color:#cbd5e1;white-space:pre-line;margin:8px 0}</style>
 <div id="controls"><h1>Càmeres Nest</h1>
 <p><label>Clau de càmeres <input id="key" type="password" autocomplete="off" maxlength="64"></label></p>
 <p><label>Dispositiu <select id="device"><option value="timbre">Timbre</option><option value="camera">Càmera</option></select></label></p><button id="start">Obrir el directe</button>
-<button id="stop" disabled>Tancar</button></div><p id="status" role="status"></p>
+<button id="stop" disabled>Tancar</button></div><p id="status" role="status">Carregant el visor de Nest…</p>
+<div id="diagnostic" role="status" aria-live="polite">Diagnòstic: pàgina carregada; iniciant JavaScript…</div>
 <video id="video" autoplay playsinline muted></video>
 <script>
 const start = document.getElementById('start'), stop = document.getElementById('stop');
 const status = document.getElementById('status'), video = document.getElementById('video');
+const diagnostic = document.getElementById('diagnostic');
 const key = document.getElementById('key'), device = document.getElementById('device');
 let pc, timer, videoTimeout, session, accessKey;
+const browserVersion = (navigator.userAgent.match(/(?:Chrome|Chromium)\/(\d+)/) || [,'?'])[1];
+const supportRtc = typeof RTCPeerConnection === 'function';
+const videoCodec = (video.canPlayType('video/mp4; codecs="avc1.42E01E"') || '?');
+const diag = { nest:'sense iniciar', ice:'sense iniciar', track:'sense pista', video:'cap fotograma' };
+function report() {
+  diagnostic.textContent =
+    'Motor: Chromium ' + browserVersion + ' · WebRTC: ' + (supportRtc?'sí':'no') +
+    ' · H.264: ' + videoCodec + '\n' +
+    'Nest: ' + diag.nest + ' · ICE: ' + diag.ice + '\n' +
+    'Pista: ' + diag.track + ' · Vídeo: ' + diag.video;
+}
+function mark(field,value) { diag[field]=value; report(); }
+report();
 const embedded = new URLSearchParams(location.search).get('app') === '1';
 if (embedded) document.documentElement.classList.add('embedded');
 if (location.hash === '#camera') device.value = 'camera';
@@ -32,6 +47,7 @@ async function close(message) {
   pc = null;
   video.srcObject = null;
   stop.disabled = true;
+  mark('nest', message || 'directe tancat');
   const current = session;
   session = null;
   if (current) { try { await call('stop', {session:current}); } catch (_) {} }
@@ -43,8 +59,13 @@ stop.onclick = () => close('Directe tancat.');
 function showVideo() {
   if (!pc || video.videoWidth === 0) return;
   clearTimeout(videoTimeout);
+  mark('video',video.videoWidth + '×' + video.videoHeight + ' · reproduint');
   status.textContent = embedded ? '' : 'Vídeo en directe';
 }
+video.addEventListener('playing',()=>mark('video','reproduint · ' + video.videoWidth + '×' + video.videoHeight));
+video.addEventListener('error',()=>mark('video','error del reproductor '+(video.error?video.error.code:'?')));
+video.addEventListener('stalled',()=>mark('video','reproducció aturada'));
+video.addEventListener('loadedmetadata',()=>mark('video','metadades '+video.videoWidth+'×'+video.videoHeight));
 if (typeof video.requestVideoFrameCallback !== 'function') {
   video.addEventListener('loadeddata', showVideo);
   video.addEventListener('timeupdate', showVideo);
@@ -56,6 +77,7 @@ start.onclick = async () => {
   const credential = accessKey;
   if (embedded) key.value = "";
   status.textContent = 'Connectant amb Google Nest…';
+  mark('nest','preparant connexió');
   try {
     // Nest exigeix SDP Unified Plan. Chromium/WebView 74 encara usa Plan B
     // per defecte, i addTransceiver() falla sense aquesta opció explícita.
@@ -67,11 +89,20 @@ start.onclick = async () => {
       throw new Error('El navegador del marc no admet el vídeo WebRTC necessari.');
     }
     const peer = pc;
+    mark('nest','WebRTC configurat');
     const stream = new MediaStream();
     video.srcObject = stream;
-    peer.ontrack = e => { stream.addTrack(e.track); video.play().catch(() => {}); };
+    peer.ontrack = e => {
+      mark('track',e.track.kind+' · '+e.track.readyState+' · '+(e.track.muted?'silenciada':'activa'));
+      e.track.onunmute=()=>mark('track',e.track.kind+' · rebent dades');
+      e.track.onmute=()=>mark('track',e.track.kind+' · dades interrompudes');
+      stream.addTrack(e.track);
+      video.play().then(()=>mark('video','play() acceptat')).catch(err=>
+        mark('video','play() fallit: '+err.name));
+    };
     peer.oniceconnectionstatechange = () => {
       if (pc !== peer) return;
+      mark('ice',peer.iceConnectionState);
       if (peer.iceConnectionState === 'failed') {
         status.textContent = 'La connexió WebRTC ha fallat (ICE). Comprova la xarxa del marc.';
       }
@@ -80,6 +111,8 @@ start.onclick = async () => {
     peer.addTransceiver('video', {direction:'recvonly'});
     peer.createDataChannel('data');
     await peer.setLocalDescription(await peer.createOffer());
+    const mediaLines = [...peer.localDescription.sdp.matchAll(/^m=([^ ]+)/gm)].map(x=>x[1]).join('/');
+    mark('nest','oferta '+mediaLines);
     await new Promise(resolve => {
       const check = () => { if (peer.iceGatheringState === 'complete') resolve(); };
       peer.addEventListener('icegatheringstatechange', check);
@@ -87,7 +120,9 @@ start.onclick = async () => {
       check();
     });
     if (pc !== peer) return;
+    mark('nest','demanant vídeo a Google');
     const result = await call('start', {device:device.value, sdp:peer.localDescription.sdp});
+    mark('nest','Google ha acceptat la petició');
     if (pc !== peer) {
       await call('stop', {session:result.session}, credential).catch(() => {});
       return;
@@ -99,10 +134,11 @@ start.onclick = async () => {
       : 'No ha arribat cap imatge. Torna a obrir el directe.'), 20000);
     if (typeof video.requestVideoFrameCallback === 'function') video.requestVideoFrameCallback(showVideo);
     await peer.setRemoteDescription({type:'answer', sdp:result.answerSdp});
+    mark('nest','resposta de vídeo aplicada');
     stop.disabled = false;
     timer = setTimeout(() => close('Prova finalitzada.'), 90000);
   } catch (error) {
-    await close(error.message);
+    await close((error && (error.message || error.name)) || 'Error del navegador');
   }
 };
 window.endNestStream = () => close('');
