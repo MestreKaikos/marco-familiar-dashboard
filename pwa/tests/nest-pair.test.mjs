@@ -48,6 +48,12 @@ test('El reproductor de Nest és compatible amb Unified Plan a WebView 74', () =
   assert.ok(p >= 0 && p < q && q < r,
     'Nest exigeix audio, video i application en aquest ordre');
   assert.match(html, /setTimeout\(resolve, 8000\)/);
+  assert.match(html, /id="diagnostic"/, 'El marc necessita diagnòstic visible');
+  assert.match(html, /report\(\)/, 'Diagnòstic del motor i estats WebRTC');
+  for (const phase of ['WebRTC configurat', 'demanant vídeo a Google', 'resposta de vídeo aplicada'])
+    assert.ok(html.includes(phase), 'Ha de mostrar la fase: ' + phase);
+  assert.ok(!html.includes("mark('nest',result.answerSdp)"),
+    'No s\'ha de mostrar cap dada privada de la resposta SDP');
   for (const [, code] of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) {
     assert.doesNotThrow(() => new Script(code));
   }
