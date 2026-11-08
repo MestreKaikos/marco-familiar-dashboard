@@ -167,7 +167,7 @@ fun PhotosScreen(
             }
         }
         Text(
-            "${localPhotos.size} locals · ${shared.photos.size} compartides" +
+            "${localPhotos.size} de carpeta local · ${shared.photos.size} de Drive (desades al marc)" +
                 if (sync.connected) " · Les fotos noves s'afegeixen automàticament." else
                     " · Connecta la sincronització familiar a Opcions per rebre fotos.",
             style = Type.Tiny, color = Palette.InkMuted
