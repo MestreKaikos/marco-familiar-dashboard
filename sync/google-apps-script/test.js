@@ -527,7 +527,9 @@ assert.equal(context.familyTasksAction(secret,'rewards_decide',{
 assert.equal(context.familyTasksAction(secret,'points_adjust',{
   id:'manual_reset_after_reject',reset:true,pin:'3479'
 }).data.points,0);
-assert.equal(tabs.get("AjustosPunts").rows.length,5,'Registre complet i idempotent');
+assert.equal(tabs.get("AjustosPunts").rows.length,6,'Capçalera i cinc moviments manuals');
+assert.equal(tabs.get("AjustosPunts").rows.filter(r=>r[0]==='manual_bonus').length,1,
+  'El reintent no pot afegir el mateix bonus dues vegades');
 assert.ok(!tabs.get("AjustosPunts").rows.some(r=>r.includes('3479')),
   'El PIN no apareix a l\'historial');
 assert.equal(locked,false);
