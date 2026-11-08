@@ -17,7 +17,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-data class SharedCachedPhoto(val id: String, val name: String, val file: File)
+data class SharedCachedPhoto(val id: String, val name: String, val file: File, val revision: String = "")
 
 /**
  * Les fotos del mòbil no es mostren des de Drive en obert: l'APK les consulta amb
@@ -47,7 +47,8 @@ class FamilyPhotoCache(context: Context) {
         return SyncTiming.isStale(lastSuccessfulCheckAt, now, maxAgeMillis)
     }
 
-    private data class RemotePhoto(val id: String, val name: String)
+    // La data d'actualització és la revisió del contingut, no la data de creació.
+    private data class RemotePhoto(val id: String, val name: String, val revision: String)
 
     private fun cachedFile(id: String) = File(folder, "$id.jpg")
 
@@ -59,7 +60,8 @@ class FamilyPhotoCache(context: Context) {
             if (!validId.matches(id)) return@mapNotNull null
             val file = cachedFile(id)
             if (file.isFile && file.length() in 6L..photoMaxBytes)
-                SharedCachedPhoto(id, item.optString("name").take(75), file)
+                SharedCachedPhoto(id, item.optString("name").take(75), file,
+                    item.optString("revision").take(60))
             else null
         }.take(120)
     }.getOrDefault(emptyList())
@@ -67,7 +69,8 @@ class FamilyPhotoCache(context: Context) {
     private fun writeIndex(items: List<SharedCachedPhoto>) {
         val index = JSONArray()
         items.forEach { photo ->
-            index.put(JSONObject().put("id", photo.id).put("name", photo.name))
+            index.put(JSONObject().put("id", photo.id).put("name", photo.name)
+                .put("revision", photo.revision))
         }
         prefs.edit().putString("index", index.toString()).apply()
         photos = items
@@ -86,11 +89,17 @@ class FamilyPhotoCache(context: Context) {
             try {
                 val response = sync.photoAction("photo_list")
                 val remoteArray = response.getJSONArray("photos")
+                // Les còpies antigues no desaven revisió; es tornen a baixar
+                // gradualment la primera vegada per tenir el contingut vigent.
+                val cachedRevisions = photos.associate { it.id to it.revision }
                 val remote = (0 until minOf(remoteArray.length(), 120)).mapNotNull { i ->
                     val item = remoteArray.optJSONObject(i) ?: return@mapNotNull null
                     val id = item.optString("id")
                     if (!validId.matches(id)) return@mapNotNull null
-                    RemotePhoto(id, item.optString("name").take(75))
+                    // Code.gs ja envia getLastUpdated() dins de createdAt.
+                    // updatedAt permet afegir un nom més clar al servidor en el futur.
+                    RemotePhoto(id, item.optString("name").take(75),
+                        item.optString("updatedAt").ifBlank { item.optString("createdAt") }.take(60))
                 }
                 withContext(Dispatchers.IO) { if (!folder.exists()) folder.mkdirs() }
                 // Retirar les fotos que la família ha eliminat des del mòbil.
@@ -102,6 +111,7 @@ class FamilyPhotoCache(context: Context) {
                 }
 
                 var downloaded = 0
+                val updatedIds = mutableSetOf<String>()
                 var attempted = 0
                 var firstError: String? = null
                 var firstFailedName: String? = null
@@ -109,7 +119,9 @@ class FamilyPhotoCache(context: Context) {
                 // Màxim 12 fotografies noves a cada comprovació per no saturar un Android d'1 GB RAM.
                 for (photo in remote) {
                     val file = cachedFile(photo.id)
-                    if (file.isFile && file.length() in 6L..photoMaxBytes) continue
+                    val validCache = file.isFile && file.length() in 6L..photoMaxBytes
+                    if (!photoCacheNeedsDownload(validCache, cachedRevisions[photo.id].orEmpty(),
+                            photo.revision)) continue
                     if (attempted >= 12) break
                     attempted++
                     try {
@@ -144,6 +156,7 @@ class FamilyPhotoCache(context: Context) {
                             }
                         }
                         downloaded++
+                        updatedIds.add(photo.id)
                     } catch (error: Exception) {
                         if (error is CancellationException) throw error
                         failedCount++
@@ -158,7 +171,9 @@ class FamilyPhotoCache(context: Context) {
                     remote.mapNotNull { item ->
                         val file = cachedFile(item.id)
                         if (file.isFile && file.length() in 6L..photoMaxBytes)
-                            SharedCachedPhoto(item.id, item.name, file)
+                            SharedCachedPhoto(item.id, item.name, file,
+                                if (item.id in updatedIds) item.revision
+                                else cachedRevisions[item.id].orEmpty())
                         else null
                     }
                 }
@@ -182,6 +197,16 @@ class FamilyPhotoCache(context: Context) {
         }
     }
 }
+
+/**
+ * Manté còpies correctes sense fer descàrregues innecessàries.
+ * Si el mateix ID de Drive canvia de versió, cal tornar-lo a descarregar.
+ * Si un Apps Script antic no informa de cap versió, es manté la compatibilitat.
+ */
+internal fun photoCacheNeedsDownload(
+    validCachedFile: Boolean, cachedRevision: String, remoteRevision: String
+): Boolean = !validCachedFile ||
+    (remoteRevision.isNotBlank() && cachedRevision != remoteRevision)
 
 @Composable
 fun rememberFamilyPhotoCache(): FamilyPhotoCache {
