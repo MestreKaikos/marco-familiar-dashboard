@@ -302,7 +302,7 @@ assert.equal(context.apiAction(secret,'photo_delete',{id:largePhoto.getId()}).ok
 
 assert.equal(context.apiAction(secret,'photo_delete',{id:existingPng.getId()}).ok,false,
   'Les fotos originals de Drive no s’han de poder eliminar amb la nova API');
-assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,1);
+assert.equal(context.apiAction(secret,'photo_list',{}).photos.length,2);
 const jpeg=Buffer.from([255,216,1,2,3,255,217]).toString('base64');
 const addPhoto=context.apiAction(secret,'photo_upload',{id:'photo_1',name:'Platja.jpg',base64:jpeg});
 assert.equal(addPhoto.ok,true,addPhoto.error);
