@@ -99,10 +99,14 @@ fun NestCameraViewer(device: NestDevice, cameraKey: String, onClose: () -> Unit)
     val embeddedUrl = "$NEST_ORIGIN/nest.html?app=1"
     val browserUrl = "$NEST_ORIGIN/nest.html#${device.apiValue}"
     var problem by remember(device) { mutableStateOf<String?>(null) }
+    var useNative by remember(device, cameraKey) { mutableStateOf(true) }
 
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(device.label, style = Type.Large, modifier = Modifier.weight(1f))
+            TextButton(onClick = { useNative = !useNative }) {
+                Text(if (useNative) "Provar visor web" else "Provar visor natiu", style = Type.Tiny)
+            }
             TextButton(onClick = {
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(browserUrl))
                 try {
@@ -120,8 +124,10 @@ fun NestCameraViewer(device: NestDevice, cameraKey: String, onClose: () -> Unit)
             PillButton("Tancar", onClick = onClose)
         }
         problem?.let { Text(it, style = Type.Small) }
-        key(device, cameraKey) {
-            AndroidView(
+        key(device, cameraKey, useNative) {
+            if (useNative) {
+                NestNativePlayer(device, cameraKey, Modifier.fillMaxWidth().weight(1f))
+            } else AndroidView(
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 factory = { activity ->
                     WebView(activity).apply {
