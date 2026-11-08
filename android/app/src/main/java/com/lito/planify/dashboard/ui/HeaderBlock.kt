@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -78,7 +79,9 @@ private fun SkyHeader(state: UiState, modifier: Modifier) {
 
 @Composable
 private fun DateLine(today: LocalDate, ink: Color, soft: Color) {
-    Row(verticalAlignment = Alignment.Bottom) {
+    // La línia de data s'acosta al rellotge sense alterar-ne mida ni posició.
+    // offset és només visual: no canvia l'alçada del bloc ni les targetes de sota.
+    Row(modifier = Modifier.offset(y = (-12).dp), verticalAlignment = Alignment.Bottom) {
         Text(today.weekdayName(), style = Type.Large.copy(color = ink, fontWeight = FontWeight.SemiBold))
         Text(
             "  ${today.dayOfMonth} ${today.monthWithArticle()}",
