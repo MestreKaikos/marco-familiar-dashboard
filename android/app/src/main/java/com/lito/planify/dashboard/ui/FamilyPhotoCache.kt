@@ -32,7 +32,7 @@ class FamilyPhotoCache(context: Context) {
     private val mutex = Mutex()
     private var photoGeneration = 0
     private val validId = Regex("^[a-zA-Z0-9_-]{1,80}$")
-    private val photoMaxBytes = 5L * 1024L * 1024L // Fotos.gs permet fins a 5 MB.
+    private val photoMaxBytes = 5L * 1024L * 1024L // L'Apps Script envia la miniatura si l'original és més gran.
 
     var photos by mutableStateOf(readSaved())
         private set
@@ -104,6 +104,8 @@ class FamilyPhotoCache(context: Context) {
                 var downloaded = 0
                 var attempted = 0
                 var firstError: String? = null
+                var firstFailedName: String? = null
+                var failedCount = 0
                 // Màxim 12 fotografies noves a cada comprovació per no saturar un Android d'1 GB RAM.
                 for (photo in remote) {
                     val file = cachedFile(photo.id)
@@ -144,7 +146,11 @@ class FamilyPhotoCache(context: Context) {
                         downloaded++
                     } catch (error: Exception) {
                         if (error is CancellationException) throw error
-                        if (firstError == null) firstError = error.message ?: "No s'ha pogut descarregar una foto"
+                        failedCount++
+                        if (firstError == null) {
+                            firstError = (error.message ?: "Error de descàrrega").take(70)
+                            firstFailedName = photo.name.take(35)
+                        }
                     }
                 }
 
@@ -161,7 +167,8 @@ class FamilyPhotoCache(context: Context) {
                 photoGeneration++
                 prefs.edit().putLong("last_photo_check_epoch", lastSuccessfulCheckAt).apply()
                 message = when {
-                    firstError != null -> "Algunes fotos no s'han pogut baixar. Es tornarà a provar."
+                    firstError != null -> "$failedCount fotos no descarregades. Primera: " +
+                        "${firstFailedName ?: "sense nom"} (${firstError}). Es tornaran a provar."
                     valid.size < remote.size -> "Baixant fotos noves · ${valid.size} de ${remote.size}"
                     else -> null
                 }
