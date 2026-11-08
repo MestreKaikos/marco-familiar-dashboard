@@ -3,13 +3,13 @@ package com.lito.planify.dashboard.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -63,13 +63,24 @@ private fun SkyHeader(state: UiState, modifier: Modifier) {
             .padding(horizontal = 36.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                if (state.clockValid) now.format(HourMinute) else "--:--",
-                style = Type.Clock.copy(color = ink, fontSize = 150.sp, lineHeight = 150.sp, letterSpacing = (-6).sp, fontWeight = FontWeight.Normal),
-                maxLines = 1
-            )
-            DateLine(now.toLocalDate(), ink, soft)
+        // Reservem la línia de data ABANS de dimensionar el rellotge.
+        // A pantalles més baixes, el rellotge s'ajusta al lloc disponible
+        // en comptes d'expulsar la data fora de la capçalera.
+        BoxWithConstraints(Modifier.weight(1f).fillMaxHeight()) {
+            val compactDate = maxHeight.value < 150f
+            val clockSize = headerClockSize(maxHeight.value)
+            Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+                Text(
+                    if (state.clockValid) now.format(HourMinute) else "--:--",
+                    style = Type.Clock.copy(
+                        color = ink, fontSize = clockSize.sp, lineHeight = clockSize.sp,
+                        letterSpacing = (-6f * clockSize / 150f).sp,
+                        fontWeight = FontWeight.Normal
+                    ),
+                    maxLines = 1
+                )
+                DateLine(now.toLocalDate(), ink, soft, compactDate)
+            }
         }
         WeatherBlock(state, ink, soft, Modifier.weight(1.25f).fillMaxHeight(), chips = true, dark = dark)
     }
@@ -77,15 +88,25 @@ private fun SkyHeader(state: UiState, modifier: Modifier) {
 
 // --- Común ---
 
+/** Reserva 42 dp per la data (34 dp en pantalles compactes) i 10 dp de marge.
+ * Així, a diferència d'un offset, el layout mesura realment els dos textos.
+ */
+internal fun headerClockSize(availableHeightDp: Float): Float {
+    val dateHeight = if (availableHeightDp < 150f) 34f else 42f
+    return (availableHeightDp - dateHeight - 10f).coerceIn(36f, 150f)
+}
+
 @Composable
-private fun DateLine(today: LocalDate, ink: Color, soft: Color) {
-    // La línia de data s'acosta al rellotge sense alterar-ne mida ni posició.
-    // offset és només visual: no canvia l'alçada del bloc ni les targetes de sota.
-    Row(modifier = Modifier.offset(y = (-12).dp), verticalAlignment = Alignment.Bottom) {
-        Text(today.weekdayName(), style = Type.Large.copy(color = ink, fontWeight = FontWeight.SemiBold))
+private fun DateLine(today: LocalDate, ink: Color, soft: Color, compact: Boolean) {
+    val style = Type.Large.copy(
+        fontSize = if (compact) 26.sp else 34.sp,
+        lineHeight = if (compact) 34.sp else 42.sp
+    )
+    Row(verticalAlignment = Alignment.Bottom) {
+        Text(today.weekdayName(), style = style.copy(color = ink, fontWeight = FontWeight.SemiBold))
         Text(
             "  ${today.dayOfMonth} ${today.monthWithArticle()}",
-            style = Type.Large.copy(color = soft)
+            style = style.copy(color = soft)
         )
     }
 }
