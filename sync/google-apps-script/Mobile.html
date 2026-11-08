@@ -251,12 +251,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
       <h2 style="margin-top:20px">🔐 Peticions pendents</h2>
       <div id="raiPendingRewards"></div>
       <details class="subpanel" id="raiAdultPoints" style="margin-top:16px">
-        <summary style="cursor:pointer;font-weight:750">🔒 Ajustar els punts · adults</summary>
-        <p style="margin:8px 0">Sumar, restar o reiniciar el saldo sense esborrar les feines ni les recompenses. Cal el PIN adult.</p>
+        <summary style="cursor:pointer;font-weight:750">⭐ Ajustar els punts · pares</summary>
+        <p style="margin:8px 0">Sumar, restar o reiniciar el saldo sense esborrar les feines ni les recompenses. Els canvis queden registrats.</p>
         <div class="row" style="flex-wrap:wrap;gap:8px;margin:10px 0">
-          <input id="raiAdultPin" type="password" inputmode="numeric" autocomplete="off"
-            minlength="4" maxlength="8" placeholder="PIN adult" aria-label="PIN dels adults"
-            style="max-width:150px;flex:1">
           <input id="raiAdjustReason" maxlength="80" autocomplete="off"
             placeholder="Motiu (opcional)" aria-label="Motiu de l'ajust" style="flex:2;min-width:150px">
         </div>
@@ -760,22 +757,17 @@ function renderRai(){
     row.append(yes,no);approvals.appendChild(row);
   });
 }
-// Cap canvi de punts és vàlid sense el PIN de l'adult; no se'n desa cap còpia.
+// Només cal la clau familiar ja utilitzada per la sessió mòbil.
 function adjustRaiPoints(delta,reset=false){
   if(!key||raiBusy)return;
-  const pin=$('raiAdultPin').value.trim();
-  if(!/^[0-9]{4,8}$/.test(pin)){
-    $('raiAdjustStatus').textContent='Escriu el PIN adult (4 a 8 xifres).';return;
-  }
   const current=Number(raiSnapshot?.points||0);
   if(!reset&&current+delta<0){
     $('raiAdjustStatus').textContent='El saldo no pot quedar en negatiu.';return;
   }
   if(reset&&!confirm('Vols deixar els punts disponibles d’en Rai a 0? Les feines i els premis es conservaran.'))return;
-  const payload={id:newId(),pin,reason:$('raiAdjustReason').value.trim().slice(0,80)};
+  const payload={id:newId(),reason:$('raiAdjustReason').value.trim().slice(0,80)};
   if(reset)payload.reset=true;
   else payload.delta=delta;
-  $('raiAdultPin').value='';
   $('raiAdjustStatus').textContent='Desant l’ajust…';
   raiAction('points_adjust',payload,()=>{
     $('raiAdjustReason').value='';
