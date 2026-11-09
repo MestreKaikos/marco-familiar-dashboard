@@ -93,11 +93,14 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
                 }
             } else {
                 LazyColumn(Modifier.weight(1f)) {
-                    items(store.chores, key = { it.id }) { task ->
+                    items(orderedRaiChores(store.chores.toList(), today), key = { it.id }) { task ->
                         val status = store.status(task, today)
                         Column(
                             Modifier.fillMaxWidth().padding(bottom = 12.dp)
-                                .background(Palette.Highlight, RoundedCornerShape(20.dp))
+                                .background(
+                                    if (status == "approved") Palette.Online.copy(alpha = 0.13f)
+                                    else Palette.Highlight, RoundedCornerShape(20.dp)
+                                )
                                 .padding(horizontal = 16.dp, vertical = 12.dp)
                         ) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -120,9 +123,22 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
                                         Button(onClick = { protect("Validar feina d'en Rai") { store.approveChore(task.id, today) } }) { Text("Validar") }
                                         TextButton(onClick = { protect("Rebutjar feina") { store.rejectChore(task.id, today) } }) { Text("Rebutjar") }
                                     }
+                                    "approved" -> {
+                                        Text(
+                                            if (task.frequency == "once") "✓ Feta · no es repeteix"
+                                            else "✓ Avui ja feta",
+                                            style = Type.Small.copy(
+                                                color = Palette.Online, fontWeight = FontWeight.Bold,
+                                                fontSize = 25.sp
+                                            ),
+                                            modifier = Modifier
+                                                .background(Palette.Online.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+                                                .padding(horizontal = 14.dp, vertical = 7.dp)
+                                        )
+                                    }
                                     "not_due" -> Text("No toca avui", style = Type.Small.copy(color = Palette.InkMuted))
                                     "slots" -> Text("Gestiona les franges des del mòbil", style = Type.Tiny.copy(color = Palette.InkMuted))
-                                    else -> Text("✓ Feta ${if (task.daily) "avui" else ""}", style = Type.Small.copy(color = Palette.Online, fontWeight = FontWeight.SemiBold))
+                                    else -> Text("No disponible avui", style = Type.Small.copy(color = Palette.InkMuted))
                                 }
                             }
                         }
