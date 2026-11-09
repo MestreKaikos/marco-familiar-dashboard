@@ -5,6 +5,9 @@ import android.content.SharedPreferences
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -153,7 +156,7 @@ private fun RemindersPanel(store: FamilyReminders, today: LocalDate, modifier: M
                 Text(store.pending().size.toString() + " pendents · Els vençuts apareixen destacats",
                     style = Type.Small.copy(color = Palette.InkSoft))
             }
-            Button(onClick = { creating = true }) { Text("+ Afegir") }
+            Button(onClick = { creating = true }, modifier = Modifier.heightIn(min = 68.dp)) { Text("+ Nou recordatori", style = Type.Small.copy(fontSize = 22.sp)) }
         }
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(top = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -210,24 +213,36 @@ private fun ReminderDialog(
     var date by remember(original) { mutableStateOf(original?.date ?: "") }
     var notes by remember(original) { mutableStateOf(original?.notes ?: "") }
     var error by remember(original) { mutableStateOf(false) }
-    AlertDialog(onDismissRequest = onDismiss,
-        title = { Text(if(original == null) "Nou recordatori" else "Editar recordatori") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(value = title, onValueChange = { title = it.take(120) },
-                    label = { Text("Què cal fer?") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = date, onValueChange = { date = it.take(10) },
-                    label = { Text("Data límit (AAAA-MM-DD) · opcional") },
-                    isError = error, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = notes, onValueChange = { notes = it.take(240) },
-                    label = { Text("Nota (opcional)") }, modifier = Modifier.fillMaxWidth())
-                if (error) Text("Revisa la data límit: AAAA-MM-DD", color = Palette.Accent)
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { error = !onSave(title, date, notes) },
-                enabled = title.isNotBlank()) { Text("Desar") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel·lar") } }
-    )
+    val dismissKeyboard = familyFormKeyboardActions()
+
+    FamilyFormDialog(
+        title = if (original == null) "Nou recordatori" else "Editar recordatori",
+        confirmLabel = "Desar",
+        confirmEnabled = title.isNotBlank(),
+        onDismiss = onDismiss,
+        onConfirm = { error = !onSave(title, date, notes) }
+    ) {
+        OutlinedTextField(
+            value = title, onValueChange = { title = it.take(120) },
+            label = { Text("Què cal fer?") }, singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = dismissKeyboard, textStyle = Type.Small,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = date, onValueChange = { date = it.take(10); error = false },
+            label = { Text("Data límit (AAAA-MM-DD) · opcional") },
+            singleLine = true, isError = error, textStyle = Type.Small,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = dismissKeyboard, modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = notes, onValueChange = { notes = it.take(240) },
+            label = { Text("Nota (opcional)") }, maxLines = 3,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = dismissKeyboard, textStyle = Type.Small,
+            modifier = Modifier.fillMaxWidth()
+        )
+        if (error) Text("Revisa la data límit: AAAA-MM-DD", color = Palette.Accent)
+    }
 }
