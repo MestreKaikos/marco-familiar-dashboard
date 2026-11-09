@@ -257,7 +257,17 @@ fun FamilyShoppingPanel(
 ) {
     var groceryName by rememberSaveable { mutableStateOf("") }
     var editGrocery by remember { mutableStateOf<LocalGrocery?>(null) }
-        FamilyPanel(modifier) {
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focus = LocalFocusManager.current
+    val addProduct = {
+        if (groceryName.isNotBlank()) {
+            store.addGrocery(groceryName)
+            groceryName = ""
+            focus.clearFocus()
+            keyboard?.hide()
+        }
+    }
+    FamilyPanel(modifier) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("🛒 Llista de la compra", style = Type.Large.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
                 Text("${store.groceries.count { !it.bought }} ${if (store.groceries.count { !it.bought } == 1) "pendent" else "pendents"}", style = Type.Tiny)
@@ -271,11 +281,11 @@ fun FamilyShoppingPanel(
                     singleLine = true,
                     textStyle = Type.Small,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { store.addGrocery(groceryName); groceryName = "" }),
+                    keyboardActions = KeyboardActions(onDone = { addProduct() }),
                     modifier = Modifier.weight(1f)
                 )
-                Button(onClick = { store.addGrocery(groceryName); groceryName = "" }, enabled = groceryName.isNotBlank(), modifier = Modifier.heightIn(min = 66.dp)) {
-                    Text("Afegir")
+                Button(onClick = { addProduct() }, enabled = groceryName.isNotBlank(), modifier = Modifier.heightIn(min = 66.dp)) {
+                    Text("Afegir", style = Type.Small.copy(fontSize = 21.sp))
                 }
             }
             Spacer(Modifier.height(12.dp))
@@ -313,7 +323,7 @@ fun FamilyShoppingPanel(
             }
             Text(
                 if (!connected) "Només es desa en aquest dispositiu"
-                else if (pending > 0) "$pending canvi(s) pendent(s) de sincronitzar"
+                else if (pending > 0) "$pending ${if (pending == 1) "canvi pendent" else "canvis pendents"} de sincronitzar"
                 else "Compra compartida · dades del marc i dels mòbils",
                 style = Type.Tiny.copy(color = Palette.InkMuted),
                 modifier = Modifier.padding(top = 12.dp)
