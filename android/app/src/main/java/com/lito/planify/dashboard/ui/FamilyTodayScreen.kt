@@ -196,13 +196,14 @@ private fun UpcomingEventsCard(
                                 .background(tint.copy(alpha = 0.13f), RoundedCornerShape(15.dp))
                         ) {
                             // Tipografia segons l'espai REAL de cada subtargeta.
-                            val compact = maxHeight < 70.dp
+                            val tileHeight = maxHeight
+                            val compact = tileHeight < 70.dp
                             val titleSize = when {
-                                maxHeight >= 155.dp -> 31
-                                maxHeight >= 110.dp -> 27
-                                maxHeight >= 85.dp -> 24
-                                maxHeight >= 65.dp -> 21
-                                maxHeight >= 45.dp -> 18
+                                tileHeight >= 155.dp -> 31
+                                tileHeight >= 110.dp -> 27
+                                tileHeight >= 85.dp -> 24
+                                tileHeight >= 65.dp -> 21
+                                tileHeight >= 45.dp -> 18
                                 else -> 15
                             }
                             Row(
@@ -237,8 +238,8 @@ private fun UpcomingEventsCard(
                                                 fontSize = titleSize.sp, lineHeight = (titleSize + 4).sp
                                             ),
                                             maxLines = when {
-                                                maxHeight >= 155.dp -> 3
-                                                maxHeight >= 110.dp -> 2
+                                                tileHeight >= 155.dp -> 3
+                                                tileHeight >= 110.dp -> 2
                                                 else -> 1
                                             },
                                             overflow = TextOverflow.Ellipsis
@@ -247,7 +248,7 @@ private fun UpcomingEventsCard(
                                             whenText,
                                             style = Type.Tiny.copy(
                                                 color = Palette.InkSoft,
-                                                fontSize = if (maxHeight >= 100.dp) 19.sp else 16.sp
+                                                fontSize = if (tileHeight >= 100.dp) 19.sp else 16.sp
                                             ),
                                             maxLines = 1, overflow = TextOverflow.Ellipsis
                                         )
