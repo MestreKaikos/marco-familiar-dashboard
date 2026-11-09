@@ -66,14 +66,46 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
     // Lo que está pasando ahora (con hora, empezado y sin terminar) va antes que lo próximo
     val live = events.firstOrNull { !it.all_day && !it.at.isAfter(now) && (it.end ?: it.at.plusHours(1)).isAfter(now) }
     val next = live ?: events.firstOrNull { !it.at.isBefore(now) && it.at.toLocalDate() < today.plusDays(WEEK_DAYS.toLong()) }
+    // Només recordatoris pendents vençuts o amb data límit avui; no substitueixen la pròxima cita.
+    val urgent = urgentReminderNotice(reminders.pending(), today)
     Column(Modifier.fillMaxSize().padding(horizontal = 36.dp, vertical = 28.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Row(Modifier.fillMaxWidth().weight(0.25f), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             // Hora, fecha y tiempo en un solo bloque ancho (dos tercios); lo siguiente, a la derecha
             HeaderBlock(state, Modifier.weight(2f).fillMaxHeight())
             Box(Modifier.weight(1f).fillMaxHeight()) {
-                if (next != null) EventTapTarget(next, Modifier.fillMaxSize()) { NextCompact(next, now, live = next === live) }
-                else Box(Modifier.fillMaxSize().background(Palette.Card, RoundedCornerShape(28.dp)), contentAlignment = Alignment.Center) {
-                    Text(if (state.token == null && !state.ics) "Calendaris per configurar" else "Setmana sense activitats", style = Type.Body.copy(color = Palette.InkMuted))
+                if (urgent != null) {
+                    // Separa les zones tàctils: l'esdeveniment obre la cita i la franja el recordatori.
+                    Column(
+                        Modifier.fillMaxSize().background(
+                            if (next != null) parseColor(next.calendar_color, Palette.Accent) else Palette.Card,
+                            RoundedCornerShape(28.dp)
+                        )
+                    ) {
+                        if (next != null) {
+                            EventTapTarget(next, Modifier.fillMaxWidth().weight(1f)) {
+                                NextCompact(next, now, live = next === live, hasReminder = true)
+                            }
+                        } else {
+                            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                                Text(
+                                    if (state.token == null && !state.ics) "Calendaris per configurar" else "Setmana sense activitats",
+                                    style = Type.Body.copy(color = Palette.InkMuted)
+                                )
+                            }
+                        }
+                        UrgentReminderPill(urgent, Modifier.fillMaxWidth().padding(horizontal = 14.dp, bottom = 12.dp)) {
+                            onOpen(Page.Reminders)
+                        }
+                    }
+                } else if (next != null) {
+                    EventTapTarget(next, Modifier.fillMaxSize()) { NextCompact(next, now, live = next === live) }
+                } else {
+                    Box(Modifier.fillMaxSize().background(Palette.Card, RoundedCornerShape(28.dp)), contentAlignment = Alignment.Center) {
+                        Text(
+                            if (state.token == null && !state.ics) "Calendaris per configurar" else "Setmana sense activitats",
+                            style = Type.Body.copy(color = Palette.InkMuted)
+                        )
+                    }
                 }
             }
         }
@@ -105,14 +137,62 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
 
 // --- Arriba ---
 
-/** Lo próximo (o, mientras dura, lo de ahora), del color de su calendario: cuánto falta o hasta cuándo, título y cuándo. */
+/**
+ * Un sol avís a la capçalera: primer el més antic vençut, després el d'avui.
+ * El recompte serveix per no amagar altres urgències. Els fets desapareixen.
+ */
+internal data class UrgentReminderNotice(val title: String, val overdue: Boolean, val extra: Int)
+
+internal fun urgentReminderNotice(reminders: List<FamilyReminder>, today: LocalDate): UrgentReminderNotice? {
+    val urgent = reminders.asSequence()
+        .filter { !it.done && it.deadline?.let { date -> !date.isAfter(today) } == true }
+        .sortedWith(compareBy<FamilyReminder> { it.deadline }.thenBy { it.title })
+        .toList()
+    val first = urgent.firstOrNull() ?: return null
+    return UrgentReminderNotice(first.title, first.deadline!!.isBefore(today), urgent.size - 1)
+}
+
 @Composable
-private fun NextCompact(event: Event, now: LocalDateTime, live: Boolean) {
+private fun UrgentReminderPill(notice: UrgentReminderNotice, modifier: Modifier, onClick: () -> Unit) {
+    val alertColor = if (notice.overdue) Palette.Accent else Palette.Warm
+    Row(
+        modifier.background(Palette.Card, RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(
+            if (notice.overdue) "⚠ VENÇUT" else "📌 AVUI",
+            style = Type.Tiny.copy(color = alertColor, fontSize = 17.sp, fontWeight = FontWeight.Bold),
+            maxLines = 1
+        )
+        Text(
+            notice.title,
+            style = Type.Tiny.copy(color = Palette.Ink, fontSize = 19.sp, fontWeight = FontWeight.SemiBold),
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (notice.extra > 0) {
+            Text(
+                "+${notice.extra} més ›",
+                style = Type.Tiny.copy(color = alertColor, fontSize = 17.sp, fontWeight = FontWeight.SemiBold),
+                maxLines = 1
+            )
+        }
+    }
+}
+
+/** La pròxima cita o la que està passant ara: preserva el color del calendari. */
+@Composable
+private fun NextCompact(event: Event, now: LocalDateTime, live: Boolean, hasReminder: Boolean = false) {
     val color = parseColor(event.calendar_color, Palette.Accent)
     val ink = onColor(color)
     val left = countdown(now, event.at, maxMinutes = 24 * 60)?.removePrefix("en ") ?: relativeBadge(now, event.at).lowercase(Spanish)
     Column(
-        Modifier.fillMaxSize().background(color, RoundedCornerShape(28.dp)).padding(horizontal = 30.dp, vertical = 22.dp),
+        Modifier.fillMaxSize().background(color, RoundedCornerShape(28.dp))
+            .padding(horizontal = if (hasReminder) 22.dp else 30.dp, vertical = if (hasReminder) 12.dp else 22.dp),
         verticalArrangement = Arrangement.Center
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -123,7 +203,7 @@ private fun NextCompact(event: Event, now: LocalDateTime, live: Boolean) {
                 modifier = Modifier.background(ink.copy(alpha = 0.18f), RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 2.dp)
             )
         }
-        Text(event.title, style = Type.Large.copy(color = ink, fontWeight = FontWeight.SemiBold), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
+        Text(event.title, style = (if (hasReminder) Type.Body else Type.Large).copy(color = ink, fontWeight = FontWeight.SemiBold), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = if (hasReminder) 4.dp else 8.dp))
         Text(
             "${relativeDay(event.at.toLocalDate(), now.toLocalDate())} · ${event.rangeLabel() ?: event.timeLabel()}",
             style = Type.Small.copy(color = ink.copy(alpha = 0.85f)),
