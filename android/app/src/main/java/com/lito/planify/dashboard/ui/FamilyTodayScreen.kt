@@ -582,7 +582,7 @@ private fun KidsTile(state: UiState, modifier: Modifier, onClick: () -> Unit) {
     Tile("Infants", "🐾", Palette.Warm, modifier, onClick) {
         if (chores == null) return@Tile
         val left = chores.pending()
-        Text(if (left == 0) "🎉 Tot fet" else "$left ${if (left == 1) "tarea" else "tareas"} por hacer", style = Type.Body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 8.dp))
+        Text(if (left == 0) "🎉 Tot fet" else "$left ${if (left == 1) "feina" else "feines"} per fer", style = Type.Body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 8.dp))
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             chores.ninos.orEmpty().forEach { k ->
                 Text(
@@ -592,7 +592,7 @@ private fun KidsTile(state: UiState, modifier: Modifier, onClick: () -> Unit) {
                 )
             }
         }
-        chores.pedidas?.size?.takeIf { it > 0 }?.let { Text("🎁 $it ${if (it == 1) "canje" else "canjes"} por aprobar", style = Type.Tiny.copy(color = Palette.Accent, fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 6.dp)) }
+        chores.pedidas?.size?.takeIf { it > 0 }?.let { Text("🎁 $it ${if (it == 1) "premi" else "premis"} per aprovar", style = Type.Tiny.copy(color = Palette.Accent, fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 6.dp)) }
     }
 }
 
