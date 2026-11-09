@@ -726,7 +726,7 @@ function renderRai(){
         line.style.borderColor='#a9ddba';
       }
       const title=task.title+(slot==='única'?'':' · '+slot)+' · +'+task.points+' punts';
-      line.appendChild(makeText('span',title,'name'+(done?' bought':''));
+      line.appendChild(makeText('span',title,'name'+(done?' bought':'')));
       if(done){
         const badge=makeText('strong',task.frequency==='once'?'✓ Feta · no es repeteix':'✓ Feta avui','small');
         badge.style.color='#237847';
