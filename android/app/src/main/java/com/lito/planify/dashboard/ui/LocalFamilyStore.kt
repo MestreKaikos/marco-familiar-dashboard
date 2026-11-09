@@ -29,7 +29,8 @@ data class LocalChore(
     val status: String = "todo", // todo, pending, approved
     val frequency: String = if (daily) "daily" else "once",
     val days: String = "",
-    val slots: String = "única"
+    val slots: String = "única",
+    val completedSlots: Set<String> = emptySet()
 )
 data class LocalReward(val id: String, val title: String, val cost: Int)
 
@@ -66,16 +67,20 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
         if (!prefs.contains("family_before_cloud")) {
             prefs.edit().putString("family_before_cloud", prefs.getString("data", "{}")).apply()
         }
-        val pendingLocal = chores.filter { it.status == "pending" }.associateBy { it.id }
-        val doneByTask = mutableMapOf<String, Pair<String, String>>()
+        // L'estat local del dia actual no es pot perdre per un historial del núvol
+        // més antic. Això passava en feines diàries fetes ahir i tornades a fer avui.
+        val localById = chores.associateBy { it.id }
+        val today = LocalDate.now().toString()
+        val history = mutableMapOf<String, MutableMap<String, MutableSet<String>>>()
         for (j in 0 until remoteDone.length()) {
             val d = remoteDone.optJSONObject(j) ?: continue
             val id = d.optString("taskId")
-            val date = d.optString("date")
-            if (id.isBlank() || date.isBlank()) continue
-            if (doneByTask[id]?.first.orEmpty() < date) {
-                doneByTask[id] = date to d.optString("owner", "Rai")
-            }
+            val date = normalizeChoreDate(d.optString("date")) ?: continue
+            val owner = d.optString("owner", "Rai")
+            if (id.isBlank() || owner != "Rai") continue
+            history.getOrPut(id) { mutableMapOf() }
+                .getOrPut(date) { mutableSetOf() }
+                .add(d.optString("slot", "única").ifBlank { "única" })
         }
         val newChores = mutableListOf<LocalChore>()
         for (i in 0 until remoteTasks.length()) {
@@ -84,23 +89,45 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
             val title = item.optString("title")
             if (id.isBlank() || title.isBlank()) continue
             val owner = if (item.optString("owner") == "Família") "Família" else "Rai"
-            val completed = doneByTask[id]?.takeIf { it.second == owner }?.first
-            val localPending = pendingLocal[id]?.takeIf { completed == null }
+            val frequency = item.optString("frequency").takeIf {
+                it in listOf("daily", "once", "weekly", "weekdays", "slots")
+            } ?: if (item.optBoolean("daily")) "daily" else "once"
+            val doneDates = history[id].orEmpty()
+            val cloudDate = doneDates.keys.maxOrNull().orEmpty()
+            val local = localById[id]?.takeIf { it.owner == owner }
+            // Preserva «pendent» o «aprovada» fins que el servidor confirmi la
+            // nova data. Només guanya la data de completament més recent.
+            val localCandidate = local?.takeIf {
+                it.status in setOf("pending", "approved") &&
+                    it.date.isNotBlank() &&
+                    (frequency == "once" || it.date == today) &&
+                    it.date >= cloudDate
+            }
+            val currentDate = when {
+                cloudDate.isBlank() -> localCandidate?.date.orEmpty()
+                localCandidate != null && localCandidate.date > cloudDate -> localCandidate.date
+                else -> cloudDate
+            }
+            val cloudApproved = cloudDate.isNotBlank() &&
+                (localCandidate == null || cloudDate >= localCandidate.date)
+            val chosenStatus = when {
+                cloudApproved -> "approved"
+                localCandidate != null -> localCandidate.status
+                else -> "todo"
+            }
+            val completedSlots = doneDates[currentDate].orEmpty().toSet() +
+                (local?.completedSlots.orEmpty().takeIf { local?.date == currentDate }
+                    ?: emptySet())
             newChores.add(LocalChore(
                 id = id, title = title.take(100), owner = owner,
                 stars = item.optInt("stars", 1).coerceIn(1, 100),
                 daily = item.optBoolean("daily"),
-                frequency = item.optString("frequency").takeIf {
-                    it in listOf("daily", "once", "weekly", "weekdays", "slots")
-                } ?: if (item.optBoolean("daily")) "daily" else "once",
+                frequency = frequency,
                 days = item.optString("days"),
                 slots = item.optString("slots", "única"),
-                date = completed ?: localPending?.date.orEmpty(),
-                status = when {
-                    completed != null -> "approved"
-                    localPending != null -> "pending"
-                    else -> "todo"
-                }
+                date = currentDate,
+                status = chosenStatus,
+                completedSlots = completedSlots
             ))
         }
         val newRewards = mutableListOf<LocalReward>()
@@ -166,7 +193,13 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
                                 it in listOf("daily","once","weekly","weekdays","slots")
                             } ?: if (item.optBoolean("daily")) "daily" else "once",
                             days = item.optString("days"),
-                            slots = item.optString("slots","única")
+                            slots = item.optString("slots","única"),
+                            completedSlots = buildSet {
+                                val saved = item.optJSONArray("completedSlots")
+                                if (saved != null) for (j in 0 until saved.length()) {
+                                    saved.optString(j).takeIf { it.isNotBlank() }?.let(::add)
+                                }
+                            }
                         )
                     )
                 }
@@ -194,7 +227,8 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
             chores.forEach { item ->
                 put(JSONObject().put("id", item.id).put("title", item.title).put("owner", item.owner)
                      .put("stars", item.stars).put("daily", item.daily).put("date", item.date).put("status", item.status)
-                    .put("frequency", item.frequency).put("days", item.days).put("slots", item.slots))
+                    .put("frequency", item.frequency).put("days", item.days).put("slots", item.slots)
+                    .put("completedSlots", JSONArray().apply { item.completedSlots.forEach(::put) }))
             }
         })
         root.put("rewards", JSONArray().apply {
@@ -270,14 +304,8 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
         }
     }
 
-    fun status(chore: LocalChore, today: LocalDate): String {
-        val schedule = chore.frequency
-        val weekday = today.dayOfWeek.value.toString()
-        if ((schedule == "weekly" || schedule == "weekdays") &&
-            weekday !in chore.days.split(",")) return "not_due"
-        if (schedule == "slots") return "slots"
-        return if (schedule != "once" && chore.date != today.toString()) "todo" else chore.status
-    }
+    fun status(chore: LocalChore, today: LocalDate): String =
+        choreStatusOnDate(chore, today)
 
     fun requestDone(id: String, today: LocalDate) {
         val i = chores.indexOfFirst { it.id == id }
