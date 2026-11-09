@@ -225,7 +225,7 @@ internal fun CarPanel(car: CarStatus, modifier: Modifier) {
         car.ruedas_bar?.takeIf { it.size == 4 }?.let { r ->
             // Las cuatro ruedas como se ven desde arriba: delanteras arriba
             Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Ruedas\n(bar)", style = Type.Tiny.copy(color = Palette.InkSoft), modifier = Modifier.width(76.dp))
+                Text("Rodes\n(bar)", style = Type.Tiny.copy(color = Palette.InkSoft), modifier = Modifier.width(76.dp))
                 listOf("DI" to r[0], "DD" to r[1], "TI" to r[2], "TD" to r[3]).forEach { (name, bar) ->
                     val low = bar < 2.2
                     Column(
