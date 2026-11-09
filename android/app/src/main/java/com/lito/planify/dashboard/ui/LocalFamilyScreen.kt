@@ -129,7 +129,7 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
                                         )
                                     ) {
                                         Text(
-                                            if (task.owner == "Rai") "✓ Ja l'he feta!" else "✓ Marcar com a feta",
+                                            if (task.owner == "Rai") "✓ JA L'HE FETA!" else "✓ Marcar com a feta",
                                             style = Type.Small.copy(
                                                 fontSize = 27.sp,
                                                 fontWeight = FontWeight.Bold,
