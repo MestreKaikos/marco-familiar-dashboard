@@ -91,7 +91,8 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
                     reminders.dueOn(day).take(2).joinToString(" · ") { it.title }.ifBlank { null },
                     Modifier.weight(1f).fillMaxHeight(),
                     onDinnerClick = { onOpen(Page.Reminders) },
-                    footerTitle = "📌 RECORDATORIS"
+                    footerTitle = "📌 RECORDATORIS",
+                    showEmptyFooter = false
                 )
             }
         }
@@ -205,6 +206,10 @@ private fun UpcomingEventsCard(
 
 // --- Centro: la semana ---
 
+/** A Avui no repetim «Sense recordatoris» a cadascun dels set dies buits. */
+internal fun shouldShowWeekFooter(showEmptyFooter: Boolean, detail: String?): Boolean =
+    showEmptyFooter || !detail.isNullOrBlank()
+
 /** Un día de la semana: cabecera (hoy resaltado), el turno en una pastilla y las citas con su color. */
 @Composable
 internal fun WeekDay(
@@ -212,7 +217,8 @@ internal fun WeekDay(
     onDinnerClick: () -> Unit = {},
     forecast: com.lito.planify.dashboard.data.Forecast? = null,
     small: Boolean = false,
-    footerTitle: String = "🍽️ SOPAR"
+    footerTitle: String = "🍽️ SOPAR",
+    showEmptyFooter: Boolean = true
 ) {
     val isToday = day == today
     Column(modifier.background(if (isToday) Palette.Card else Palette.Card.copy(alpha = 0.6f), RoundedCornerShape(24.dp)).padding(horizontal = 14.dp, vertical = 14.dp).alpha(if (day < today) 0.55f else 1f)) {
@@ -259,7 +265,9 @@ internal fun WeekDay(
             if (events.isEmpty()) Text("—", style = Type.Small.copy(color = Palette.InkMuted))
             events.forEach { e -> EventTapTarget(e) { WeekItem(e, past = e.isPast(now), small = small) } }
         }
-        DinnerPill(dinner, Modifier.padding(top = 8.dp), onDinnerClick, small, footerTitle)
+        if (shouldShowWeekFooter(showEmptyFooter, dinner)) {
+            DinnerPill(dinner, Modifier.padding(top = 8.dp), onDinnerClick, small, footerTitle)
+        }
     }
 }
 
@@ -328,14 +336,14 @@ private fun HomeSummaryTile(
         modifier.clip(shape)
             .background(Brush.verticalGradient(listOf(Palette.Card, tint.copy(alpha = 0.07f).compositeOver(Palette.Card))))
             .border(1.dp, tint.copy(alpha = 0.20f), shape)
-            .padding(horizontal = 18.dp, vertical = 12.dp)
+            .padding(horizontal = 18.dp, vertical = 10.dp)
     ) { constraints ->
         val width = constraints.maxWidth
         val childConstraints = constraints.copy(minHeight = 0)
         val header = subcompose("headerMeasure") {
             HomeSummaryHeader(title, emoji, accent, summary, hiddenCount = 0, pointsBadge = pointsBadge, onClick = onClick)
         }.single().measure(childConstraints)
-        val headerGap = 8.dp.roundToPx()
+        val headerGap = 6.dp.roundToPx()
         val rowGap = 2.dp.roundToPx()
         val bodyHeight = (constraints.maxHeight - header.height - headerGap).coerceAtLeast(0)
         val bodyConstraints = Constraints(minWidth = width, maxWidth = width, maxHeight = bodyHeight)
@@ -351,7 +359,7 @@ private fun HomeSummaryTile(
         val body = subcompose("items") {
             if (items.isEmpty()) {
                 Box(Modifier.fillMaxSize().clickable(onClick = onClick), contentAlignment = Alignment.CenterStart) {
-                    Text(emptyMessage, style = Type.Body.copy(fontSize = 24.sp, lineHeight = 30.sp,
+                    Text(emptyMessage, style = Type.Body.copy(fontSize = 22.sp, lineHeight = 28.sp,
                         color = Palette.InkSoft), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             } else {
@@ -386,13 +394,13 @@ private fun HomeSummaryHeader(title: String, emoji: String, tint: Color, summary
         if (pointsBadge != null) {
             Column(horizontalAlignment = Alignment.End) {
                 Text("⭐ $pointsBadge", style = Type.Small.copy(
-                    fontSize = 24.sp, lineHeight = 30.sp,
+                    fontSize = 21.sp, lineHeight = 25.sp,
                     fontWeight = FontWeight.Bold, color = tint),
                     modifier = Modifier.background(tint.copy(alpha = 0.11f), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                        .padding(horizontal = 7.dp, vertical = 1.dp),
                     maxLines = 1)
                 if (hiddenCount > 0) Text("+$hiddenCount més",
-                    style = Type.Tiny.copy(color = tint, fontSize = 14.sp),
+                    style = Type.Tiny.copy(color = tint, fontSize = 13.sp, lineHeight = 17.sp),
                     maxLines = 1)
             }
         } else {
@@ -424,16 +432,16 @@ private fun HomeSummaryRow(item: HomeSummaryItem, tint: Color) {
     Row(Modifier.fillMaxWidth()
         .background(tint.copy(alpha = 0.055f), RoundedCornerShape(8.dp))
         .then(if (action != null) Modifier.clickable(onClickLabel = item.actionLabel, onClick = action) else Modifier)
-        .padding(horizontal = 8.dp, vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(item.glyph, style = Type.Small.copy(fontSize = 24.sp, lineHeight = 32.sp,
+        .padding(horizontal = 8.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+        Text(item.glyph, style = Type.Small.copy(fontSize = 22.sp, lineHeight = 28.sp,
             color = tint, fontWeight = FontWeight.Medium))
-        Text(item.title, style = Type.Body.copy(fontSize = 23.sp, lineHeight = 32.sp,
+        Text(item.title, style = Type.Body.copy(fontSize = 21.sp, lineHeight = 28.sp,
             color = Palette.Ink, fontWeight = FontWeight.Medium),
             modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         item.detail?.let {
-            Text(it, style = Type.Tiny.copy(color = Palette.InkMuted, fontSize = 16.sp,
-                lineHeight = 21.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(it, style = Type.Tiny.copy(color = Palette.InkMuted, fontSize = 15.sp,
+                lineHeight = 19.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
