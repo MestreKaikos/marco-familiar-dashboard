@@ -236,7 +236,11 @@ private fun UpcomingEventsCard(
                                                 color = Palette.Ink, fontWeight = FontWeight.SemiBold,
                                                 fontSize = titleSize.sp, lineHeight = (titleSize + 4).sp
                                             ),
-                                            maxLines = if (maxHeight >= 125.dp) 3 else 2,
+                                            maxLines = when {
+                                                maxHeight >= 155.dp -> 3
+                                                maxHeight >= 110.dp -> 2
+                                                else -> 1
+                                            },
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         Text(
