@@ -524,7 +524,7 @@ private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Mo
     val tasks = store.chores.filter { it.owner == "Rai" }
     val awaiting = tasks.filter { store.status(it, today) == "pending" }
     val remaining = tasks.filter { store.status(it, today) in setOf("todo", "slots") }
-    val approved = tasks.filter { store.status(it, today) == "approved" }
+    val approved = tasks.filter { store.status(it, today) == "approved" && it.date == today.toString() }
     val items = remaining.map { task ->
         if (store.status(task, today) == "slots") {
             HomeSummaryItem(title = task.title, detail = "Per franges", glyph = "›",
