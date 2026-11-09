@@ -34,8 +34,8 @@ android {
         applicationId = "com.lito.planify.dashboard"
         minSdk = 29 // XORO CPF 10PF: Android 10
         targetSdk = 37
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.1.1"
         // El RTC del marco no conserva la hora: cualquier fecha anterior a la compilación es falsa.
         buildConfigField("long", "BUILD_TIME", "${System.currentTimeMillis()}L")
         buildConfigField("String", "DASHBOARD_CONFIG", "\"$dashboardConfig\"")
