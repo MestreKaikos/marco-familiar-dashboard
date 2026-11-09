@@ -22,6 +22,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedButton
@@ -113,33 +114,84 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
                                 }
                                 TextButton(onClick = { protect("Eliminar feina") { store.removeChore(task.id) } }) { Text("✕") }
                             }
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                                when (status) {
-                                    "todo" -> OutlinedButton(onClick = { store.requestDone(task.id, today) }) {
-                                        Text(if (task.owner == "Rai") "Ja l'he feta" else "Marcar com feta")
-                                    }
-                                    "pending" -> {
-                                        Text("Pendent de validar", style = Type.Tiny.copy(color = Palette.Warm), modifier = Modifier.weight(1f))
-                                        Button(onClick = { protect("Validar feina d'en Rai") { store.approveChore(task.id, today) } }) { Text("Validar") }
-                                        TextButton(onClick = { protect("Rebutjar feina") { store.rejectChore(task.id, today) } }) { Text("Rebutjar") }
-                                    }
-                                    "approved" -> {
+                            Spacer(Modifier.height(10.dp))
+                            when (status) {
+                                "todo" -> {
+                                    // Objectiu tàctil gran: en Rai pot demanar la validació
+                                    // sense haver d'encertar una casella petita.
+                                    Button(
+                                        onClick = { store.requestDone(task.id, today) },
+                                        modifier = Modifier.fillMaxWidth().heightIn(min = 76.dp),
+                                        shape = RoundedCornerShape(18.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFF7857BC),
+                                            contentColor = Color.White
+                                        )
+                                    ) {
                                         Text(
-                                            if (task.frequency == "once") "✓ Feta · no es repeteix"
-                                            else "✓ Avui ja feta",
+                                            if (task.owner == "Rai") "✓ Ja l'he feta!" else "✓ Marcar com a feta",
                                             style = Type.Small.copy(
-                                                color = Palette.Online, fontWeight = FontWeight.Bold,
-                                                fontSize = 25.sp
+                                                fontSize = 27.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
                                             ),
-                                            modifier = Modifier
-                                                .background(Palette.Online.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
-                                                .padding(horizontal = 14.dp, vertical = 7.dp)
+                                            maxLines = 1
                                         )
                                     }
-                                    "not_due" -> Text("No toca avui", style = Type.Small.copy(color = Palette.InkMuted))
-                                    "slots" -> Text("Gestiona les franges des del mòbil", style = Type.Tiny.copy(color = Palette.InkMuted))
-                                    else -> Text("No disponible avui", style = Type.Small.copy(color = Palette.InkMuted))
                                 }
+                                "pending" -> {
+                                    Box(
+                                        Modifier.fillMaxWidth()
+                                            .background(Palette.Warm.copy(alpha = 0.15f), RoundedCornerShape(15.dp))
+                                            .padding(horizontal = 14.dp, vertical = 13.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("⏳ Esperant validació", style = Type.Small.copy(
+                                            color = Palette.Ink, fontWeight = FontWeight.SemiBold,
+                                            fontSize = 24.sp
+                                        ))
+                                    }
+                                    Spacer(Modifier.height(8.dp))
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Button(
+                                            onClick = { protect("Validar feina d'en Rai") { store.approveChore(task.id, today) } },
+                                            modifier = Modifier.weight(1f).heightIn(min = 60.dp)
+                                        ) {
+                                            Text("Validar", style = Type.Small.copy(
+                                                fontSize = 22.sp, fontWeight = FontWeight.SemiBold,
+                                                color = Color.White
+                                            ))
+                                        }
+                                        OutlinedButton(
+                                            onClick = { protect("Rebutjar feina") { store.rejectChore(task.id, today) } },
+                                            modifier = Modifier.weight(1f).heightIn(min = 60.dp)
+                                        ) {
+                                            Text("Rebutjar", style = Type.Small.copy(fontSize = 22.sp))
+                                        }
+                                    }
+                                }
+                                "approved" -> {
+                                    Box(
+                                        Modifier.fillMaxWidth().heightIn(min = 70.dp)
+                                            .background(Palette.Online.copy(alpha = 0.17f), RoundedCornerShape(18.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            if (task.frequency == "once") "✓ Feta · no es repeteix"
+                                            else "✓ Feta avui",
+                                            style = Type.Small.copy(
+                                                color = Palette.Online, fontWeight = FontWeight.Bold,
+                                                fontSize = 27.sp
+                                            ), maxLines = 1
+                                        )
+                                    }
+                                }
+                                "not_due" -> Text("No toca avui", style = Type.Small.copy(color = Palette.InkMuted))
+                                "slots" -> Text("Gestiona les franges des del mòbil", style = Type.Tiny.copy(color = Palette.InkMuted))
+                                else -> Text("No disponible avui", style = Type.Small.copy(color = Palette.InkMuted))
                             }
                         }
                     }
