@@ -47,6 +47,46 @@ internal fun choreStatusOnDate(task: LocalChore, today: LocalDate): String {
     return if (matchesDate) task.status else "todo"
 }
 
+
+internal data class CloudChoreState(
+    val date: String,
+    val status: String,
+    val completedSlots: Set<String>
+)
+
+/**
+ * És imprescindible comparar les dates del registre del núvol i l'estat local.
+ * Exemple: feta ahir (núvol), pendent/aprovada avui (marc). Ahir NO pot tornar
+ * a obrir la tasca avui després de sincronitzar.
+ */
+internal fun reconcileChoreState(
+    completedOnDates: Map<String, Set<String>>,
+    local: LocalChore?,
+    frequency: String,
+    today: LocalDate
+): CloudChoreState {
+    val cloudDate = completedOnDates.keys.maxOrNull().orEmpty()
+    val localCandidate = local?.takeIf {
+        it.status in setOf("pending", "approved") &&
+            it.date.isNotBlank() &&
+            (frequency == "once" || it.date == today.toString()) &&
+            it.date >= cloudDate
+    }
+    val date = when {
+        cloudDate.isBlank() -> localCandidate?.date.orEmpty()
+        localCandidate != null && localCandidate.date > cloudDate -> localCandidate.date
+        else -> cloudDate
+    }
+    val status = when {
+        cloudDate.isNotBlank() && (localCandidate == null || cloudDate >= localCandidate.date) -> "approved"
+        localCandidate != null -> localCandidate.status
+        else -> "todo"
+    }
+    val slots = completedOnDates[date].orEmpty() +
+        (local?.completedSlots.orEmpty().takeIf { local?.date == date } ?: emptySet())
+    return CloudChoreState(date, status, slots)
+}
+
 /** Ordena primer les pendents, després les que esperen validació, i al final les fetes. */
 internal fun orderedRaiChores(tasks: List<LocalChore>, today: LocalDate): List<LocalChore> =
     tasks.withIndex().sortedWith(compareBy<IndexedValue<LocalChore>> {
