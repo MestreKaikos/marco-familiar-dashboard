@@ -121,7 +121,7 @@ private fun ChoreRow(chore: Chore, kids: List<Kid>, busy: String?, onDone: (Stri
                         modifier = Modifier.background(color, RoundedCornerShape(22.dp)).padding(horizontal = 18.dp, vertical = 6.dp)
                     )
                     Text(
-                        "Deshacer",
+                        "Desfer",
                         style = Type.Tiny.copy(color = Palette.InkMuted),
                         modifier = Modifier.clickable(enabled = busy == null) { onUndo(done.id) }.padding(start = 14.dp, top = 10.dp, bottom = 10.dp)
                     )
