@@ -15,9 +15,9 @@ const MAX_FAMILY_TASKS_=100;
 const MAX_FAMILY_REWARDS_=50;
 
 function familyTaskSheet_(name,header) {
-  const tab=sheet_(name,header);
-  if(name===TASK_DONE_TAB_)tab.getRange('A:A').setNumberFormat('@');
-  return tab;
+  // No modificar el format de les dates existents del full quan només llegim.
+  // taskDoneDate_ normalitza tant el text YYYY-MM-DD com els objectes Date.
+  return sheet_(name,header);
 }
 /** Les dates de Google Sheets poden ser Date encara que les escrivim YYYY-MM-DD. */
 function taskDoneDate_(value){
