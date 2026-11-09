@@ -408,7 +408,7 @@ private fun HomeSummaryTile(
         val bodyConstraints = Constraints(minWidth = width, maxWidth = width, maxHeight = bodyHeight)
         val visibleCount = if (items.isEmpty()) 0 else {
             val sample = subcompose("rowMeasure") {
-                HomeSummaryRow(items.first(), accent)
+                HomeSummaryRow(items.first(), items.first().rowTint ?: accent)
             }.single().measure(childConstraints)
             SummaryTileLayout.visibleItems(bodyHeight, sample.height, rowGap, items.size)
         }
@@ -423,7 +423,7 @@ private fun HomeSummaryTile(
                 }
             } else {
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    items.take(visibleCount).forEach { HomeSummaryRow(it, accent) }
+                    items.take(visibleCount).forEach { HomeSummaryRow(it, it.rowTint ?: accent) }
                 }
             }
         }.single().measure(bodyConstraints)
@@ -481,6 +481,7 @@ private data class HomeSummaryItem(
     val title: String,
     val detail: String? = null,
     val glyph: String = "☐",
+    val rowTint: Color? = null,
     val onMark: (() -> Unit)? = null,
     val actionLabel: String = "Marcar com fet"
 )
@@ -523,9 +524,9 @@ private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Mo
     val tasks = store.chores.filter { it.owner == "Rai" }
     val awaiting = tasks.filter { store.status(it, today) == "pending" }
     val remaining = tasks.filter { store.status(it, today) in setOf("todo", "slots") }
+    val approved = tasks.filter { store.status(it, today) == "approved" }
     val items = remaining.map { task ->
         if (store.status(task, today) == "slots") {
-            // Les feines per franges necessiten escollir una franja a la vista de gestió.
             HomeSummaryItem(title = task.title, detail = "Per franges", glyph = "›",
                 onMark = onClick, actionLabel = "Obrir feines per franges")
         } else {
@@ -534,9 +535,20 @@ private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Mo
         }
     } + awaiting.map {
         HomeSummaryItem(title = it.title, detail = "Per validar", glyph = "⏳")
+    } + approved.map { task ->
+        HomeSummaryItem(
+            title = task.title,
+            detail = if (task.frequency == "once") "Feta" else "Feta avui",
+            glyph = "✓", rowTint = Palette.Online
+        )
     }
     HomeSummaryTile("Feines d'en Rai", "⭐", parseColor("#7857BC"),
-        summary = "${items.size} ${if (items.size == 1) "feina" else "feines"} per fer o validar",
+        summary = when {
+            remaining.isNotEmpty() || awaiting.isNotEmpty() ->
+                "${remaining.size + awaiting.size} ${if (remaining.size + awaiting.size == 1) "feina" else "feines"} per fer o validar"
+            approved.isNotEmpty() -> "✓ Tot fet per avui"
+            else -> "Sense feines programades avui"
+        },
         items = items, emptyMessage = if (tasks.isEmpty()) "Toca per afegir feines" else "Tot fet per avui!",
         modifier = modifier, alert = awaiting.isNotEmpty(), pointsBadge = store.stars, onClick = onClick)
 }
