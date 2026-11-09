@@ -54,7 +54,7 @@ fun RewardsPanel(chores: Chores, busy: String?, onClaim: (String, String) -> Uni
     val rewards = chores.recompensas.orEmpty()
     if (rewards.isEmpty() && claims.isEmpty()) return
     Panel(modifier, compact = true) {
-        CardHeader("Recompensas", Icons.Outlined.CardGiftcard, RewardTint, count = claims.size, compact = true)
+        CardHeader("Recompenses", Icons.Outlined.CardGiftcard, RewardTint, count = claims.size, compact = true)
         Column(Modifier.padding(top = 4.dp)) {
             claims.forEach { ClaimRow(it, kids[it.nino], busy, onAsk) }
             rewards.forEach { RewardRow(it, kids, claims, busy, onClaim) }
@@ -71,11 +71,11 @@ private fun ClaimRow(claim: RewardClaim, kid: Kid?, busy: String?, onAsk: (Rewar
     ) {
         Text(claim.emoji ?: "🎁", style = Type.Large, modifier = Modifier.width(56.dp))
         Column(Modifier.weight(1f)) {
-            Text("${claim.nombre ?: kid?.nombre.orEmpty()} pide", style = Type.Tiny.copy(color = Palette.InkSoft, fontWeight = FontWeight.SemiBold))
+            Text("${claim.nombre ?: kid?.nombre.orEmpty()} demana", style = Type.Tiny.copy(color = Palette.InkSoft, fontWeight = FontWeight.SemiBold))
             Text(claim.titulo.orEmpty(), style = Type.Small.copy(color = Palette.Ink), maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
-        SmallButton("Aprobar", Palette.Online, filled = true, enabled = busy == null) { onAsk(claim, true) }
-        SmallButton("Rechazar", Palette.InkMuted, filled = false, enabled = busy == null, modifier = Modifier.padding(start = 10.dp)) { onAsk(claim, false) }
+        SmallButton("Aprovar", Palette.Online, filled = true, enabled = busy == null) { onAsk(claim, true) }
+        SmallButton("Rebutjar", Palette.InkMuted, filled = false, enabled = busy == null, modifier = Modifier.padding(start = 10.dp)) { onAsk(claim, false) }
     }
 }
 
@@ -114,13 +114,13 @@ private fun KidProgress(kid: Kid, cost: Int, asked: Boolean, enabled: Boolean, o
             Text(kid.nombre.take(1).uppercase(Spanish), style = Type.Tiny.copy(color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp))
         }
         when {
-            asked -> Text("Pedida ⏳", style = Type.Tiny.copy(color = Palette.InkSoft, fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(start = 10.dp))
-            have >= cost -> SmallButton("Pedir", color, filled = true, enabled = enabled, modifier = Modifier.padding(start = 10.dp), onClick = onClaim)
+            asked -> Text("Demanada ⏳", style = Type.Tiny.copy(color = Palette.InkSoft, fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(start = 10.dp))
+            have >= cost -> SmallButton("Demanar", color, filled = true, enabled = enabled, modifier = Modifier.padding(start = 10.dp), onClick = onClaim)
             else -> {
                 Box(Modifier.padding(start = 10.dp).width(90.dp).height(10.dp).background(Palette.Line, RoundedCornerShape(5.dp))) {
                     Box(Modifier.fillMaxHeight().fillMaxWidth(if (cost > 0) have.toFloat() / cost else 1f).background(color, RoundedCornerShape(5.dp)))
                 }
-                Text("faltan ${cost - have}", style = Type.Tiny.copy(color = Palette.InkSoft), modifier = Modifier.padding(start = 10.dp))
+                Text("en falten ${cost - have}", style = Type.Tiny.copy(color = Palette.InkSoft), modifier = Modifier.padding(start = 10.dp))
             }
         }
     }
@@ -165,11 +165,11 @@ fun PinOverlay(claim: RewardClaim, approve: Boolean, busy: Boolean, error: Strin
                 .padding(horizontal = 48.dp, vertical = 36.dp)
         ) {
             Text(
-                "${if (approve) "Aprobar" else "Rechazar"} «${claim.titulo.orEmpty()}» para ${claim.nombre.orEmpty()}",
+                "${if (approve) "Aprovar" else "Rebutjar"} «${claim.titulo.orEmpty()}» per a ${claim.nombre.orEmpty()}",
                 style = Type.Body.copy(fontWeight = FontWeight.SemiBold),
                 textAlign = TextAlign.Center
             )
-            Text("PIN de padres", style = Type.Small.copy(color = Palette.InkMuted))
+            Text("PIN dels adults", style = Type.Small.copy(color = Palette.InkMuted))
             Row(horizontalArrangement = Arrangement.spacedBy(18.dp), modifier = Modifier.padding(vertical = 6.dp)) {
                 repeat(PIN_LENGTH) { i -> Box(Modifier.size(22.dp).background(if (i < pin.length) tint else Palette.Line, CircleShape)) }
             }
