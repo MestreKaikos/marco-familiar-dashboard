@@ -29,7 +29,7 @@ fun WeatherScreen(state: UiState) {
     val location = state.location
     ScreenPadding {
         if (forecast == null || location == null) {
-            Text(if (location == null) "Elige una ubicación en Ajustes" else "Cargando previsión…", style = Type.Large.copy(color = Palette.InkMuted))
+            Text(if (location == null) "Tria una ubicació a Opcions" else "Carregant la previsió…", style = Type.Large.copy(color = Palette.InkMuted))
             return@ScreenPadding
         }
         val pager = rememberPagerState { 2 }
@@ -43,7 +43,7 @@ fun WeatherScreen(state: UiState) {
                         if (edge > 0) scope.launch { pager.animateScrollToPage(1) }
                     }
                 } else {
-                    WeekWeatherCard(forecast, location.name, "Próxima semana", today.plusDays(7), state.now, Modifier.fillMaxSize()) { edge ->
+                    WeekWeatherCard(forecast, location.name, "La setmana vinent", today.plusDays(7), state.now, Modifier.fillMaxSize()) { edge ->
                         if (edge < 0) scope.launch { pager.animateScrollToPage(0) }
                     }
                 }

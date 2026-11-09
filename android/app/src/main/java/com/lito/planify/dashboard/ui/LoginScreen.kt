@@ -78,17 +78,17 @@ fun LoginScreen(state: UiState, onLogin: (String, String) -> Unit, onWifi: () ->
                 )
             }
             Text(
-                "Inicia sesión",
+                "Inicia la sessió",
                 style = Type.Huge.copy(fontSize = Type.Title.fontSize * if (keyboardOpen) 1.4f else 2f),
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().padding(bottom = if (keyboardOpen) 4.dp else 24.dp)
             )
             Field(email, { email = it }, "Email", Modifier.fillMaxWidth(), keyboardType = KeyboardType.Email, imeAction = ImeAction.Next)
-            Field(password, { password = it }, "Contraseña", Modifier.fillMaxWidth(), password = true) {
+            Field(password, { password = it }, "Contrasenya", Modifier.fillMaxWidth(), password = true) {
                 if (canSubmit) onLogin(email, password)
             }
             state.loginError?.let { Text(it, style = Type.Body.copy(color = Palette.Accent)) }
-            PillButton(if (state.loggingIn) "Entrando…" else "Entrar", Modifier.fillMaxWidth(), primary = true, enabled = canSubmit) {
+            PillButton(if (state.loggingIn) "Entrant…" else "Entrar", Modifier.fillMaxWidth(), primary = true, enabled = canSubmit) {
                 onLogin(email, password)
             }
         }
@@ -119,8 +119,8 @@ private fun WaitingForNetwork(onWifi: () -> Unit) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(40.dp)) {
             Spinner()
-            Text("Esperando conexión a Internet…", style = Type.Title, textAlign = TextAlign.Center)
-            PillButton("Ir a Ajustes", Modifier.width(520.dp), onClick = onWifi)
+            Text("Esperant connexió a Internet…", style = Type.Title, textAlign = TextAlign.Center)
+            PillButton("Obrir opcions", Modifier.width(520.dp), onClick = onWifi)
         }
     }
 }

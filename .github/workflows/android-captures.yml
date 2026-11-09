@@ -1,0 +1,85 @@
+name: Marc Familiar · Captures reals Android
+
+on:
+  pull_request:
+    paths:
+      - "android/**"
+      - ".github/scripts/captures-colors.sh"
+      - ".github/scripts/captures-emulador.sh"
+      - ".github/workflows/android-captures.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: captures-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  captures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Baixa la branca de desenvolupament
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          persist-credentials: true
+      - name: Activa KVM per a l'emulador
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Prepara Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Prepara SDK Android
+        uses: android-actions/setup-android@v4
+        with:
+          log-accepted-android-sdk-licenses: "false"
+      - name: Instal·la les eines de compilació
+        run: sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0"
+      - name: Prepara Gradle
+        uses: gradle/actions/setup-gradle@v4
+      - name: Compila APK de depuració
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --no-daemon
+      - name: Emulador Android 10 i captures de pantalla
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          cores: 2
+          ram-size: 2048M
+          heap-size: 512M
+          disk-size: 6G
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none -camera-front none -no-snapshot
+          disable-animations: true
+          script: bash .github/scripts/captures-colors.sh
+      - name: Ofereix les captures per descarregar
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: captures-reals-marc-familiar
+          path: captures/*
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Publica les captures al repositori per poder-les veure sense instal·lar l'app
+        if: github.event_name == 'pull_request'
+        run: |
+          mkdir -p docs/captures
+          cp captures/*.png docs/captures/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/captures/*.png
+          if ! git diff --cached --quiet; then
+            git commit -m "docs: captures reals de l'emulador Android"
+            git push origin HEAD:${{ github.head_ref || github.ref_name }}
+          fi
