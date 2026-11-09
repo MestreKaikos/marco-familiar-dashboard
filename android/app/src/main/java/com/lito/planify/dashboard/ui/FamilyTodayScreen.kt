@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -66,8 +67,8 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
     val events = state.content?.events.orEmpty()
     val shifts = state.content?.sessions.orEmpty()
     val birthdayNames = birthdaysToday(events, today)
-    // Cites en curs i totes les properes de la setmana: no amaguem la segona cita del mateix dia.
-    val upcoming = nextCalendarEvents(events + shifts, now)
+    // A la capçalera, només les cites del proper dia amb activitat (avui si n'hi ha).
+    val upcoming = nextCalendarDayEvents(events + shifts, now)
     Column(Modifier.fillMaxSize().padding(horizontal = 36.dp, vertical = 28.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Row(Modifier.fillMaxWidth().weight(0.32f), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             // Hora, fecha y tiempo en un solo bloque ancho (dos tercios); lo siguiente, a la derecha
@@ -125,12 +126,32 @@ internal fun nextCalendarEvents(events: List<Event>, now: LocalDateTime): List<E
         .toList()
 }
 
-/** Llista navegable: es veuen tantes cites com caben i es pot desplaçar la resta. */
+/**
+ * Agrupa totes les cites pendents al primer dia que té activitat. No s'aturen
+ * arbitràriament al setè dia: si el proper compromís és més endavant, es mostra.
+ * Les cites que ja estan en curs avui també es consideren d'avui.
+ * No inclou aniversaris (es mostren a la franja del rellotge).
+ */
+internal fun nextCalendarDayEvents(events: List<Event>, now: LocalDateTime): List<Event> {
+    val today = now.toLocalDate()
+    val pending = events.asSequence().filterNot(::isBirthdayEvent).filter { event ->
+        val end = event.end ?: if (event.all_day) event.at.plusDays(1) else event.at.plusHours(1)
+        end.isAfter(now)
+    }.distinctBy { listOf(it.calendar_id.toString(), it.id.toString(), it.date_at, it.title) }.toList()
+    val nearest = pending.minOfOrNull { maxOf(it.at.toLocalDate(), today) }
+        ?: return emptyList()
+    return pending.filter { maxOf(it.at.toLocalDate(), today) == nearest }
+        .sortedWith(compareBy<Event> { if (it.at.isBefore(now)) now else it.at }
+            .thenBy { it.at })
+}
+
+/** Un únic dia amb activitat; les seves targetes reparteixen tota l'alçada disponible. */
 @Composable
 private fun UpcomingEventsCard(
     events: List<Event>, now: LocalDateTime, noCalendar: Boolean, modifier: Modifier = Modifier
 ) {
     val today = now.toLocalDate()
+    val nearestDay = events.firstOrNull()?.let { maxOf(it.at.toLocalDate(), today) }
     Column(
         modifier.background(Palette.Card, RoundedCornerShape(28.dp))
             .padding(horizontal = 20.dp, vertical = 14.dp),
@@ -140,61 +161,94 @@ private fun UpcomingEventsCard(
             Text(
                 if (events.size == 1) "EL SEGÜENT" else "ELS SEGÜENTS",
                 style = Type.Label.copy(color = Palette.Accent, fontSize = 17.sp),
-                modifier = Modifier.weight(1f),
-                maxLines = 1
+                modifier = Modifier.weight(1f), maxLines = 1
             )
-            if (events.isNotEmpty()) Text(
-                "${events.size} ${if (events.size == 1) "cita" else "cites"}",
-                style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 17.sp),
+            if (nearestDay != null) Text(
+                relativeDay(nearestDay, today) + " · " + events.size +
+                    if (events.size == 1) " cita" else " cites",
+                style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 16.sp),
                 maxLines = 1
             )
         }
         if (events.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
-                    if (noCalendar) "Calendaris per configurar" else "Setmana sense activitats",
+                    if (noCalendar) "Calendaris per configurar" else "No hi ha cites properes",
                     style = Type.Body.copy(color = Palette.InkMuted)
                 )
             }
         } else {
             Column(
-                Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                Modifier.fillMaxWidth().weight(1f),
+                verticalArrangement = Arrangement.spacedBy(if (events.size > 5) 3.dp else 7.dp)
             ) {
                 events.forEach { event ->
                     val tint = parseColor(event.calendar_color, Palette.Accent)
                     val ongoing = !event.at.isAfter(now)
                     val whenText = when {
                         event.all_day -> "Tot el dia"
-                        ongoing -> "Ara · ${event.rangeLabel() ?: event.timeLabel()}"
+                        ongoing -> "Ara · " + (event.rangeLabel() ?: event.timeLabel())
                         else -> event.rangeLabel() ?: event.timeLabel()
                     }
-                    EventTapTarget(event, Modifier.fillMaxWidth()) {
-                        Row(
-                            Modifier.fillMaxWidth()
-                                .background(tint.copy(alpha = 0.11f), RoundedCornerShape(15.dp))
-                                .padding(horizontal = 10.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    EventTapTarget(event, Modifier.fillMaxWidth().weight(1f)) {
+                        BoxWithConstraints(
+                            Modifier.fillMaxSize()
+                                .background(tint.copy(alpha = 0.13f), RoundedCornerShape(15.dp))
                         ) {
-                            Box(
-                                Modifier.width(5.dp).height(39.dp)
-                                    .background(tint, RoundedCornerShape(4.dp))
-                            )
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    event.title,
-                                    style = Type.Small.copy(
-                                        color = Palette.Ink, fontWeight = FontWeight.SemiBold,
-                                        fontSize = 21.sp, lineHeight = 26.sp
-                                    ),
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                            // Tipografia segons l'espai REAL de cada subtargeta.
+                            val compact = maxHeight < 70.dp
+                            val titleSize = when {
+                                maxHeight >= 155.dp -> 31
+                                maxHeight >= 110.dp -> 27
+                                maxHeight >= 85.dp -> 24
+                                maxHeight >= 65.dp -> 21
+                                maxHeight >= 45.dp -> 18
+                                else -> 15
+                            }
+                            Row(
+                                Modifier.fillMaxSize().padding(
+                                    horizontal = if (compact) 8.dp else 13.dp,
+                                    vertical = if (compact) 3.dp else 7.dp
+                                ),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    Modifier.width(if (compact) 4.dp else 6.dp)
+                                        .fillMaxHeight()
+                                        .background(tint, RoundedCornerShape(4.dp))
                                 )
-                                Text(
-                                    "${relativeDay(event.at.toLocalDate(), today)} · $whenText",
-                                    style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 17.sp),
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis
-                                )
+                                if (compact) {
+                                    Text(
+                                        whenText + " · " + event.title,
+                                        style = Type.Small.copy(
+                                            color = Palette.Ink, fontWeight = FontWeight.SemiBold,
+                                            fontSize = titleSize.sp, lineHeight = (titleSize + 3).sp
+                                        ),
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                } else {
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+                                        Text(
+                                            event.title,
+                                            style = Type.Small.copy(
+                                                color = Palette.Ink, fontWeight = FontWeight.SemiBold,
+                                                fontSize = titleSize.sp, lineHeight = (titleSize + 4).sp
+                                            ),
+                                            maxLines = if (maxHeight >= 125.dp) 3 else 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            whenText,
+                                            style = Type.Tiny.copy(
+                                                color = Palette.InkSoft,
+                                                fontSize = if (maxHeight >= 100.dp) 19.sp else 16.sp
+                                            ),
+                                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
