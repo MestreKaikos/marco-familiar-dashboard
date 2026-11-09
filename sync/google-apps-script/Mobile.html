@@ -709,19 +709,47 @@ function renderRai(){
   }
   const completed=new Set(snapshot.done.filter(d=>d.date===snapshot.today)
     .map(d=>d.taskId+'|'+d.slot));
-  const tasks=snapshot.tasks.filter(t=>t.active&&t.dueToday);
+  const everCompleted=new Set(snapshot.done.map(d=>d.taskId));
+  // Una feina puntual completada no desapareix: queda al final amb un ✓ verd.
+  const tasks=snapshot.tasks.filter(t=>t.active&&(t.dueToday||
+    (t.frequency==='once'&&everCompleted.has(t.id))));
   const target=$('raiTaskList');target.replaceChildren();
   if(!tasks.length)target.appendChild(makeText('p','Avui no hi ha tasques programades.'));
+  tasks.sort((a,b)=>Number(!a.dueToday)-Number(!b.dueToday));
   tasks.forEach(task=>{
     (task.slots||'única').split(',').forEach(slot=>{
-      const done=completed.has(task.id+'|'+slot);
+      const done=completed.has(task.id+'|'+slot) ||
+        (task.frequency==='once' && everCompleted.has(task.id));
       const line=makeText('div','','item');
+      if(done){
+        line.style.background='#e9f7ed';
+        line.style.borderColor='#a9ddba';
+      }
       const title=task.title+(slot==='única'?'':' · '+slot)+' · +'+task.points+' punts';
       line.appendChild(makeText('span',title,'name'+(done?' bought':'')));
-      const toggle=makeText('button',done?'↩ Desfer':'✓ Feta','small');
-      toggle.type='button';toggle.disabled=raiBusy;
-      toggle.addEventListener('click',()=>raiAction(done?'tasks_undo':'tasks_done',{id:task.id,slot}));
-      line.appendChild(toggle);target.appendChild(line);
+      if(done){
+        const badge=makeText('strong',task.frequency==='once'?'✓ Feta · no es repeteix':'✓ Feta avui','small');
+        badge.style.color='#237847';
+        badge.style.whiteSpace='nowrap';
+        line.appendChild(badge);
+        // Desfer només si aquesta activitat s'ha completat avui, i amb confirmació.
+        // Mai no mostrem un altre botó «Feta» mentre sigui aprovada.
+        if(completed.has(task.id+'|'+slot)){
+          const undo=makeText('button','Desfer','small');
+          undo.type='button';undo.disabled=raiBusy;
+          undo.addEventListener('click',()=>{
+            if(confirm('Vols desfer «'+task.title+'»? Es retiraran els punts i podrà tornar a fer-se.'))
+              raiAction('tasks_undo',{id:task.id,slot});
+          });
+          line.appendChild(undo);
+        }
+      }else{
+        const toggle=makeText('button','✓ Ja l’he feta','small');
+        toggle.type='button';toggle.disabled=raiBusy;
+        toggle.addEventListener('click',()=>raiAction('tasks_done',{id:task.id,slot}));
+        line.appendChild(toggle);
+      }
+      target.appendChild(line);
     });
   });
   const rewards=$('raiRewardList');rewards.replaceChildren();

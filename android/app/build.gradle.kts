@@ -34,8 +34,8 @@ android {
         applicationId = "com.lito.planify.dashboard"
         minSdk = 29 // XORO CPF 10PF: Android 10
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 6
+        versionName = "1.1.4"
         // El RTC del marco no conserva la hora: cualquier fecha anterior a la compilación es falsa.
         buildConfigField("long", "BUILD_TIME", "${System.currentTimeMillis()}L")
         buildConfigField("String", "DASHBOARD_CONFIG", "\"$dashboardConfig\"")
@@ -116,6 +116,8 @@ dependencies {
     implementation("com.google.zxing:core:3.5.3")
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation("com.airbnb.android:lottie:6.7.1")
+    // WebRTC natiu per a Nest: evita la limitació H.264 del WebView 74 del marc.
+    implementation("io.getstream:stream-webrtc-android:1.3.10")
 
     implementation("com.squareup.retrofit2:retrofit:3.0.0")
     implementation("com.squareup.retrofit2:converter-gson:3.0.0")

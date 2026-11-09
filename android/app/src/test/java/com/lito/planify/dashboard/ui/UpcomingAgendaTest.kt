@@ -54,4 +54,43 @@ class UpcomingAgendaTest {
             end = "2026-11-10 00:00:00")
         assertTrue(nextCalendarEvents(listOf(event), now).contains(event))
     }
+    @Test fun nextDayIncludesOnlyEventsOfNearestDate() {
+        val events = listOf(
+            event(1, "2026-11-09 18:00:00"),
+            event(2, "2026-11-09 09:00:00"),
+            event(3, "2026-11-10 10:00:00"),
+            event(4, "2026-11-12 20:00:00")
+        )
+        assertEquals(listOf(2, 1), nextCalendarDayEvents(events, now).map { it.id })
+    }
+
+    @Test fun nextDayIncludesAllRemainingActivitiesOfToday() {
+        val events = listOf(
+            event(1, "2026-11-08 15:00:00", end = "2026-11-08 18:00:00"),
+            event(2, "2026-11-08 19:30:00"),
+            event(3, "2026-11-09 09:00:00")
+        )
+        assertEquals(listOf(1, 2), nextCalendarDayEvents(events, now).map { it.id })
+    }
+
+    @Test fun nextDayFindsFirstActivityBeyondSevenDays() {
+        val event = event(1, "2026-12-02 11:30:00")
+        assertEquals(listOf(1), nextCalendarDayEvents(listOf(event), now).map { it.id })
+    }
+
+    @Test fun nextDayExcludesBirthdaysAndCompletedEvents() {
+        val birthday = event(1, "2026-11-09 00:00:00", allDay = true,
+            end = "2026-11-10 00:00:00").copy(title = "Aniversari de Gemma")
+        val finished = event(2, "2026-11-08 10:00:00", end = "2026-11-08 11:00:00")
+        val next = event(3, "2026-11-11 18:00:00")
+        assertEquals(listOf(3), nextCalendarDayEvents(listOf(birthday, finished, next), now).map { it.id })
+    }
+
+    @Test fun nextDayDeduplicatesAndIncludesMultiDayOngoing() {
+        val continuing = event(1, "2026-11-07 00:00:00", allDay = true,
+            end = "2026-11-10 00:00:00")
+        val later = event(2, "2026-11-09 09:00:00")
+        assertEquals(listOf(1), nextCalendarDayEvents(listOf(continuing, continuing, later), now).map { it.id })
+    }
+
 }

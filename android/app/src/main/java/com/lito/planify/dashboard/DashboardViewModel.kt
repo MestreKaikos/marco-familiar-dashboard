@@ -370,9 +370,9 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                     choreBusy = null,
                     choreError = when {
                         error == null -> null
-                        error is HttpError && error.code == 403 -> "PIN incorrecto (o bloqueado unos minutos)"
-                        error is HttpError -> "No se ha podido: puede que ya estuviera hecho"
-                        else -> "Sin conexión"
+                        error is HttpError && error.code == 403 -> "PIN incorrecte (o bloquejat durant uns minuts)"
+                        error is HttpError -> "No s’ha pogut completar: potser ja estava fet"
+                        else -> "Sense connexió"
                     }
                 )
             }
@@ -437,7 +437,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 val response = api.auth(AuthRequest(email.trim(), password))
                 val token = response.body()?.token
                 if (!response.isSuccessful || token == null) {
-                    _state.update { it.copy(loggingIn = false, loginError = "Email o contraseña incorrectos") }
+                    _state.update { it.copy(loggingIn = false, loginError = "Correu electrònic o contrasenya incorrectes") }
                     return@launch
                 }
                 store.token = token
@@ -445,7 +445,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
                 _state.update { it.copy(token = token, email = email.trim(), loggingIn = false) }
                 refreshNow()
             } catch (e: Exception) {
-                _state.update { it.copy(loggingIn = false, loginError = "Sin conexión con el servidor") }
+                _state.update { it.copy(loggingIn = false, loginError = "Sense connexió amb el servidor") }
             }
         }
     }

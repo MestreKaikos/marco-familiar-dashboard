@@ -131,7 +131,7 @@ private fun FamilyListPanel(
         if (items.isEmpty()) {
             EmptyState(
                 Icons.Outlined.TaskAlt, color, if (shopping) "Res per comprar" else "Res pendent",
-                if (shopping) "Añade en Bring! o «Alexa, añade… a la lista de la compra»" else "Añade en Todoist o «Alexa, añade… a mis tareas»",
+                if (shopping) "Afegeix-ho a Bring! o «Alexa, afegeix-ho a la llista de la compra»" else "Afegeix-ho a Todoist o «Alexa, afegeix-ho a les meves tasques»",
                 Modifier.weight(1f).fillMaxWidth()
             )
         } else {
@@ -196,8 +196,8 @@ private fun FamilyItemRow(item: ShoppingItem, today: LocalDate, onRemove: ((Stri
             val late = due < today
             Text(
                 when (due) {
-                    today -> "hoy"
-                    today.plusDays(1) -> "mañana"
+                    today -> "avui"
+                    today.plusDays(1) -> "demà"
                     else -> "${due.dayOfMonth} ${due.month.getDisplayName(TextStyle.SHORT, Spanish).trimEnd('.')}"
                 },
                 style = Type.Tiny.copy(color = if (late) Color.White else Palette.InkSoft, fontWeight = FontWeight.SemiBold),

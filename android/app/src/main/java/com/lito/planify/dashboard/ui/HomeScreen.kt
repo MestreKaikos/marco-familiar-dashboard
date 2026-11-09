@@ -73,7 +73,7 @@ fun HomeScreen(state: UiState, actions: HomeCallbacks) {
             }
             Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                 casa?.toldo?.let { AwningPanel(it, actions, Modifier.fillMaxWidth()) }
-                MusicPanel(casa?.musica, actions, Modifier.fillMaxWidth().weight(1f))
+                SpotifyPanel(Modifier.fillMaxWidth().weight(1f))
             }
             Column(Modifier.weight(0.62f).fillMaxHeight()) {
                 ComingSoonPanel(Modifier.fillMaxSize())
@@ -86,10 +86,10 @@ fun HomeScreen(state: UiState, actions: HomeCallbacks) {
 internal fun ClimatePanel(c: Climate, rooms: List<RoomTemp>, actions: HomeCallbacks, modifier: Modifier, compact: Boolean = false) {
     val heating = c.estado == "heat"
     Panel(modifier, compact = true) {
-        CardHeader("Calefacción · ${c.nombre ?: "Salón"}", Icons.Outlined.Thermostat, Heat, compact = true)
+        CardHeader("Calefacció · ${c.nombre ?: "Sala d’estar"}", Icons.Outlined.Thermostat, Heat, compact = true)
         val now: @Composable () -> Unit = {
             Column {
-                Text("Ahora", style = Type.Small.copy(color = Palette.InkSoft))
+                Text("Ara", style = Type.Small.copy(color = Palette.InkSoft))
                 Text(c.temp?.let { "${it.decimal()}°" } ?: "—", style = Type.Huge.copy(fontSize = if (compact) 96.sp else 124.sp, lineHeight = if (compact) 100.sp else 128.sp), maxLines = 1, softWrap = false)
                 Text(
                     listOfNotNull(c.humedad?.let { "💧 ${it.roundToInt()} %" }, c.pila?.let { (if (it < 30) "🪫 " else "🔋 ") + "pila ${it.roundToInt()} %" }).joinToString("   "),
@@ -101,15 +101,15 @@ internal fun ClimatePanel(c: Climate, rooms: List<RoomTemp>, actions: HomeCallba
         // Consigna con − / +, de medio en medio grado
         val setpoint: @Composable () -> Unit = {
             Column(horizontalAlignment = if (compact) Alignment.Start else Alignment.CenterHorizontally) {
-                if (!compact) Text("Consigna", style = Type.Small.copy(color = Palette.InkSoft))
+                if (!compact) Text("Objectiu", style = Type.Small.copy(color = Palette.InkSoft))
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
-                    if (compact) Text("Consigna", style = Type.Small.copy(color = Palette.InkSoft), modifier = Modifier.padding(end = 18.dp))
+                    if (compact) Text("Objectiu", style = Type.Small.copy(color = Palette.InkSoft), modifier = Modifier.padding(end = 18.dp))
                     RoundButton("−", Heat, size = if (compact) 60 else 72) { c.consigna?.let { actions.onSetpoint(it - 0.5) } }
                     Text(c.consigna?.let { "${it.decimal()}°" } ?: "—", style = Type.Title.copy(fontWeight = FontWeight.SemiBold, fontSize = if (compact) 40.sp else 46.sp), modifier = Modifier.padding(horizontal = 16.dp))
                     RoundButton("+", Heat, size = if (compact) 60 else 72) { c.consigna?.let { actions.onSetpoint(it + 0.5) } }
                     if (compact) Text(if (heating) "🔥" else "", style = Type.Large, modifier = Modifier.padding(start = 14.dp))
                 }
-                if (!compact) Text(if (heating) "🔥 Calentando" else "En reposo", style = Type.Small.copy(color = if (heating) Heat else Palette.InkMuted, fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 10.dp))
+                if (!compact) Text(if (heating) "🔥 Escalfant" else "En repòs", style = Type.Small.copy(color = if (heating) Heat else Palette.InkMuted, fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 10.dp))
             }
         }
         if (compact) {
@@ -125,7 +125,7 @@ internal fun ClimatePanel(c: Climate, rooms: List<RoomTemp>, actions: HomeCallba
         }
         // Modos del termostato (presets de HA)
         Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp)) {
-            listOf("home" to "🏠 Casa", "away" to "🚪 Fuera", "night" to "🌙 Noche", "freeze" to "❄️ Hielo").forEach { (preset, label) ->
+            listOf("home" to "🏠 Casa", "away" to "🚪 Fora", "night" to "🌙 Nit", "freeze" to "❄️ Gel").forEach { (preset, label) ->
                 Chip(if (compact) label.substringAfter(' ') else label, selected = c.modo == preset, color = Heat, modifier = Modifier.weight(1f)) { actions.onPreset(preset) }
             }
         }
@@ -147,7 +147,7 @@ internal fun ClimatePanel(c: Climate, rooms: List<RoomTemp>, actions: HomeCallba
 internal fun AwningPanel(a: Awning, actions: HomeCallbacks, modifier: Modifier) {
     val out = a.sacado ?: 0
     Panel(modifier, compact = true) {
-        CardHeader(a.nombre ?: "Toldo", Icons.Outlined.Deck, Palette.Warm, compact = true)
+        CardHeader(a.nombre ?: "Tendal", Icons.Outlined.Deck, Palette.Warm, compact = true)
         Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             // El toldo visto de lado: la lona sale tanto como esté sacado
             Box(Modifier.width(150.dp).height(70.dp)) {
@@ -155,14 +155,14 @@ internal fun AwningPanel(a: Awning, actions: HomeCallbacks, modifier: Modifier) 
                 Box(Modifier.padding(start = 12.dp, top = 6.dp).width((14 + 120 * out / 100).dp).height(16.dp).background(Palette.Warm, RoundedCornerShape(topEnd = 8.dp, bottomEnd = 8.dp)))
             }
             Column(Modifier.weight(1f).padding(start = 18.dp)) {
-                Text(if (out <= 2) "Recogido" else if (out >= 98) "Sacado" else "Sacado al $out %", style = Type.Large.copy(fontWeight = FontWeight.SemiBold))
-                if (!a.disponible) Text("Sin conexión", style = Type.Small.copy(color = Red))
+                Text(if (out <= 2) "Recollit" else if (out >= 98) "Desplegat" else "Desplegat al $out %", style = Type.Large.copy(fontWeight = FontWeight.SemiBold))
+                if (!a.disponible) Text("Sense connexió", style = Type.Small.copy(color = Red))
             }
         }
         Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Chip("⬇ Sacar", selected = false, color = Palette.Warm, modifier = Modifier.weight(1f)) { actions.onAwning("open") }
-            Chip("⏸ Parar", selected = false, color = Palette.Warm, modifier = Modifier.weight(1f)) { actions.onAwning("stop") }
-            Chip("⬆ Recoger", selected = false, color = Palette.Warm, modifier = Modifier.weight(1f)) { actions.onAwning("close") }
+            Chip("⬇ Desplegar", selected = false, color = Palette.Warm, modifier = Modifier.weight(1f)) { actions.onAwning("open") }
+            Chip("⏸ Aturar", selected = false, color = Palette.Warm, modifier = Modifier.weight(1f)) { actions.onAwning("stop") }
+            Chip("⬆ Recollir", selected = false, color = Palette.Warm, modifier = Modifier.weight(1f)) { actions.onAwning("close") }
         }
     }
 }
@@ -172,8 +172,8 @@ internal fun MusicPanel(m: Music?, actions: HomeCallbacks, modifier: Modifier) {
     Panel(modifier, compact = true) {
         CardHeader("Música", Icons.Outlined.MusicNote, Purple, compact = true)
         if (m == null) {
-            Text("No suena nada en los Echo", style = Type.Body.copy(color = Palette.InkMuted), modifier = Modifier.padding(top = 18.dp))
-            Text("«Alexa, pon música en el salón»", style = Type.Small.copy(color = Palette.InkMuted), modifier = Modifier.padding(top = 6.dp))
+            Text("No sona música als altaveus Echo", style = Type.Body.copy(color = Palette.InkMuted), modifier = Modifier.padding(top = 18.dp))
+            Text("«Alexa, posa música a la sala»", style = Type.Small.copy(color = Palette.InkMuted), modifier = Modifier.padding(top = 6.dp))
             return@Panel
         }
         val speaker = m.entidad.orEmpty()
@@ -185,7 +185,7 @@ internal fun MusicPanel(m: Music?, actions: HomeCallbacks, modifier: Modifier) {
                 Text(m.titulo.orEmpty(), style = Type.Large.copy(fontWeight = FontWeight.SemiBold), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(m.artista.orEmpty(), style = Type.Body.copy(color = Palette.InkSoft), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    "${if (m.sonando) "▶ Sonando" else "⏸ En pausa"} · ${m.altavoz.orEmpty()}",
+                    "${if (m.sonando) "▶ Sonant" else "⏸ En pausa"} · ${m.altavoz.orEmpty()}",
                     style = Type.Small.copy(color = Purple, fontWeight = FontWeight.SemiBold),
                     modifier = Modifier.padding(top = 6.dp)
                 )
@@ -212,13 +212,13 @@ internal fun MusicPanel(m: Music?, actions: HomeCallbacks, modifier: Modifier) {
 @Composable
 internal fun ComingSoonPanel(modifier: Modifier) {
     Panel(modifier, compact = true) {
-        CardHeader("Próximamente", Icons.Outlined.Upcoming, Palette.InkMuted, compact = true)
+        CardHeader("Properament", Icons.Outlined.Upcoming, Palette.InkMuted, compact = true)
         Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             listOf(
-                "💡" to ("Luces" to "Tuya / Smart Life"),
-                "🍽️" to ("Lavavajillas" to "Home Connect"),
-                "❄️" to ("Aire acondicionado" to "Daikin Onecta"),
-                "🔌" to ("Cargador del coche" to "V2C (HA en casa)")
+                "💡" to ("Llums" to "Tuya / Smart Life"),
+                "🍽️" to ("Rentaplats" to "Home Connect"),
+                "❄️" to ("Aire condicionat" to "Daikin Onecta"),
+                "🔌" to ("Carregador del cotxe" to "V2C (HA a casa)")
             ).forEach { (emoji, info) ->
                 Row(
                     Modifier.fillMaxWidth().background(Palette.Highlight, RoundedCornerShape(20.dp)).padding(horizontal = 18.dp, vertical = 14.dp).alpha(0.75f),
@@ -279,7 +279,7 @@ fun HomeEnergyScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 NestCameraPanel(nestKey, onSaveNestKey, onOpenNest, onNestPairingChanged, Modifier.fillMaxWidth())
-                MusicPanel(casa?.musica, actions, Modifier.fillMaxWidth().height(if (casa?.musica == null) 180.dp else 400.dp))
+                SpotifyPanel(Modifier.fillMaxWidth().height(485.dp))
                 casa?.toldo?.let { AwningPanel(it, actions, Modifier.fillMaxWidth()) }
                 casa?.clima?.let { ClimatePanel(it, casa.estancias.orEmpty(), actions, Modifier.fillMaxWidth(), compact = true) }
                 car?.bateria?.let { CarPanel(car, Modifier.fillMaxWidth()) }
@@ -310,8 +310,8 @@ private fun ComingSoonRow(modifier: Modifier) {
         modifier.background(Palette.Card, RoundedCornerShape(28.dp)).padding(horizontal = 22.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("Pronto", style = Type.Small.copy(color = Palette.InkMuted, fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(end = 12.dp))
-        listOf("💡" to "Luces", "🍽️" to "Lavavajillas", "❄️" to "Aire", "🔌" to "Cargador").forEach { (emoji, name) ->
+        Text("Aviat", style = Type.Small.copy(color = Palette.InkMuted, fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(end = 12.dp))
+        listOf("💡" to "Llums", "🍽️" to "Rentaplats", "❄️" to "Aire", "🔌" to "Carregador").forEach { (emoji, name) ->
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f).alpha(0.7f)) {
                 Text(emoji, style = Type.Large)
                 Text(name, style = Type.Tiny.copy(color = Palette.InkMuted, fontSize = 15.sp), maxLines = 1)

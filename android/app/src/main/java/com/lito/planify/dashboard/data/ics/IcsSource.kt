@@ -107,7 +107,7 @@ class IcsSource(
         // Con hora, sobre el instante: una noche que cruza el cambio de hora dura 11 h pero acaba a las 08:00
         val end = if (allDay) at.plusDays((length / DAY_MS).coerceAtLeast(1))
         else Instant.ofEpochMilli(start.time + length).atZone(zone).toLocalDateTime()
-        val title = e.summary?.value?.trim().orEmpty().ifEmpty { "(sin título)" }
+        val title = e.summary?.value?.trim().orEmpty().ifEmpty { "(sense títol)" }
         val shift = cal.role == CalendarRole.SHIFTS
         return Event(
             id = "${cal.key}|${e.uid?.value}|$at".hashCode(),

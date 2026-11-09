@@ -51,10 +51,10 @@ fun EnergyScreen(state: UiState) {
     ScreenPadding {
         Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
             Column(Modifier.weight(1.55f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                PricePanel("Precio de la luz hoy", day, now, Modifier.fillMaxWidth().weight(if (tomorrow.isEmpty()) 1f else 0.62f), big = true)
-                if (tomorrow.isNotEmpty()) PricePanel("Mañana", tomorrow, now, Modifier.fillMaxWidth().weight(0.38f), big = false)
+                PricePanel("Preu de la llum avui", day, now, Modifier.fillMaxWidth().weight(if (tomorrow.isEmpty()) 1f else 0.62f), big = true)
+                if (tomorrow.isNotEmpty()) PricePanel("Demà", tomorrow, now, Modifier.fillMaxWidth().weight(0.38f), big = false)
                 else Text(
-                    "El precio de mañana lo publica REE sobre las 20:30",
+                    "REE publica el preu de demà cap a les 20.30 h",
                     style = Type.Small.copy(color = Palette.InkMuted),
                     modifier = Modifier.padding(start = 12.dp)
                 )
@@ -75,20 +75,20 @@ internal fun PricePanel(title: String, day: List<HourPrice>, now: LocalDateTime,
     Panel(modifier, compact = true) {
         CardHeader(title, Icons.Outlined.Bolt, Amber, compact = true)
         if (day.isEmpty()) {
-            Text("Sin precios todavía", style = Type.Body.copy(color = Palette.InkMuted), modifier = Modifier.padding(top = 20.dp))
+            Text("Encara no hi ha preus", style = Type.Body.copy(color = Palette.InkMuted), modifier = Modifier.padding(top = 20.dp))
             return@Panel
         }
         if (big) {
             Row(Modifier.fillMaxWidth().padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                current?.let { PriceStat("Ahora", it, min, max, highlight = true, modifier = Modifier.weight(1f)) }
-                PriceStat("Media", null, min, max, value = day.map { it.eur_kwh }.average(), modifier = Modifier.weight(1f))
+                current?.let { PriceStat("Ara", it, min, max, highlight = true, modifier = Modifier.weight(1f)) }
+                PriceStat("Mitjana", null, min, max, value = day.map { it.eur_kwh }.average(), modifier = Modifier.weight(1f))
                 day.minByOrNull { it.eur_kwh }?.let { PriceStat("Mín ${it.time.hour}h", it, min, max, modifier = Modifier.weight(1f)) }
-                day.maxByOrNull { it.eur_kwh }?.let { PriceStat("Máx ${it.time.hour}h", it, min, max, modifier = Modifier.weight(1f)) }
+                day.maxByOrNull { it.eur_kwh }?.let { PriceStat("Màx ${it.time.hour}h", it, min, max, modifier = Modifier.weight(1f)) }
             }
         } else {
             Text(
-                "Más barata ${day.minBy { it.eur_kwh }.let { "${it.time.format(HourMinute)} · ${euros(it.eur_kwh)}" }}   ·   " +
-                    "más cara ${day.maxBy { it.eur_kwh }.let { "${it.time.format(HourMinute)} · ${euros(it.eur_kwh)}" }}",
+                "Més barata ${day.minBy { it.eur_kwh }.let { "${it.time.format(HourMinute)} · ${euros(it.eur_kwh)}" }}   ·   " +
+                    "més cara ${day.maxBy { it.eur_kwh }.let { "${it.time.format(HourMinute)} · ${euros(it.eur_kwh)}" }}",
                 style = Type.Small.copy(color = Palette.InkSoft),
                 modifier = Modifier.padding(top = 12.dp)
             )
@@ -172,15 +172,15 @@ internal fun BestHoursPanel(prices: List<HourPrice>, now: LocalDateTime, modifie
         .sortedBy { it.time }.windowed(3).maxByOrNull { w -> w.sumOf { it.eur_kwh } }
     val tomorrowKnown = prices.any { it.time.toLocalDate() == now.toLocalDate().plusDays(1) }
     Panel(modifier, compact = true) {
-        CardHeader("Mejores horas", Icons.Outlined.Schedule, Palette.Online, compact = true)
+        CardHeader("Millors hores", Icons.Outlined.Schedule, Palette.Online, compact = true)
         Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (prices.isEmpty()) Text("Sin precios todavía", style = Type.Body.copy(color = Palette.InkMuted))
-            car?.let { BestRow("🚗", "Cargar el coche", it, now) }
-            wash?.let { BestRow("🍽️", "Lavavajillas o lavadora", it, now) }
+            if (prices.isEmpty()) Text("Encara no hi ha preus", style = Type.Body.copy(color = Palette.InkMuted))
+            car?.let { BestRow("🚗", "Carregar el cotxe", it, now) }
+            wash?.let { BestRow("🍽️", "Rentaplats o rentadora", it, now) }
             if ((car == null || wash == null) && prices.isNotEmpty() && !tomorrowKnown) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("⏳", style = Type.Large, modifier = Modifier.width(60.dp))
-                    Text("Lo que queda de hoy es caro: mejor esperar al precio de mañana (REE, ≈20:30)", style = Type.Small.copy(color = Palette.InkSoft))
+                    Text("El que queda d’avui és car: millor esperar el preu de demà (REE, cap a les 20.30 h)", style = Type.Small.copy(color = Palette.InkSoft))
                 }
             }
             avoid?.let { w ->
@@ -194,8 +194,8 @@ internal fun BestHoursPanel(prices: List<HourPrice>, now: LocalDateTime, modifie
 private fun BestRow(emoji: String, what: String, window: Triple<LocalDateTime, LocalDateTime, Double>, now: LocalDateTime, warn: Boolean = false) {
     val (from, to, avg) = window
     val day = when (from.toLocalDate()) {
-        now.toLocalDate() -> "hoy"
-        now.toLocalDate().plusDays(1) -> "mañana"
+        now.toLocalDate() -> "avui"
+        now.toLocalDate().plusDays(1) -> "demà"
         else -> from.toLocalDate().shortLabel().lowercase(Spanish)
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -216,16 +216,16 @@ private fun BestRow(emoji: String, what: String, window: Triple<LocalDateTime, L
 @Composable
 internal fun CarPanel(car: CarStatus, modifier: Modifier) {
     Panel(modifier, compact = true) {
-        CardHeader(car.modelo ?: "Coche eléctrico", Icons.Outlined.ElectricCar, Green, compact = true)
+        CardHeader(car.modelo ?: "Cotxe elèctric", Icons.Outlined.ElectricCar, Green, compact = true)
         BatteryPile(car, Modifier.fillMaxWidth().height(120.dp).padding(top = 16.dp))
         Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            CarFact(if (car.cargando) "⚡" else if (car.enchufado) "🔌" else "🅿️", if (car.cargando) "Cargando" else if (car.enchufado) "Enchufado" else "Sin enchufar", Modifier.weight(1f))
+            CarFact(if (car.cargando) "⚡" else if (car.enchufado) "🔌" else "🅿️", if (car.cargando) "Carregant" else if (car.enchufado) "Endollat" else "Desendollat", Modifier.weight(1f))
             car.km?.let { CarFact("🛣️", "${String.format(Spanish, "%,d", it.toLong())} km", Modifier.weight(1f)) }
         }
         car.ruedas_bar?.takeIf { it.size == 4 }?.let { r ->
             // Las cuatro ruedas como se ven desde arriba: delanteras arriba
             Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Ruedas\n(bar)", style = Type.Tiny.copy(color = Palette.InkSoft), modifier = Modifier.width(76.dp))
+                Text("Rodes\n(bar)", style = Type.Tiny.copy(color = Palette.InkSoft), modifier = Modifier.width(76.dp))
                 listOf("DI" to r[0], "DD" to r[1], "TI" to r[2], "TD" to r[3]).forEach { (name, bar) ->
                     val low = bar < 2.2
                     Column(
@@ -291,9 +291,9 @@ private fun BatteryPile(car: CarStatus, modifier: Modifier) {
             Text("${car.autonomia_km?.toInt() ?: "—"} km", style = Type.Title.copy(fontWeight = FontWeight.SemiBold), maxLines = 1)
             // La ficha de debajo ya dice «Cargando»/«Enchufado»: aquí, la potencia o que la carga está en pausa
             val status = when {
-                car.cargando -> "⚡ " + (car.potencia_kw?.let(::kilowatts) ?: "cargando")
+                car.cargando -> "⚡ " + (car.potencia_kw?.let(::kilowatts) ?: "carregant")
                 car.enchufado -> "🔌 en pausa"
-                else -> "de autonomía"
+                else -> "d’autonomia"
             }
             Text(status, style = Type.Small.copy(color = if (car.cargando) Charging else Palette.InkSoft, fontWeight = FontWeight.SemiBold), maxLines = 1)
         }

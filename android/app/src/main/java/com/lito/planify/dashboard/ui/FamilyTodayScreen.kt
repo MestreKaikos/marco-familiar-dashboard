@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -65,8 +67,9 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
     val today = now.toLocalDate()
     val events = state.content?.events.orEmpty()
     val shifts = state.content?.sessions.orEmpty()
-    // Cites en curs i totes les properes de la setmana: no amaguem la segona cita del mateix dia.
-    val upcoming = nextCalendarEvents(events + shifts, now)
+    val birthdayNames = birthdaysToday(events, today)
+    // A la capçalera, només les cites del proper dia amb activitat (avui si n'hi ha).
+    val upcoming = nextCalendarDayEvents(events + shifts, now)
     Column(Modifier.fillMaxSize().padding(horizontal = 36.dp, vertical = 28.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Row(Modifier.fillMaxWidth().weight(0.32f), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             // Hora, fecha y tiempo en un solo bloque ancho (dos tercios); lo siguiente, a la derecha
@@ -77,20 +80,21 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
                 modifier = Modifier.weight(1f).fillMaxHeight()
             )
         }
-        if (state.personalCalendars.isNotEmpty()) {
-            CalendarLegend(state.personalCalendars)
+        if (state.personalCalendars.isNotEmpty() || birthdayNames.isNotEmpty()) {
+            CalendarLegend(state.personalCalendars, birthdays = birthdayNames)
         }
         Row(Modifier.fillMaxWidth().weight(0.46f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             (0 until WEEK_DAYS).forEach { i ->
                 val day = today.plusDays(i.toLong())
                 WeekDay(
                     day, today, now,
-                    events.filter { it.at.toLocalDate() == day },
+                    events.filter { it.at.toLocalDate() == day && !isBirthdayEvent(it) },
                     shifts.filter { it.at.toLocalDate() == day },
                     reminders.dueOn(day).take(2).joinToString(" · ") { it.title }.ifBlank { null },
                     Modifier.weight(1f).fillMaxHeight(),
                     onDinnerClick = { onOpen(Page.Reminders) },
-                    footerTitle = "📌 RECORDATORIS"
+                    footerTitle = "📌 RECORDATORIS",
+                    showEmptyFooter = false
                 )
             }
         }
@@ -112,7 +116,7 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
  */
 internal fun nextCalendarEvents(events: List<Event>, now: LocalDateTime): List<Event> {
     val lastDay = now.toLocalDate().plusDays(WEEK_DAYS.toLong())
-    return events.asSequence().filter { event ->
+    return events.asSequence().filterNot(::isBirthdayEvent).filter { event ->
         val end = event.end ?: if (event.all_day) event.at.plusDays(1) else event.at.plusHours(1)
         end.isAfter(now) && event.at.toLocalDate().isBefore(lastDay)
     }.distinctBy { listOf(it.calendar_id.toString(), it.id.toString(), it.date_at, it.title) }
@@ -123,12 +127,32 @@ internal fun nextCalendarEvents(events: List<Event>, now: LocalDateTime): List<E
         .toList()
 }
 
-/** Llista navegable: es veuen tantes cites com caben i es pot desplaçar la resta. */
+/**
+ * Agrupa totes les cites pendents al primer dia que té activitat. No s'aturen
+ * arbitràriament al setè dia: si el proper compromís és més endavant, es mostra.
+ * Les cites que ja estan en curs avui també es consideren d'avui.
+ * No inclou aniversaris (es mostren a la franja del rellotge).
+ */
+internal fun nextCalendarDayEvents(events: List<Event>, now: LocalDateTime): List<Event> {
+    val today = now.toLocalDate()
+    val pending = events.asSequence().filterNot(::isBirthdayEvent).filter { event ->
+        val end = event.end ?: if (event.all_day) event.at.plusDays(1) else event.at.plusHours(1)
+        end.isAfter(now)
+    }.distinctBy { listOf(it.calendar_id.toString(), it.id.toString(), it.date_at, it.title) }.toList()
+    val nearest = pending.minOfOrNull { maxOf(it.at.toLocalDate(), today) }
+        ?: return emptyList()
+    return pending.filter { maxOf(it.at.toLocalDate(), today) == nearest }
+        .sortedWith(compareBy<Event> { if (it.at.isBefore(now)) now else it.at }
+            .thenBy { it.at })
+}
+
+/** Un únic dia amb activitat; les seves targetes reparteixen tota l'alçada disponible. */
 @Composable
 private fun UpcomingEventsCard(
     events: List<Event>, now: LocalDateTime, noCalendar: Boolean, modifier: Modifier = Modifier
 ) {
     val today = now.toLocalDate()
+    val nearestDay = events.firstOrNull()?.let { maxOf(it.at.toLocalDate(), today) }
     Column(
         modifier.background(Palette.Card, RoundedCornerShape(28.dp))
             .padding(horizontal = 20.dp, vertical = 14.dp),
@@ -138,61 +162,99 @@ private fun UpcomingEventsCard(
             Text(
                 if (events.size == 1) "EL SEGÜENT" else "ELS SEGÜENTS",
                 style = Type.Label.copy(color = Palette.Accent, fontSize = 17.sp),
-                modifier = Modifier.weight(1f),
-                maxLines = 1
+                modifier = Modifier.weight(1f), maxLines = 1
             )
-            if (events.isNotEmpty()) Text(
-                "${events.size} ${if (events.size == 1) "cita" else "cites"}",
-                style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 17.sp),
+            if (nearestDay != null) Text(
+                relativeDay(nearestDay, today) + " · " + events.size +
+                    if (events.size == 1) " cita" else " cites",
+                style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 16.sp),
                 maxLines = 1
             )
         }
         if (events.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
-                    if (noCalendar) "Calendaris per configurar" else "Setmana sense activitats",
+                    if (noCalendar) "Calendaris per configurar" else "No hi ha cites properes",
                     style = Type.Body.copy(color = Palette.InkMuted)
                 )
             }
         } else {
             Column(
-                Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                Modifier.fillMaxWidth().weight(1f),
+                verticalArrangement = Arrangement.spacedBy(if (events.size > 5) 3.dp else 7.dp)
             ) {
                 events.forEach { event ->
                     val tint = parseColor(event.calendar_color, Palette.Accent)
                     val ongoing = !event.at.isAfter(now)
                     val whenText = when {
                         event.all_day -> "Tot el dia"
-                        ongoing -> "Ara · ${event.rangeLabel() ?: event.timeLabel()}"
+                        ongoing -> "Ara · " + (event.rangeLabel() ?: event.timeLabel())
                         else -> event.rangeLabel() ?: event.timeLabel()
                     }
-                    EventTapTarget(event, Modifier.fillMaxWidth()) {
-                        Row(
-                            Modifier.fillMaxWidth()
-                                .background(tint.copy(alpha = 0.11f), RoundedCornerShape(15.dp))
-                                .padding(horizontal = 10.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    EventTapTarget(event, Modifier.fillMaxWidth().weight(1f)) {
+                        BoxWithConstraints(
+                            Modifier.fillMaxSize()
+                                .background(tint.copy(alpha = 0.13f), RoundedCornerShape(15.dp))
                         ) {
-                            Box(
-                                Modifier.width(5.dp).height(39.dp)
-                                    .background(tint, RoundedCornerShape(4.dp))
-                            )
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    event.title,
-                                    style = Type.Small.copy(
-                                        color = Palette.Ink, fontWeight = FontWeight.SemiBold,
-                                        fontSize = 21.sp, lineHeight = 26.sp
-                                    ),
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                            // Tipografia segons l'espai REAL de cada subtargeta.
+                            val tileHeight = maxHeight
+                            val compact = tileHeight < 70.dp
+                            val titleSize = when {
+                                tileHeight >= 155.dp -> 31
+                                tileHeight >= 110.dp -> 27
+                                tileHeight >= 85.dp -> 24
+                                tileHeight >= 65.dp -> 21
+                                tileHeight >= 45.dp -> 18
+                                else -> 15
+                            }
+                            Row(
+                                Modifier.fillMaxSize().padding(
+                                    horizontal = if (compact) 8.dp else 13.dp,
+                                    vertical = if (compact) 3.dp else 7.dp
+                                ),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    Modifier.width(if (compact) 4.dp else 6.dp)
+                                        .fillMaxHeight()
+                                        .background(tint, RoundedCornerShape(4.dp))
                                 )
-                                Text(
-                                    "${relativeDay(event.at.toLocalDate(), today)} · $whenText",
-                                    style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 17.sp),
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis
-                                )
+                                if (compact) {
+                                    Text(
+                                        whenText + " · " + event.title,
+                                        style = Type.Small.copy(
+                                            color = Palette.Ink, fontWeight = FontWeight.SemiBold,
+                                            fontSize = titleSize.sp, lineHeight = (titleSize + 3).sp
+                                        ),
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                } else {
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+                                        Text(
+                                            event.title,
+                                            style = Type.Small.copy(
+                                                color = Palette.Ink, fontWeight = FontWeight.SemiBold,
+                                                fontSize = titleSize.sp, lineHeight = (titleSize + 4).sp
+                                            ),
+                                            maxLines = when {
+                                                tileHeight >= 155.dp -> 3
+                                                tileHeight >= 110.dp -> 2
+                                                else -> 1
+                                            },
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            whenText,
+                                            style = Type.Tiny.copy(
+                                                color = Palette.InkSoft,
+                                                fontSize = if (tileHeight >= 100.dp) 19.sp else 16.sp
+                                            ),
+                                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -204,6 +266,10 @@ private fun UpcomingEventsCard(
 
 // --- Centro: la semana ---
 
+/** A Avui no repetim «Sense recordatoris» a cadascun dels set dies buits. */
+internal fun shouldShowWeekFooter(showEmptyFooter: Boolean, detail: String?): Boolean =
+    showEmptyFooter || !detail.isNullOrBlank()
+
 /** Un día de la semana: cabecera (hoy resaltado), el turno en una pastilla y las citas con su color. */
 @Composable
 internal fun WeekDay(
@@ -211,7 +277,8 @@ internal fun WeekDay(
     onDinnerClick: () -> Unit = {},
     forecast: com.lito.planify.dashboard.data.Forecast? = null,
     small: Boolean = false,
-    footerTitle: String = "🍽️ SOPAR"
+    footerTitle: String = "🍽️ SOPAR",
+    showEmptyFooter: Boolean = true
 ) {
     val isToday = day == today
     Column(modifier.background(if (isToday) Palette.Card else Palette.Card.copy(alpha = 0.6f), RoundedCornerShape(24.dp)).padding(horizontal = 14.dp, vertical = 14.dp).alpha(if (day < today) 0.55f else 1f)) {
@@ -258,7 +325,9 @@ internal fun WeekDay(
             if (events.isEmpty()) Text("—", style = Type.Small.copy(color = Palette.InkMuted))
             events.forEach { e -> EventTapTarget(e) { WeekItem(e, past = e.isPast(now), small = small) } }
         }
-        DinnerPill(dinner, Modifier.padding(top = 8.dp), onDinnerClick, small, footerTitle)
+        if (shouldShowWeekFooter(showEmptyFooter, dinner)) {
+            DinnerPill(dinner, Modifier.padding(top = 8.dp), onDinnerClick, small, footerTitle)
+        }
     }
 }
 
@@ -327,20 +396,20 @@ private fun HomeSummaryTile(
         modifier.clip(shape)
             .background(Brush.verticalGradient(listOf(Palette.Card, tint.copy(alpha = 0.07f).compositeOver(Palette.Card))))
             .border(1.dp, tint.copy(alpha = 0.20f), shape)
-            .padding(horizontal = 18.dp, vertical = 12.dp)
+            .padding(horizontal = 18.dp, vertical = 10.dp)
     ) { constraints ->
         val width = constraints.maxWidth
         val childConstraints = constraints.copy(minHeight = 0)
         val header = subcompose("headerMeasure") {
             HomeSummaryHeader(title, emoji, accent, summary, hiddenCount = 0, pointsBadge = pointsBadge, onClick = onClick)
         }.single().measure(childConstraints)
-        val headerGap = 8.dp.roundToPx()
+        val headerGap = 6.dp.roundToPx()
         val rowGap = 2.dp.roundToPx()
         val bodyHeight = (constraints.maxHeight - header.height - headerGap).coerceAtLeast(0)
         val bodyConstraints = Constraints(minWidth = width, maxWidth = width, maxHeight = bodyHeight)
         val visibleCount = if (items.isEmpty()) 0 else {
             val sample = subcompose("rowMeasure") {
-                HomeSummaryRow(items.first(), accent)
+                HomeSummaryRow(items.first(), items.first().rowTint ?: accent)
             }.single().measure(childConstraints)
             SummaryTileLayout.visibleItems(bodyHeight, sample.height, rowGap, items.size)
         }
@@ -350,12 +419,12 @@ private fun HomeSummaryTile(
         val body = subcompose("items") {
             if (items.isEmpty()) {
                 Box(Modifier.fillMaxSize().clickable(onClick = onClick), contentAlignment = Alignment.CenterStart) {
-                    Text(emptyMessage, style = Type.Body.copy(fontSize = 24.sp, lineHeight = 30.sp,
+                    Text(emptyMessage, style = Type.Body.copy(fontSize = 22.sp, lineHeight = 28.sp,
                         color = Palette.InkSoft), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             } else {
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    items.take(visibleCount).forEach { HomeSummaryRow(it, accent) }
+                    items.take(visibleCount).forEach { HomeSummaryRow(it, it.rowTint ?: accent) }
                 }
             }
         }.single().measure(bodyConstraints)
@@ -385,13 +454,13 @@ private fun HomeSummaryHeader(title: String, emoji: String, tint: Color, summary
         if (pointsBadge != null) {
             Column(horizontalAlignment = Alignment.End) {
                 Text("⭐ $pointsBadge", style = Type.Small.copy(
-                    fontSize = 24.sp, lineHeight = 30.sp,
+                    fontSize = 21.sp, lineHeight = 25.sp,
                     fontWeight = FontWeight.Bold, color = tint),
                     modifier = Modifier.background(tint.copy(alpha = 0.11f), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                        .padding(horizontal = 7.dp, vertical = 1.dp),
                     maxLines = 1)
                 if (hiddenCount > 0) Text("+$hiddenCount més",
-                    style = Type.Tiny.copy(color = tint, fontSize = 14.sp),
+                    style = Type.Tiny.copy(color = tint, fontSize = 13.sp, lineHeight = 17.sp),
                     maxLines = 1)
             }
         } else {
@@ -413,6 +482,8 @@ private data class HomeSummaryItem(
     val title: String,
     val detail: String? = null,
     val glyph: String = "☐",
+    val rowTint: Color? = null,
+    val touchLabel: String? = null,
     val onMark: (() -> Unit)? = null,
     val actionLabel: String = "Marcar com fet"
 )
@@ -420,19 +491,36 @@ private data class HomeSummaryItem(
 @Composable
 private fun HomeSummaryRow(item: HomeSummaryItem, tint: Color) {
     val action = item.onMark
+    val childFriendly = item.touchLabel != null
     Row(Modifier.fillMaxWidth()
-        .background(tint.copy(alpha = 0.055f), RoundedCornerShape(8.dp))
+        .then(if (childFriendly) Modifier.heightIn(min = 66.dp) else Modifier)
+        .background(tint.copy(alpha = if (childFriendly) 0.10f else 0.055f), RoundedCornerShape(12.dp))
         .then(if (action != null) Modifier.clickable(onClickLabel = item.actionLabel, onClick = action) else Modifier)
-        .padding(horizontal = 8.dp, vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(item.glyph, style = Type.Small.copy(fontSize = 24.sp, lineHeight = 32.sp,
+        .padding(horizontal = 8.dp, vertical = if (childFriendly) 7.dp else 2.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+        Text(item.glyph, style = Type.Small.copy(fontSize = 22.sp, lineHeight = 28.sp,
             color = tint, fontWeight = FontWeight.Medium))
-        Text(item.title, style = Type.Body.copy(fontSize = 23.sp, lineHeight = 32.sp,
+        Text(item.title, style = Type.Body.copy(fontSize = 21.sp, lineHeight = 28.sp,
             color = Palette.Ink, fontWeight = FontWeight.Medium),
             modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        item.detail?.let {
-            Text(it, style = Type.Tiny.copy(color = Palette.InkMuted, fontSize = 16.sp,
-                lineHeight = 21.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (item.touchLabel != null) {
+            Box(
+                modifier = Modifier.background(
+                    if (action != null) Color(0xFF7857BC) else tint.copy(alpha = 0.19f),
+                    RoundedCornerShape(12.dp)
+                ).padding(horizontal = 12.dp, vertical = 9.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(item.touchLabel, style = Type.Tiny.copy(
+                    color = if (action != null) Color.White else Palette.Ink,
+                    fontSize = 18.sp, fontWeight = FontWeight.Bold, lineHeight = 22.sp
+                ), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        } else {
+            item.detail?.let {
+                Text(it, style = Type.Tiny.copy(color = Palette.InkMuted, fontSize = 15.sp,
+                    lineHeight = 19.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }
@@ -455,20 +543,35 @@ private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Mo
     val tasks = store.chores.filter { it.owner == "Rai" }
     val awaiting = tasks.filter { store.status(it, today) == "pending" }
     val remaining = tasks.filter { store.status(it, today) in setOf("todo", "slots") }
+    val approved = tasks.filter { store.status(it, today) == "approved" && it.date == today.toString() }
     val items = remaining.map { task ->
         if (store.status(task, today) == "slots") {
-            // Les feines per franges necessiten escollir una franja a la vista de gestió.
-            HomeSummaryItem(title = task.title, detail = "Per franges", glyph = "›",
-                onMark = onClick, actionLabel = "Obrir feines per franges")
+            HomeSummaryItem(title = task.title, glyph = "⭐",
+                touchLabel = "Obrir ›", onMark = onClick,
+                actionLabel = "Obrir les feines per franges")
         } else {
-            HomeSummaryItem(title = task.title, detail = summaryShortDate(today),
-                onMark = { store.requestDone(task.id, today) })
+            HomeSummaryItem(title = task.title, glyph = "⭐",
+                touchLabel = "✓ Ja l'he feta!",
+                onMark = { store.requestDone(task.id, today) },
+                actionLabel = "Ja he fet: " + task.title + ". Demanar validació")
         }
     } + awaiting.map {
-        HomeSummaryItem(title = it.title, detail = "Per validar", glyph = "⏳")
+        HomeSummaryItem(title = it.title, glyph = "⏳", rowTint = Palette.Warm,
+            touchLabel = "Esperant validació")
+    } + approved.map { task ->
+        HomeSummaryItem(
+            title = task.title,
+            glyph = "✓", rowTint = Palette.Online,
+            touchLabel = if (task.frequency == "once") "Feta" else "Feta avui"
+        )
     }
     HomeSummaryTile("Feines d'en Rai", "⭐", parseColor("#7857BC"),
-        summary = "${items.size} feina${if (items.size == 1) "" else "s"} per fer o validar",
+        summary = when {
+            remaining.isNotEmpty() || awaiting.isNotEmpty() ->
+                "${remaining.size + awaiting.size} ${if (remaining.size + awaiting.size == 1) "feina" else "feines"} per fer o validar"
+            approved.isNotEmpty() -> "✓ Tot fet per avui"
+            else -> "Sense feines programades avui"
+        },
         items = items, emptyMessage = if (tasks.isEmpty()) "Toca per afegir feines" else "Tot fet per avui!",
         modifier = modifier, alert = awaiting.isNotEmpty(), pointsBadge = store.stars, onClick = onClick)
 }
@@ -519,7 +622,7 @@ private fun KidsTile(state: UiState, modifier: Modifier, onClick: () -> Unit) {
     Tile("Infants", "🐾", Palette.Warm, modifier, onClick) {
         if (chores == null) return@Tile
         val left = chores.pending()
-        Text(if (left == 0) "🎉 Tot fet" else "$left ${if (left == 1) "tarea" else "tareas"} por hacer", style = Type.Body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 8.dp))
+        Text(if (left == 0) "🎉 Tot fet" else "$left ${if (left == 1) "feina" else "feines"} per fer", style = Type.Body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 8.dp))
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             chores.ninos.orEmpty().forEach { k ->
                 Text(
@@ -529,7 +632,7 @@ private fun KidsTile(state: UiState, modifier: Modifier, onClick: () -> Unit) {
                 )
             }
         }
-        chores.pedidas?.size?.takeIf { it > 0 }?.let { Text("🎁 $it ${if (it == 1) "canje" else "canjes"} por aprobar", style = Type.Tiny.copy(color = Palette.Accent, fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 6.dp)) }
+        chores.pedidas?.size?.takeIf { it > 0 }?.let { Text("🎁 $it ${if (it == 1) "premi" else "premis"} per aprovar", style = Type.Tiny.copy(color = Palette.Accent, fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 6.dp)) }
     }
 }
 

@@ -58,7 +58,7 @@ fun ChoresPanel(chores: Chores, busy: String?, onDone: (String, String) -> Unit,
     val tasks = chores.tareas.orEmpty()
     val pending = chores.pending()
     Panel(modifier, compact = true) {
-        CardHeader("Tareas de los niños", Icons.Outlined.Pets, Palette.Warm, count = pending, compact = true)
+        CardHeader("Feines dels infants", Icons.Outlined.Pets, Palette.Warm, count = pending, compact = true)
         if (kids.isNotEmpty()) {
             Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 kids.forEach { KidStars(it) }
@@ -66,12 +66,12 @@ fun ChoresPanel(chores: Chores, busy: String?, onDone: (String, String) -> Unit,
         }
         if (tasks.isEmpty()) {
             // Sin weight: el panel solo ocupa lo que necesita y deja el resto a las tareas de casa
-            EmptyState(Icons.Outlined.TaskAlt, Palette.Warm, "Sin tareas hoy", "Se añaden en el panel de TaskMate de Home Assistant", Modifier.fillMaxWidth().padding(vertical = 24.dp))
+            EmptyState(Icons.Outlined.TaskAlt, Palette.Warm, "Sense feines avui", "Es poden afegir al panell TaskMate de Home Assistant", Modifier.fillMaxWidth().padding(vertical = 24.dp))
             return@Panel
         }
         if (pending == 0) {
             Text(
-                "🎉 ¡Todo hecho por hoy!",
+                "🎉 Tot fet per avui!",
                 style = Type.Body.copy(color = Palette.Online, fontWeight = FontWeight.SemiBold),
                 modifier = Modifier.padding(top = 10.dp)
             )
@@ -121,7 +121,7 @@ private fun ChoreRow(chore: Chore, kids: List<Kid>, busy: String?, onDone: (Stri
                         modifier = Modifier.background(color, RoundedCornerShape(22.dp)).padding(horizontal = 18.dp, vertical = 6.dp)
                     )
                     Text(
-                        "Deshacer",
+                        "Desfer",
                         style = Type.Tiny.copy(color = Palette.InkMuted),
                         modifier = Modifier.clickable(enabled = busy == null) { onUndo(done.id) }.padding(start = 14.dp, top = 10.dp, bottom = 10.dp)
                     )

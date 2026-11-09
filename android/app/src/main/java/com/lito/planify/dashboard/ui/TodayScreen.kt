@@ -102,8 +102,8 @@ fun TodayScreen(state: UiState, lastTouch: Long) {
                     WeatherCard(forecast, location.name, state.now, days = 7, modifier = Modifier.width(column * 2 + Gap).fillMaxHeight(), compact = true)
                 } else {
                     Card(Modifier.width(column * 2 + Gap).fillMaxHeight()) {
-                        CardHeader("Tiempo", Icons.Outlined.Thermostat, Palette.Warm)
-                        Text(if (location == null) "Elige una ubicación en Ajustes" else "Cargando previsión…", style = Type.Body.copy(color = Palette.InkMuted), modifier = Modifier.padding(top = 16.dp))
+                        CardHeader("El temps", Icons.Outlined.Thermostat, Palette.Warm)
+                        Text(if (location == null) "Tria una ubicació a Opcions" else "Carregant la previsió…", style = Type.Body.copy(color = Palette.InkMuted), modifier = Modifier.padding(top = 16.dp))
                     }
                 }
             }
@@ -146,7 +146,7 @@ private fun ClockColumn(state: UiState, modifier: Modifier) {
         Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             FlipClock(if (state.clockValid) now.format(HourMinute) else "--:--")
             Text(
-                if (state.clockValid) "${today.weekdayName()} · ${today.dayOfMonth} ${today.month.getDisplayName(TextStyle.FULL, Spanish)}".uppercase(Spanish) else "SINCRONIZANDO HORA…",
+                if (state.clockValid) "${today.weekdayName()} · ${today.dayOfMonth} ${today.month.getDisplayName(TextStyle.FULL, Spanish)}".uppercase(Spanish) else "SINCRONITZANT L’HORA…",
                 style = Type.Mono.copy(fontSize = 26.sp, letterSpacing = 6.sp, color = Palette.InkSoft),
                 maxLines = 1,
                 modifier = Modifier.padding(top = 34.dp)
@@ -304,10 +304,10 @@ private fun EventsCard(state: UiState, day: LocalDate?, modifier: Modifier) {
     Card(modifier) {
         val dayName = day?.let { "${it.weekdayName()} ${it.dayOfMonth}" }
         if (dayName != null) CardHeader(dayName, Icons.Outlined.Event, Palette.Rain, count = events.size)
-        else CardHeader("Próximos eventos", Icons.Outlined.Event, Palette.Rain, count = events.count { !it.isPast(now) })
+        else CardHeader("Propers esdeveniments", Icons.Outlined.Event, Palette.Rain, count = events.count { !it.isPast(now) })
         if (events.isEmpty()) {
-            if (dayName != null) EmptyState(Icons.Outlined.EventAvailable, Palette.Rain, "Sin eventos", "Nada el ${dayName.lowercase(Spanish)}", Modifier.weight(1f).fillMaxWidth())
-            else EmptyState(Icons.Outlined.EventAvailable, Palette.Rain, "Sin eventos próximos", "Nada pendiente en los calendarios", Modifier.weight(1f).fillMaxWidth())
+            if (dayName != null) EmptyState(Icons.Outlined.EventAvailable, Palette.Rain, "Sense esdeveniments", "Res previst el ${dayName.lowercase(Catalan)}", Modifier.weight(1f).fillMaxWidth())
+            else EmptyState(Icons.Outlined.EventAvailable, Palette.Rain, "Sense esdeveniments propers", "No hi ha res pendent als calendaris", Modifier.weight(1f).fillMaxWidth())
             return@Card
         }
         Column(Modifier.fadingScroll(key(day) { rememberScrollState() })) {
@@ -363,9 +363,9 @@ private fun RoutinesCard(state: UiState, modifier: Modifier) {
     val sessions = state.content?.sessions.orEmpty().filter { it.at.toLocalDate() == now.toLocalDate() }
     val upcoming = sessions.firstOrNull { !it.at.isBefore(now) }
     Card(modifier) {
-        CardHeader("Rutinas de hoy", Icons.Outlined.Autorenew, Palette.Warm, count = sessions.count { !it.at.isBefore(now) })
+        CardHeader("Rutines d’avui", Icons.Outlined.Autorenew, Palette.Warm, count = sessions.count { !it.at.isBefore(now) })
         if (sessions.isEmpty()) {
-            EmptyState(Icons.Outlined.Weekend, Palette.Warm, "Hoy no hay rutinas", "Día libre", Modifier.weight(1f).fillMaxWidth())
+            EmptyState(Icons.Outlined.Weekend, Palette.Warm, "Avui no hi ha rutines", "Dia lliure", Modifier.weight(1f).fillMaxWidth())
             return@Card
         }
         Column(Modifier.padding(top = 4.dp).fadingScroll(rememberScrollState())) {
