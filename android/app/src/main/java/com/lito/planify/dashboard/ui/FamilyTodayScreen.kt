@@ -531,7 +531,7 @@ private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Mo
         HomeSummaryItem(title = it.title, detail = "Per validar", glyph = "⏳")
     }
     HomeSummaryTile("Feines d'en Rai", "⭐", parseColor("#7857BC"),
-        summary = "${items.size} feina${if (items.size == 1) "" else "s"} per fer o validar",
+        summary = "${items.size} ${if (items.size == 1) "feina" else "feines"} per fer o validar",
         items = items, emptyMessage = if (tasks.isEmpty()) "Toca per afegir feines" else "Tot fet per avui!",
         modifier = modifier, alert = awaiting.isNotEmpty(), pointsBadge = store.stars, onClick = onClick)
 }
