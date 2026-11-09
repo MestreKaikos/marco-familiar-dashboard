@@ -88,7 +88,7 @@ private fun RewardRow(reward: Reward, kids: Map<String, Kid>, claims: List<Rewar
             Text("${reward.coste} ⭐", style = Type.Small.copy(color = Palette.InkSoft, fontWeight = FontWeight.SemiBold))
         }
         if (!reward.disponible) {
-            Text("Agotada por ahora", style = Type.Tiny.copy(color = Palette.InkMuted), modifier = Modifier.padding(start = 56.dp, top = 4.dp))
+            Text("Esgotada de moment", style = Type.Tiny.copy(color = Palette.InkMuted), modifier = Modifier.padding(start = 56.dp, top = 4.dp))
             return@Column
         }
         Row(Modifier.padding(start = 56.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
