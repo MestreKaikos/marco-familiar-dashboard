@@ -167,6 +167,11 @@ assert.equal(locked, false, "El bloqueig sempre s'allibera després d'un error")
 
 // El fitxer real Tasques.gs manté 7 columnes, 5è camp = franja i PIN en servidor.
 context.setupFamilyTasks();
+assert.equal(context.taskDoneDate_("2026-10-28"),"2026-10-28");
+assert.equal(context.taskDoneDate_(new Date("2026-10-28T12:00:00Z")),"2026-10-28",
+  "Sheets pot retornar un objecte Date en comptes d'un text ISO");
+assert.equal(context.taskDoneDate_("format desconegut"),"",
+  "Una data desconeguda no s'ha de convertir en una data incorrecta");
 tabs.get("Tasques").appendRow(["old_task","Treure en Llamp",5,true,"once","","única"]);
 tabs.get("TasquesFetes").appendRow(["2026-10-28","old_task","Rai",5,"única"]);
 tabs.get("Recompenses").appendRow(["old_reward","Triar pel·lícula",10,true]);
