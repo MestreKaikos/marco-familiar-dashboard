@@ -641,7 +641,7 @@ fun WeekWeatherCard(
             }
         }
         if (dates.none { forecast.dayIndex(it) >= 0 }) {
-            Text("Cargando previsión…", style = Type.Body.copy(color = Palette.InkMuted), modifier = Modifier.padding(top = 24.dp))
+            Text("Carregant la previsió…", style = Type.Body.copy(color = Palette.InkMuted), modifier = Modifier.padding(top = 24.dp))
             return@Column
         }
         HorizontalPager(chart, Modifier.fillMaxWidth().weight(1f).nestedScroll(rememberEdgeSwipe(onChartEdge)), pageSpacing = 40.dp) { page ->
