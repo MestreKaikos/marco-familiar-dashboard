@@ -294,7 +294,8 @@ fun HomeEnergyScreen(
                     }
                     Column(Modifier.weight(0.95f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
                         casa?.toldo?.let { AwningPanel(it, actions, Modifier.fillMaxWidth()) }
-                        MusicPanel(casa?.musica, actions, Modifier.fillMaxWidth().weight(1f))
+                        // Spotify Connect també a la disposició horitzontal del marc XORO.
+                        SpotifyPanel(Modifier.fillMaxWidth().weight(1f))
                         ComingSoonRow(Modifier.fillMaxWidth())
                     }
                 }
