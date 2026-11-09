@@ -209,7 +209,7 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
                 put(JSONObject().put("id", item.id).put("title", item.title).put("owner", item.owner)
                      .put("stars", item.stars).put("daily", item.daily).put("date", item.date).put("status", item.status)
                     .put("frequency", item.frequency).put("days", item.days).put("slots", item.slots)
-                    .put("completedSlots", JSONArray().apply { item.completedSlots.forEach(::put) }))
+                    .put("completedSlots", JSONArray().apply { item.completedSlots.forEach { put(it) } }))
             }
         })
         root.put("rewards", JSONArray().apply {
