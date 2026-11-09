@@ -141,6 +141,8 @@ fun DashboardApp(
     val sync = rememberFamilySync()
     val frameMode = rememberFrameModeSettings()
     val sharedPhotos = rememberFamilyPhotoCache()
+    // Manté la seqüència en reprendre les fotos després de mostrar Avui.
+    val photoPlayback = remember { PhotoPlaybackState() }
     val context = LocalContext.current
     val nestPrefs = remember(context) { context.getSharedPreferences("marc_nest", Context.MODE_PRIVATE) }
     var nestKey by remember(nestPrefs) { mutableStateOf(nestPrefs.getString("camera_key", "").orEmpty()) }
@@ -317,6 +319,8 @@ fun DashboardApp(
                         Page.Today -> if (state.ics || state.token == null) FamilyTodayScreen(state, reminders, family, onOpen = selectPage) else TodayScreen(state, lastTouch)
                         Page.Photos -> PhotosScreen(sync, shared = sharedPhotos, presentationMode = automaticPhotos,
                             slideSeconds = frameMode.config.slideSeconds,
+                            shufflePhotos = frameMode.config.shufflePhotos,
+                            playback = photoPlayback,
                             onPhotosAvailable = { photosAvailable = it },
                             onExitPresentation = { selectPage(Page.Today) })
                         // Con los calendarios de la familia, semanas en vertical como la portada; con Planify, la de Lito
