@@ -12,6 +12,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
@@ -404,24 +405,31 @@ private fun SyncItem(syncing: Boolean, onSync: () -> Unit) {
         // Hacia la izquierda, como indica la flecha del icono
         while (true) withFrameMillis { angle = -((it - start) % 1000L) * 0.36f }
     }
-    RailItem("Actualizar", Icons.Outlined.Sync, syncing, rotation = angle) { onSync() }
+    // La sincronització gira, però no es confon amb la secció de navegació activa.
+    RailItem("Actualitzar", Icons.Outlined.Sync, false, rotation = angle) { onSync() }
 }
 
 /** Botón de la barra lateral: el icono y su nombre debajo, en pequeño. */
 @Composable
 private fun RailItem(label: String, icon: ImageVector, selected: Boolean, rotation: Float = 0f, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(26.dp)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
         modifier = Modifier
             .size(width = 104.dp, height = 92.dp)
-            .background(if (selected) Palette.Card else Palette.Rail, RoundedCornerShape(26.dp))
+            .background(if (selected) Palette.Card else Palette.Rail, shape)
+            .then(if (selected) Modifier.border(2.dp, Palette.Accent.copy(alpha = 0.28f), shape) else Modifier)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
     ) {
-        Icon(icon, contentDescription = label, tint = if (selected) Palette.Ink else Palette.InkMuted, modifier = Modifier.size(38.dp).rotate(rotation))
+        Icon(icon, contentDescription = label,
+            tint = if (selected) Palette.Accent else Palette.InkMuted,
+            modifier = Modifier.size(38.dp).rotate(rotation))
         Text(
             label,
-            style = Type.Tiny.copy(fontSize = 15.sp, color = if (selected) Palette.Ink else Palette.InkMuted, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium),
+            style = Type.Tiny.copy(fontSize = 15.sp,
+                color = if (selected) Palette.Accent else Palette.InkMuted,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium),
             maxLines = 1,
             modifier = Modifier.padding(top = 4.dp)
         )
