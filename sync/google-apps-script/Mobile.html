@@ -732,6 +732,17 @@ function renderRai(){
         badge.style.color='#237847';
         badge.style.whiteSpace='nowrap';
         line.appendChild(badge);
+        // Desfer només si aquesta activitat s'ha completat avui, i amb confirmació.
+        // Mai no mostrem un altre botó «Feta» mentre sigui aprovada.
+        if(completed.has(task.id+'|'+slot)){
+          const undo=makeText('button','Desfer','small');
+          undo.type='button';undo.disabled=raiBusy;
+          undo.addEventListener('click',()=>{
+            if(confirm('Vols desfer «'+task.title+'»? Es retiraran els punts i podrà tornar a fer-se.'))
+              raiAction('tasks_undo',{id:task.id,slot});
+          });
+          line.appendChild(undo);
+        }
       }else{
         const toggle=makeText('button','✓ Ja l’he feta','small');
         toggle.type='button';toggle.disabled=raiBusy;
