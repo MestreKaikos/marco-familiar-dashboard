@@ -22,6 +22,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedButton
@@ -107,19 +108,51 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
                                 }
                                 TextButton(onClick = { protect("Eliminar feina") { store.removeChore(task.id) } }) { Text("✕") }
                             }
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                            // Acció principal gran: en Rai no ha d'encertar cap casella petita.
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 when (status) {
-                                    "todo" -> OutlinedButton(onClick = { store.requestDone(task.id, today) }) {
-                                        Text(if (task.owner == "Rai") "Ja l'he feta" else "Marcar com feta")
+                                    "todo" -> Button(
+                                        onClick = { store.requestDone(task.id, today) },
+                                        modifier = Modifier.fillMaxWidth().height(68.dp),
+                                        shape = RoundedCornerShape(18.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Palette.Online, contentColor = Color.White)
+                                    ) {
+                                        Text(
+                                            if (task.owner == "Rai") "✓  JA L'HE FETA!" else "✓  MARCAR COM FETA",
+                                            style = Type.Body.copy(fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                                        )
                                     }
-                                    "pending" -> {
-                                        Text("Pendent de validar", style = Type.Tiny.copy(color = Palette.Warm), modifier = Modifier.weight(1f))
-                                        Button(onClick = { protect("Validar feina d'en Rai") { store.approveChore(task.id, today) } }) { Text("Validar") }
-                                        TextButton(onClick = { protect("Rebutjar feina") { store.rejectChore(task.id, today) } }) { Text("Rebutjar") }
+                                    "pending" -> Column(
+                                        Modifier.fillMaxWidth(),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(
+                                            "⏳ Esperant que un adult la validi",
+                                            style = Type.Small.copy(color = Palette.Warm, fontWeight = FontWeight.SemiBold),
+                                            modifier = Modifier.fillMaxWidth()
+                                                .background(Palette.Warm.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
+                                                .padding(horizontal = 14.dp, vertical = 12.dp)
+                                        )
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            OutlinedButton(
+                                                onClick = { protect("Rebutjar feina") { store.rejectChore(task.id, today) } },
+                                                modifier = Modifier.weight(1f).height(48.dp)
+                                            ) { Text("Rebutjar") }
+                                            Button(
+                                                onClick = { protect("Validar feina d'en Rai") { store.approveChore(task.id, today) } },
+                                                modifier = Modifier.weight(1f).height(48.dp)
+                                            ) { Text("Validar") }
+                                        }
                                     }
                                     "not_due" -> Text("No toca avui", style = Type.Small.copy(color = Palette.InkMuted))
                                     "slots" -> Text("Gestiona les franges des del mòbil", style = Type.Tiny.copy(color = Palette.InkMuted))
-                                    else -> Text("✓ Feta ${if (task.daily) "avui" else ""}", style = Type.Small.copy(color = Palette.Online, fontWeight = FontWeight.SemiBold))
+                                    else -> Text(
+                                        if (task.date == today.toString()) "✅ Avui ja feta!" else "✅ Ja feta!",
+                                        style = Type.Small.copy(color = Palette.Online, fontWeight = FontWeight.Bold),
+                                        modifier = Modifier.fillMaxWidth()
+                                            .background(Palette.Online.copy(alpha = 0.12f), RoundedCornerShape(14.dp))
+                                            .padding(horizontal = 16.dp, vertical = 16.dp)
+                                    )
                                 }
                             }
                         }
