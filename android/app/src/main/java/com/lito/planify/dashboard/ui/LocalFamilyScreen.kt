@@ -44,6 +44,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.sp
 import com.lito.planify.dashboard.ui.theme.Palette
 import com.lito.planify.dashboard.ui.theme.Type
@@ -67,7 +70,7 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
 
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("✅ Feines d’en Rai", style = Type.Large.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
-                Button(onClick = { addChore = true }) { Text("+ Nova feina") }
+                Button(onClick = { addChore = true }, modifier = Modifier.heightIn(min = 68.dp)) { Text("+ Nova feina", style = Type.Small.copy(fontSize = 21.sp)) }
             }
             Spacer(Modifier.height(12.dp))
             Text("En Rai pot marcar una feina feta; un adult la valida abans de sumar estrelles.", style = Type.Tiny.copy(color = Palette.InkSoft))
@@ -131,7 +134,7 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
 
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("🎁 Recompenses", style = Type.Large.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
-                Button(onClick = { addReward = true }) { Text("+ Premi") }
+                Button(onClick = { addReward = true }, modifier = Modifier.heightIn(min = 68.dp)) { Text("+ Nou premi", style = Type.Small.copy(fontSize = 21.sp)) }
             }
             Text("Rai · ⭐ ${store.stars} disponibles", style = Type.Body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 14.dp, bottom = 14.dp))
             val requested = store.rewards.firstOrNull { it.id == store.pendingRewardId }
@@ -271,7 +274,7 @@ fun FamilyShoppingPanel(
                     keyboardActions = KeyboardActions(onDone = { store.addGrocery(groceryName); groceryName = "" }),
                     modifier = Modifier.weight(1f)
                 )
-                Button(onClick = { store.addGrocery(groceryName); groceryName = "" }, enabled = groceryName.isNotBlank()) {
+                Button(onClick = { store.addGrocery(groceryName); groceryName = "" }, enabled = groceryName.isNotBlank(), modifier = Modifier.heightIn(min = 66.dp)) {
                     Text("Afegir")
                 }
             }
@@ -334,117 +337,127 @@ private fun TextEntryDialog(
     title: String, initial: String, label: String, onDismiss: () -> Unit, onSave: (String) -> Unit
 ) {
     var text by remember(initial) { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title, style = Type.Large) },
-        text = {
-            OutlinedTextField(value = text, onValueChange = { text = it.take(100) }, label = { Text(label) },
-                singleLine = true, textStyle = Type.Small, modifier = Modifier.fillMaxWidth())
-        },
-        confirmButton = { TextButton(enabled = text.isNotBlank(), onClick = { onSave(text) }) { Text("Desar") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel·lar") } }
-    )
+    val dismissKeyboard = familyFormKeyboardActions()
+    FamilyFormDialog(title = title, confirmLabel = "Desar",
+        confirmEnabled = text.isNotBlank(),
+        onDismiss = onDismiss, onConfirm = { onSave(text) }) {
+        OutlinedTextField(
+            value = text, onValueChange = { text = it.take(100) },
+            label = { Text(label) }, singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = dismissKeyboard, textStyle = Type.Small,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
 }
 
 @Composable
-private fun ChoreCreator(cloud: Boolean, onDismiss: () -> Unit, onSave: (String, String, Boolean, Int) -> Unit) {
+private fun ChoreCreator(
+    cloud: Boolean, onDismiss: () -> Unit,
+    onSave: (String, String, Boolean, Int) -> Unit
+) {
     var title by remember { mutableStateOf("") }
     var owner by remember { mutableStateOf("Rai") }
     var daily by remember { mutableStateOf(true) }
     var stars by remember { mutableStateOf(1) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Nova feina", style = Type.Large) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = title, onValueChange = { title = it.take(100) },
-                    label = { Text("Quina feina s'ha de fer?") }, singleLine = true,
-                    textStyle = Type.Small, modifier = Modifier.fillMaxWidth()
-                )
-                Text("Qui la farà?", style = Type.Small)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    (if (cloud) listOf("Rai") else listOf("Rai", "Família")).forEach { option ->
-                        FilterChip(selected = owner == option, onClick = { owner = option },
-                            label = { Text(option) })
-                    }
+    val dismissKeyboard = familyFormKeyboardActions()
+    FamilyFormDialog(title = "Nova feina", confirmLabel = "Afegir feina",
+        confirmEnabled = title.isNotBlank(),
+        onDismiss = onDismiss, onConfirm = { onSave(title, owner, daily, stars) }) {
+        OutlinedTextField(
+            value = title, onValueChange = { title = it.take(100) },
+            label = { Text("Quina feina s'ha de fer?") }, singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = dismissKeyboard,
+            textStyle = Type.Small, modifier = Modifier.fillMaxWidth()
+        )
+        Text("Qui la farà?", style = Type.Small)
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            (if (cloud) listOf("Rai") else listOf("Rai", "Família")).forEach { option ->
+                FilterChip(selected = owner == option, onClick = { owner = option },
+                    label = { Text(option, style = Type.Small) })
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = daily, onCheckedChange = { daily = it })
+            Text("Repetir cada dia", style = Type.Small)
+        }
+        if (owner == "Rai") {
+            Row(verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Estrelles per feina", style = Type.Small, modifier = Modifier.weight(1f))
+                OutlinedButton(onClick = { stars = (stars - 1).coerceAtLeast(1) },
+                    enabled = stars > 1, modifier = Modifier.heightIn(min = 62.dp)) {
+                    Text("−", style = Type.Body)
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = daily, onCheckedChange = { daily = it })
-                    Text("Repetir cada dia", style = Type.Small)
-                }
-                if (owner == "Rai") {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Estrelles per feina", style = Type.Small, modifier = Modifier.weight(1f))
-                        OutlinedButton(onClick = { stars = (stars - 1).coerceAtLeast(1) }, enabled = stars > 1) { Text("−") }
-                        Text("$stars ⭐", style = Type.Small)
-                        OutlinedButton(onClick = { stars = (stars + 1).coerceAtMost(5) }, enabled = stars < 5) { Text("+") }
-                    }
+                Text("$" + "stars ⭐", style = Type.Small)
+                OutlinedButton(onClick = { stars = (stars + 1).coerceAtMost(5) },
+                    enabled = stars < 5, modifier = Modifier.heightIn(min = 62.dp)) {
+                    Text("+", style = Type.Body)
                 }
             }
-        },
-        confirmButton = { TextButton(onClick = { onSave(title, owner, daily, stars) }, enabled = title.isNotBlank()) { Text("Afegir feina") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel·lar") } }
-    )
+        }
+    }
 }
 
 @Composable
 private fun RewardCreator(onDismiss: () -> Unit, onSave: (String, Int) -> Unit) {
     var title by remember { mutableStateOf("") }
     var points by remember { mutableStateOf("5") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Nova recompensa", style = Type.Large) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(value = title, onValueChange = { title = it.take(100) },
-                    label = { Text("Quin és el premi?") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                OutlinedTextField(value = points, onValueChange = { points = it.filter(Char::isDigit).take(3) },
-                    label = { Text("Estrelles necessàries") }, singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
-            }
-        },
-        confirmButton = {
-            TextButton(enabled = title.isNotBlank() && (points.toIntOrNull() ?: 0) > 0,
-                onClick = { onSave(title, points.toIntOrNull() ?: 5) }) { Text("Crear premi") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel·lar") } }
-    )
+    val dismissKeyboard = familyFormKeyboardActions()
+    FamilyFormDialog(title = "Nova recompensa", confirmLabel = "Crear premi",
+        confirmEnabled = title.isNotBlank() && (points.toIntOrNull() ?: 0) > 0,
+        onDismiss = onDismiss,
+        onConfirm = { onSave(title, points.toIntOrNull() ?: 5) }) {
+        OutlinedTextField(
+            value = title, onValueChange = { title = it.take(100) },
+            label = { Text("Quin és el premi?") }, modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = dismissKeyboard, textStyle = Type.Small, singleLine = true
+        )
+        OutlinedTextField(
+            value = points,
+            onValueChange = { points = it.filter(Char::isDigit).take(3) },
+            label = { Text("Estrelles necessàries") }, modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+            keyboardActions = dismissKeyboard, textStyle = Type.Small, singleLine = true
+        )
+    }
 }
 
 /** El PIN es crea al primer ús i només es desa com a hash amb salt al dispositiu. */
 @Composable
-private fun AdultPinDialog(title: String, configured: Boolean, onDismiss: () -> Unit, onConfirm: (String) -> Boolean) {
+private fun AdultPinDialog(
+    title: String, configured: Boolean,
+    onDismiss: () -> Unit, onConfirm: (String) -> Boolean
+) {
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title, style = Type.Large) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    if (configured) "Introdueix el PIN dels adults per confirmar."
-                    else "Configura ara un PIN de 4 xifres per validar feines i recompenses. Apunta'l en un lloc segur.",
-                    style = Type.Small
-                )
-                OutlinedTextField(
-                    value = pin, onValueChange = { pin = it.filter(Char::isDigit).take(4); error = false },
-                    label = { Text(if (configured) "PIN dels adults" else "Nou PIN dels adults") },
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                if (error) Text("PIN incorrecte. Comprova les quatre xifres.", style = Type.Tiny.copy(color = Palette.Accent))
-                if (!configured) Text(
-                    "Si oblides el PIN, caldrà esborrar les dades de l'aplicació per reiniciar-lo.",
-                    style = Type.Tiny.copy(color = Palette.InkMuted)
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(enabled = pin.length == 4, onClick = { if (!onConfirm(pin)) { error = true; pin = "" } }) { Text("Confirmar") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel·lar") } }
-    )
+    val dismissKeyboard = familyFormKeyboardActions()
+    FamilyFormDialog(title = title, confirmLabel = "Confirmar",
+        confirmEnabled = pin.length == 4,
+        onDismiss = onDismiss,
+        onConfirm = { if (!onConfirm(pin)) { error = true; pin = "" } }) {
+        Text(
+            if (configured) "Introdueix el PIN dels adults per confirmar."
+            else "Configura un PIN de 4 xifres per validar feines i recompenses. Desa'l en un lloc segur.",
+            style = Type.Small
+        )
+        OutlinedTextField(
+            value = pin,
+            onValueChange = { pin = it.filter(Char::isDigit).take(4); error = false },
+            label = { Text(if (configured) "PIN dels adults" else "Nou PIN dels adults") },
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword,
+                imeAction = ImeAction.Done),
+            keyboardActions = dismissKeyboard, singleLine = true,
+            modifier = Modifier.fillMaxWidth(), textStyle = Type.Small
+        )
+        if (error) Text("PIN incorrecte. Comprova les quatre xifres.",
+            style = Type.Tiny.copy(color = Palette.Accent))
+        if (!configured) Text(
+            "Si oblides el PIN, caldrà esborrar les dades de l'aplicació per reiniciar-lo.",
+            style = Type.Tiny.copy(color = Palette.InkMuted)
+        )
+    }
 }
