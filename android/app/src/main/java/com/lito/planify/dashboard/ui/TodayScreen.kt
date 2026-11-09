@@ -102,7 +102,7 @@ fun TodayScreen(state: UiState, lastTouch: Long) {
                     WeatherCard(forecast, location.name, state.now, days = 7, modifier = Modifier.width(column * 2 + Gap).fillMaxHeight(), compact = true)
                 } else {
                     Card(Modifier.width(column * 2 + Gap).fillMaxHeight()) {
-                        CardHeader("Tiempo", Icons.Outlined.Thermostat, Palette.Warm)
+                        CardHeader("El temps", Icons.Outlined.Thermostat, Palette.Warm)
                         Text(if (location == null) "Tria una ubicació a Opcions" else "Carregant la previsió…", style = Type.Body.copy(color = Palette.InkMuted), modifier = Modifier.padding(top = 16.dp))
                     }
                 }
@@ -146,7 +146,7 @@ private fun ClockColumn(state: UiState, modifier: Modifier) {
         Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             FlipClock(if (state.clockValid) now.format(HourMinute) else "--:--")
             Text(
-                if (state.clockValid) "${today.weekdayName()} · ${today.dayOfMonth} ${today.month.getDisplayName(TextStyle.FULL, Spanish)}".uppercase(Spanish) else "SINCRONIZANDO HORA…",
+                if (state.clockValid) "${today.weekdayName()} · ${today.dayOfMonth} ${today.month.getDisplayName(TextStyle.FULL, Spanish)}".uppercase(Spanish) else "SINCRONITZANT L’HORA…",
                 style = Type.Mono.copy(fontSize = 26.sp, letterSpacing = 6.sp, color = Palette.InkSoft),
                 maxLines = 1,
                 modifier = Modifier.padding(top = 34.dp)
@@ -304,7 +304,7 @@ private fun EventsCard(state: UiState, day: LocalDate?, modifier: Modifier) {
     Card(modifier) {
         val dayName = day?.let { "${it.weekdayName()} ${it.dayOfMonth}" }
         if (dayName != null) CardHeader(dayName, Icons.Outlined.Event, Palette.Rain, count = events.size)
-        else CardHeader("Próximos eventos", Icons.Outlined.Event, Palette.Rain, count = events.count { !it.isPast(now) })
+        else CardHeader("Propers esdeveniments", Icons.Outlined.Event, Palette.Rain, count = events.count { !it.isPast(now) })
         if (events.isEmpty()) {
             if (dayName != null) EmptyState(Icons.Outlined.EventAvailable, Palette.Rain, "Sense esdeveniments", "Res previst el ${dayName.lowercase(Catalan)}", Modifier.weight(1f).fillMaxWidth())
             else EmptyState(Icons.Outlined.EventAvailable, Palette.Rain, "Sense esdeveniments propers", "No hi ha res pendent als calendaris", Modifier.weight(1f).fillMaxWidth())
