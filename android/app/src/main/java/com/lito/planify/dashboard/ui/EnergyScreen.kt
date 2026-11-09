@@ -81,9 +81,9 @@ internal fun PricePanel(title: String, day: List<HourPrice>, now: LocalDateTime,
         if (big) {
             Row(Modifier.fillMaxWidth().padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 current?.let { PriceStat("Ara", it, min, max, highlight = true, modifier = Modifier.weight(1f)) }
-                PriceStat("Media", null, min, max, value = day.map { it.eur_kwh }.average(), modifier = Modifier.weight(1f))
+                PriceStat("Mitjana", null, min, max, value = day.map { it.eur_kwh }.average(), modifier = Modifier.weight(1f))
                 day.minByOrNull { it.eur_kwh }?.let { PriceStat("Mín ${it.time.hour}h", it, min, max, modifier = Modifier.weight(1f)) }
-                day.maxByOrNull { it.eur_kwh }?.let { PriceStat("Máx ${it.time.hour}h", it, min, max, modifier = Modifier.weight(1f)) }
+                day.maxByOrNull { it.eur_kwh }?.let { PriceStat("Màx ${it.time.hour}h", it, min, max, modifier = Modifier.weight(1f)) }
             }
         } else {
             Text(
@@ -293,7 +293,7 @@ private fun BatteryPile(car: CarStatus, modifier: Modifier) {
             val status = when {
                 car.cargando -> "⚡ " + (car.potencia_kw?.let(::kilowatts) ?: "carregant")
                 car.enchufado -> "🔌 en pausa"
-                else -> "de autonomía"
+                else -> "d’autonomia"
             }
             Text(status, style = Type.Small.copy(color = if (car.cargando) Charging else Palette.InkSoft, fontWeight = FontWeight.SemiBold), maxLines = 1)
         }
