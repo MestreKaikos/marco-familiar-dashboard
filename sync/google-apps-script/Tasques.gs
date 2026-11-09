@@ -26,7 +26,7 @@ function taskDoneDate_(value){
     return Utilities.formatDate(value,Session.getScriptTimeZone()||'Europe/Madrid','yyyy-MM-dd');
   }
   const raw=String(value==null?'':value).trim();
-  return /^\\d{4}-\\d{2}-\\d{2}$/.test(raw)?raw:'';
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw)?raw:'';
 }
 function setupFamilyTasks() {
   familyTaskSheet_(TASKS_TAB_,['id','titol','punts','activa','frequencia','dies','franges']);
