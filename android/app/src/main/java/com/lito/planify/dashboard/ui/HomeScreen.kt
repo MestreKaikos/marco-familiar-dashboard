@@ -217,7 +217,7 @@ internal fun ComingSoonPanel(modifier: Modifier) {
             listOf(
                 "💡" to ("Llums" to "Tuya / Smart Life"),
                 "🍽️" to ("Rentaplats" to "Home Connect"),
-                "❄️" to ("Aire acondicionado" to "Daikin Onecta"),
+                "❄️" to ("Aire condicionat" to "Daikin Onecta"),
                 "🔌" to ("Carregador del cotxe" to "V2C (HA a casa)")
             ).forEach { (emoji, info) ->
                 Row(
