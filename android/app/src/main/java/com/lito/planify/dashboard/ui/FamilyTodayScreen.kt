@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -482,6 +483,7 @@ private data class HomeSummaryItem(
     val detail: String? = null,
     val glyph: String = "☐",
     val rowTint: Color? = null,
+    val touchLabel: String? = null,
     val onMark: (() -> Unit)? = null,
     val actionLabel: String = "Marcar com fet"
 )
@@ -489,19 +491,36 @@ private data class HomeSummaryItem(
 @Composable
 private fun HomeSummaryRow(item: HomeSummaryItem, tint: Color) {
     val action = item.onMark
+    val childFriendly = item.touchLabel != null
     Row(Modifier.fillMaxWidth()
-        .background(tint.copy(alpha = 0.055f), RoundedCornerShape(8.dp))
+        .then(if (childFriendly) Modifier.heightIn(min = 66.dp) else Modifier)
+        .background(tint.copy(alpha = if (childFriendly) 0.10f else 0.055f), RoundedCornerShape(12.dp))
         .then(if (action != null) Modifier.clickable(onClickLabel = item.actionLabel, onClick = action) else Modifier)
-        .padding(horizontal = 8.dp, vertical = 2.dp),
+        .padding(horizontal = 8.dp, vertical = if (childFriendly) 7.dp else 2.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
         Text(item.glyph, style = Type.Small.copy(fontSize = 22.sp, lineHeight = 28.sp,
             color = tint, fontWeight = FontWeight.Medium))
         Text(item.title, style = Type.Body.copy(fontSize = 21.sp, lineHeight = 28.sp,
             color = Palette.Ink, fontWeight = FontWeight.Medium),
             modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        item.detail?.let {
-            Text(it, style = Type.Tiny.copy(color = Palette.InkMuted, fontSize = 15.sp,
-                lineHeight = 19.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (item.touchLabel != null) {
+            Box(
+                modifier = Modifier.background(
+                    if (action != null) Color(0xFF7857BC) else tint.copy(alpha = 0.19f),
+                    RoundedCornerShape(12.dp)
+                ).padding(horizontal = 12.dp, vertical = 9.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(item.touchLabel, style = Type.Tiny.copy(
+                    color = if (action != null) Color.White else Palette.Ink,
+                    fontSize = 18.sp, fontWeight = FontWeight.Bold, lineHeight = 22.sp
+                ), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        } else {
+            item.detail?.let {
+                Text(it, style = Type.Tiny.copy(color = Palette.InkMuted, fontSize = 15.sp,
+                    lineHeight = 19.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }
@@ -527,19 +546,23 @@ private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Mo
     val approved = tasks.filter { store.status(it, today) == "approved" && it.date == today.toString() }
     val items = remaining.map { task ->
         if (store.status(task, today) == "slots") {
-            HomeSummaryItem(title = task.title, detail = "Per franges", glyph = "›",
-                onMark = onClick, actionLabel = "Obrir feines per franges")
+            HomeSummaryItem(title = task.title, glyph = "⭐",
+                touchLabel = "Obrir ›", onMark = onClick,
+                actionLabel = "Obrir les feines per franges")
         } else {
-            HomeSummaryItem(title = task.title, detail = summaryShortDate(today),
-                onMark = { store.requestDone(task.id, today) })
+            HomeSummaryItem(title = task.title, glyph = "⭐",
+                touchLabel = "✓ Ja l'he feta!",
+                onMark = { store.requestDone(task.id, today) },
+                actionLabel = "Ja he fet: " + task.title + ". Demanar validació")
         }
     } + awaiting.map {
-        HomeSummaryItem(title = it.title, detail = "Per validar", glyph = "⏳")
+        HomeSummaryItem(title = it.title, glyph = "⏳", rowTint = Palette.Warm,
+            touchLabel = "Esperant validació")
     } + approved.map { task ->
         HomeSummaryItem(
             title = task.title,
-            detail = if (task.frequency == "once") "Feta" else "Feta avui",
-            glyph = "✓", rowTint = Palette.Online
+            glyph = "✓", rowTint = Palette.Online,
+            touchLabel = if (task.frequency == "once") "Feta" else "Feta avui"
         )
     }
     HomeSummaryTile("Feines d'en Rai", "⭐", parseColor("#7857BC"),
