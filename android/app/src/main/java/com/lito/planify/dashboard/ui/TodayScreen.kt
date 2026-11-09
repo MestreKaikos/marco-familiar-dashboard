@@ -103,7 +103,7 @@ fun TodayScreen(state: UiState, lastTouch: Long) {
                 } else {
                     Card(Modifier.width(column * 2 + Gap).fillMaxHeight()) {
                         CardHeader("Tiempo", Icons.Outlined.Thermostat, Palette.Warm)
-                        Text(if (location == null) "Elige una ubicación en Ajustes" else "Cargando previsión…", style = Type.Body.copy(color = Palette.InkMuted), modifier = Modifier.padding(top = 16.dp))
+                        Text(if (location == null) "Tria una ubicació a Opcions" else "Carregant la previsió…", style = Type.Body.copy(color = Palette.InkMuted), modifier = Modifier.padding(top = 16.dp))
                     }
                 }
             }
@@ -306,8 +306,8 @@ private fun EventsCard(state: UiState, day: LocalDate?, modifier: Modifier) {
         if (dayName != null) CardHeader(dayName, Icons.Outlined.Event, Palette.Rain, count = events.size)
         else CardHeader("Próximos eventos", Icons.Outlined.Event, Palette.Rain, count = events.count { !it.isPast(now) })
         if (events.isEmpty()) {
-            if (dayName != null) EmptyState(Icons.Outlined.EventAvailable, Palette.Rain, "Sin eventos", "Nada el ${dayName.lowercase(Spanish)}", Modifier.weight(1f).fillMaxWidth())
-            else EmptyState(Icons.Outlined.EventAvailable, Palette.Rain, "Sin eventos próximos", "Nada pendiente en los calendarios", Modifier.weight(1f).fillMaxWidth())
+            if (dayName != null) EmptyState(Icons.Outlined.EventAvailable, Palette.Rain, "Sense esdeveniments", "Res previst el ${dayName.lowercase(Catalan)}", Modifier.weight(1f).fillMaxWidth())
+            else EmptyState(Icons.Outlined.EventAvailable, Palette.Rain, "Sense esdeveniments propers", "No hi ha res pendent als calendaris", Modifier.weight(1f).fillMaxWidth())
             return@Card
         }
         Column(Modifier.fadingScroll(key(day) { rememberScrollState() })) {
@@ -363,9 +363,9 @@ private fun RoutinesCard(state: UiState, modifier: Modifier) {
     val sessions = state.content?.sessions.orEmpty().filter { it.at.toLocalDate() == now.toLocalDate() }
     val upcoming = sessions.firstOrNull { !it.at.isBefore(now) }
     Card(modifier) {
-        CardHeader("Rutinas de hoy", Icons.Outlined.Autorenew, Palette.Warm, count = sessions.count { !it.at.isBefore(now) })
+        CardHeader("Rutines d’avui", Icons.Outlined.Autorenew, Palette.Warm, count = sessions.count { !it.at.isBefore(now) })
         if (sessions.isEmpty()) {
-            EmptyState(Icons.Outlined.Weekend, Palette.Warm, "Hoy no hay rutinas", "Día libre", Modifier.weight(1f).fillMaxWidth())
+            EmptyState(Icons.Outlined.Weekend, Palette.Warm, "Avui no hi ha rutines", "Dia lliure", Modifier.weight(1f).fillMaxWidth())
             return@Card
         }
         Column(Modifier.padding(top = 4.dp).fadingScroll(rememberScrollState())) {
