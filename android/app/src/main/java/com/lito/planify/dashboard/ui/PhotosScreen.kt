@@ -9,7 +9,6 @@ import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -43,8 +42,65 @@ private data class GalleryPhoto(
     val name: String, val uri: Uri? = null, val file: File? = null, val revision: String = ""
 ) {
     // Si Drive canvia el contingut sense canviar el nom/ID, força a recarregar el bitmap actual.
-    val key: String get() = (uri?.toString() ?: file?.absolutePath.orEmpty()) + "|" + revision
+    val identity: String get() = uri?.toString() ?: file?.absolutePath.orEmpty()
+    val key: String get() = identity + "|" + revision
 }
+/** Reprèn el passi de fotos després de visitar Avui, sense repetir les ja mostrades. */
+class PhotoPlaybackState {
+    private var sourceKeys: List<String> = emptyList()
+    private var randomOrder = false
+    var order by mutableStateOf<List<String>>(emptyList())
+        private set
+    var position by mutableIntStateOf(0)
+        private set
+    val currentKey: String? get() = order.getOrNull(position)
+
+    fun configure(keys: List<String>, shuffle: Boolean) {
+        val available = keys.distinct()
+        if (sourceKeys == available && randomOrder == shuffle) return
+        val current = currentKey
+        val wasRandom = randomOrder
+        val shownBefore = if (shuffle && wasRandom)
+            order.take(position + 1).filter { it in available }
+        else emptyList()
+        sourceKeys = available
+        randomOrder = shuffle
+        if (shuffle) {
+            val shown = if (shownBefore.isNotEmpty()) shownBefore
+                else listOfNotNull(current?.takeIf { it in available })
+            order = shown + available.filterNot { it in shown }.shuffled()
+            position = if (shown.isNotEmpty()) shown.lastIndex else 0
+        } else {
+            order = available
+            position = current?.let { order.indexOf(it) }?.takeIf { it >= 0 } ?: 0
+        }
+    }
+
+    fun next() {
+        if (order.size < 2) return
+        if (position < order.lastIndex) {
+            position++
+        } else if (randomOrder) {
+            val last = currentKey
+            val fresh = sourceKeys.shuffled().toMutableList()
+            if (fresh.firstOrNull() == last) {
+                val other = fresh.indexOfFirst { it != last }
+                if (other >= 0) {
+                    val temp = fresh[0]
+                    fresh[0] = fresh[other]
+                    fresh[other] = temp
+                }
+            }
+            order = fresh
+            position = 0
+        } else position = 0
+    }
+
+    fun previous() {
+        if (order.isNotEmpty()) position = (position - 1 + order.size) % order.size
+    }
+}
+
 
 /**
  * Diapositives de fotos locals + fotografies compartides de Drive, desades en
@@ -56,6 +112,8 @@ fun PhotosScreen(
     shared: FamilyPhotoCache = rememberFamilyPhotoCache(),
     presentationMode: Boolean = false,
     slideSeconds: Int = 20,
+    shufflePhotos: Boolean = false,
+    playback: PhotoPlaybackState = remember { PhotoPlaybackState() },
     onPhotosAvailable: (Boolean) -> Unit = {},
     onExitPresentation: () -> Unit = {}
 ) {
@@ -64,7 +122,6 @@ fun PhotosScreen(
     val scope = rememberCoroutineScope()
     var folder by remember { mutableStateOf(prefs.getString("carpeta", null)) }
     var localPhotos by remember { mutableStateOf<List<LocalPhoto>>(emptyList()) }
-    var index by rememberSaveable { mutableIntStateOf(0) }
     var localChecked by remember(folder) { mutableStateOf(folder == null) }
     var cloudChecked by remember(sync.connected) { mutableStateOf(!sync.connected || shared.photos.isNotEmpty()) }
     val availabilityListener by rememberUpdatedState(onPhotosAvailable)
@@ -78,7 +135,6 @@ fun PhotosScreen(
                 .onSuccess {
                     prefs.edit().putString("carpeta", uri.toString()).apply()
                     folder = uri.toString()
-                    index = 0
                     error = null
                 }
                 .onFailure { error = "No s'ha pogut conservar l'accés a la carpeta." }
@@ -114,20 +170,22 @@ fun PhotosScreen(
         scope.launch { shared.refresh(sync, minAgeMillis = 5 * 60_000L) }
     }
 
-    val photos = localPhotos.map { GalleryPhoto(it.name, uri = it.uri) } +
-        shared.photos.map { GalleryPhoto(it.name, file = it.file, revision = it.revision) }
+    // Ordenació conjunta de carpeta local i Drive; canviar una foto a Drive
+    // actualitza el bitmap sense alterar la seqüència.
+    val photos = (localPhotos.map { GalleryPhoto(it.name, uri = it.uri) } +
+        shared.photos.map { GalleryPhoto(it.name, file = it.file, revision = it.revision) })
+        .sortedWith(compareBy<GalleryPhoto> { it.name.lowercase() }.thenBy { it.identity })
+    val photoKeys = photos.map { it.identity }
 
     LaunchedEffect(photos.size, localChecked, cloudChecked, shared.refreshing) {
         if (localChecked && cloudChecked && !shared.refreshing) availabilityListener(photos.isNotEmpty())
     }
 
-    LaunchedEffect(photos.size, localChecked) {
-        if (!localChecked) return@LaunchedEffect
-        if (photos.isEmpty()) index = 0
-        else if (index >= photos.size) index = photos.lastIndex
+    LaunchedEffect(photoKeys, shufflePhotos, localChecked) {
+        if (localChecked) playback.configure(photoKeys, shufflePhotos)
     }
 
-    val photo = photos.getOrNull(index)
+    val photo = photos.firstOrNull { it.identity == playback.currentKey }
     LaunchedEffect(photo?.key) {
         bitmap = null
         if (photo != null) {
@@ -145,11 +203,11 @@ fun PhotosScreen(
         }
     }
 
-    LaunchedEffect(photos.size, slideSeconds) {
-        if (photos.size > 1) {
+    LaunchedEffect(photoKeys, slideSeconds, shufflePhotos) {
+        if (photoKeys.size > 1) {
             while (true) {
                 delay(slideSeconds.coerceIn(10, 60) * 1_000L)
-                index = (index + 1) % photos.size
+                playback.next()
             }
         }
     }
@@ -182,6 +240,7 @@ fun PhotosScreen(
             .background(Color.Black), contentAlignment = Alignment.Center) {
             when {
                 loadingLocal && photos.isEmpty() -> CircularProgressIndicator()
+                photo == null && photos.isNotEmpty() -> CircularProgressIndicator()
                 photo == null -> Column(horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(24.dp)) {
                     Text("Encara no hi ha fotografies", style = Type.Large, color = Color.White)
@@ -209,15 +268,15 @@ fun PhotosScreen(
             Spacer(Modifier.height(10.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween) {
-                OutlinedButton(onClick = { index = (index - 1 + photos.size) % photos.size },
+                OutlinedButton(onClick = { playback.previous() },
                     enabled = photos.size > 1) { Text("Anterior") }
                 Column(Modifier.weight(1f).padding(horizontal = 20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text((index + 1).toString() + " / " + photos.size, style = Type.Small)
+                    Text((playback.position + 1).coerceAtMost(photos.size).toString() + " / " + photos.size, style = Type.Small)
                     Text(photo?.name.orEmpty(), style = Type.Tiny, maxLines = 1,
                         overflow = TextOverflow.Ellipsis)
                 }
-                OutlinedButton(onClick = { index = (index + 1) % photos.size },
+                OutlinedButton(onClick = { playback.next() },
                     enabled = photos.size > 1) { Text("Següent") }
             }
         }

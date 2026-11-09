@@ -6,7 +6,8 @@ data class FrameCycleConfig(
     val idleMinutes: Int = 2,
     val photoMinutes: Int = 10,
     val agendaSeconds: Int = 30,
-    val slideSeconds: Int = 20
+    val slideSeconds: Int = 20,
+    val shufflePhotos: Boolean = false
 ) {
     fun validated() = copy(
         idleMinutes = idleMinutes.takeIf { it in IDLE_MINUTES } ?: 2,

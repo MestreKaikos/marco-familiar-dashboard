@@ -70,6 +70,7 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
     val birthdayNames = birthdaysToday(events, today)
     // A la capçalera, només les cites del proper dia amb activitat (avui si n'hi ha).
     val upcoming = nextCalendarDayEvents(events + shifts, now)
+    val urgentReminder = urgentReminderNotice(reminders.pending(), today)
     Column(Modifier.fillMaxSize().padding(horizontal = 36.dp, vertical = 28.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Row(Modifier.fillMaxWidth().weight(0.32f), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             // Hora, fecha y tiempo en un solo bloque ancho (dos tercios); lo siguiente, a la derecha
@@ -77,7 +78,9 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
             UpcomingEventsCard(
                 upcoming, now,
                 noCalendar = state.token == null && !state.ics,
-                modifier = Modifier.weight(1f).fillMaxHeight()
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+                urgentReminder = urgentReminder,
+                onOpenReminders = { onOpen(Page.Reminders) }
             )
         }
         if (state.personalCalendars.isNotEmpty() || birthdayNames.isNotEmpty()) {
@@ -108,6 +111,41 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
 }
 
 // --- Arriba ---
+
+/** Recordatoris pendents vençuts i els que vencen avui; els fets no apareixen. */
+internal data class UrgentReminderNotice(val title: String, val overdue: Boolean, val extra: Int)
+
+internal fun urgentReminderNotice(reminders: List<FamilyReminder>, today: LocalDate): UrgentReminderNotice? {
+    val urgent = reminders.asSequence()
+        .filter { !it.done && it.deadline?.let { date -> !date.isAfter(today) } == true }
+        .sortedWith(compareBy<FamilyReminder> { it.deadline }.thenBy { it.title })
+        .toList()
+    val first = urgent.firstOrNull() ?: return null
+    return UrgentReminderNotice(first.title, first.deadline!!.isBefore(today), urgent.size - 1)
+}
+
+@Composable
+private fun UrgentReminderPill(notice: UrgentReminderNotice, modifier: Modifier, onClick: () -> Unit) {
+    val tint = if (notice.overdue) Palette.Accent else Palette.Warm
+    Row(
+        modifier.background(tint.copy(alpha = 0.13f), RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(if (notice.overdue) "⚠ VENÇUT" else "📌 AVUI",
+            style = Type.Tiny.copy(color = tint, fontSize = 16.sp, fontWeight = FontWeight.Bold),
+            maxLines = 1)
+        Text(notice.title,
+            style = Type.Tiny.copy(color = Palette.Ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold),
+            modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (notice.extra > 0) {
+            Text("+${notice.extra} més ›", style = Type.Tiny.copy(color = tint, fontSize = 16.sp),
+                maxLines = 1)
+        }
+    }
+}
 
 /**
  * Totes les cites de la setmana que encara no han acabat, ordenades per inici.
@@ -149,7 +187,8 @@ internal fun nextCalendarDayEvents(events: List<Event>, now: LocalDateTime): Lis
 /** Un únic dia amb activitat; les seves targetes reparteixen tota l'alçada disponible. */
 @Composable
 private fun UpcomingEventsCard(
-    events: List<Event>, now: LocalDateTime, noCalendar: Boolean, modifier: Modifier = Modifier
+    events: List<Event>, now: LocalDateTime, noCalendar: Boolean, modifier: Modifier = Modifier,
+    urgentReminder: UrgentReminderNotice? = null, onOpenReminders: () -> Unit = {}
 ) {
     val today = now.toLocalDate()
     val nearestDay = events.firstOrNull()?.let { maxOf(it.at.toLocalDate(), today) }
@@ -172,7 +211,7 @@ private fun UpcomingEventsCard(
             )
         }
         if (events.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 Text(
                     if (noCalendar) "Calendaris per configurar" else "No hi ha cites properes",
                     style = Type.Body.copy(color = Palette.InkMuted)
@@ -260,6 +299,9 @@ private fun UpcomingEventsCard(
                     }
                 }
             }
+        }
+        urgentReminder?.let { notice ->
+            UrgentReminderPill(notice, Modifier.fillMaxWidth(), onOpenReminders)
         }
     }
 }

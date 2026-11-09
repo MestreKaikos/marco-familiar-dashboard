@@ -16,14 +16,16 @@ class FrameModeSettings(context: Context) {
         idleMinutes = prefs.getInt("idle_minutes", 2),
         photoMinutes = prefs.getInt("photo_minutes", 10),
         agendaSeconds = prefs.getInt("agenda_seconds", 30),
-        slideSeconds = prefs.getInt("slide_seconds", 20)
+        slideSeconds = prefs.getInt("slide_seconds", 20),
+        shufflePhotos = prefs.getBoolean("shuffle_photos", false)
     ).validated())
         private set
     fun update(value: FrameCycleConfig) {
         config = value.validated()
         prefs.edit().putBoolean("enabled", config.enabled)
             .putInt("idle_minutes", config.idleMinutes).putInt("photo_minutes", config.photoMinutes)
-            .putInt("agenda_seconds", config.agendaSeconds).putInt("slide_seconds", config.slideSeconds).apply()
+            .putInt("agenda_seconds", config.agendaSeconds).putInt("slide_seconds", config.slideSeconds)
+            .putBoolean("shuffle_photos", config.shufflePhotos).apply()
     }
 }
 
