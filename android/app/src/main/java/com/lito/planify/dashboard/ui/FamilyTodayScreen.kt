@@ -93,7 +93,7 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
                                 )
                             }
                         }
-                        UrgentReminderPill(urgent, Modifier.fillMaxWidth().padding(horizontal = 14.dp, bottom = 12.dp)) {
+                        UrgentReminderPill(urgent, Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 12.dp)) {
                             onOpen(Page.Reminders)
                         }
                     }
