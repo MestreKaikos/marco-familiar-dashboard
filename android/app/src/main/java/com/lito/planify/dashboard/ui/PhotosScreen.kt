@@ -60,11 +60,27 @@ class PhotoPlaybackState {
     fun configure(keys: List<String>, shuffle: Boolean) {
         val available = keys.distinct()
         if (sourceKeys == available && randomOrder == shuffle) return
+
         val current = currentKey
+        val wasRandom = randomOrder
+        val alreadyShown = if (shuffle && wasRandom)
+            order.take(position + 1).filter { it in available }
+        else emptyList()
+
         sourceKeys = available
         randomOrder = shuffle
-        order = if (shuffle) available.shuffled() else available
-        position = current?.let { order.indexOf(it) }?.takeIf { it >= 0 } ?: 0
+        if (shuffle) {
+            // Si s'afegeixen fotos, conserva les ja vistes i posa les noves entre les pendents.
+            // En passar d'ordenat a aleatori, comença per l'actual i barreja la resta.
+            val shown = if (alreadyShown.isNotEmpty()) alreadyShown
+                else listOfNotNull(current?.takeIf { it in available })
+            val remaining = available.filterNot { it in shown }.shuffled()
+            order = shown + remaining
+            position = if (shown.isNotEmpty()) shown.lastIndex else 0
+        } else {
+            order = available
+            position = current?.let { order.indexOf(it) }?.takeIf { it >= 0 } ?: 0
+        }
     }
 
     fun next() {
@@ -172,8 +188,10 @@ fun PhotosScreen(
         if (localChecked && cloudChecked && !shared.refreshing) availabilityListener(photos.isNotEmpty())
     }
 
-    LaunchedEffect(photoKeys, shufflePhotos) {
-        playback.configure(photoKeys, shufflePhotos)
+    // Espera que s'hagi llegit la carpeta local abans de recalcular la seqüència.
+    // Això evita perdre l'ordre aleatori cada vegada que el marc torna d'Avui.
+    LaunchedEffect(photoKeys, shufflePhotos, localChecked) {
+        if (localChecked) playback.configure(photoKeys, shufflePhotos)
     }
 
     val photo = photos.firstOrNull { it.key == playback.currentKey }
