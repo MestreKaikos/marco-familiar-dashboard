@@ -88,7 +88,7 @@ internal fun PricePanel(title: String, day: List<HourPrice>, now: LocalDateTime,
         } else {
             Text(
                 "Més barata ${day.minBy { it.eur_kwh }.let { "${it.time.format(HourMinute)} · ${euros(it.eur_kwh)}" }}   ·   " +
-                    "más cara ${day.maxBy { it.eur_kwh }.let { "${it.time.format(HourMinute)} · ${euros(it.eur_kwh)}" }}",
+                    "més cara ${day.maxBy { it.eur_kwh }.let { "${it.time.format(HourMinute)} · ${euros(it.eur_kwh)}" }}",
                 style = Type.Small.copy(color = Palette.InkSoft),
                 modifier = Modifier.padding(top = 12.dp)
             )
@@ -172,10 +172,10 @@ internal fun BestHoursPanel(prices: List<HourPrice>, now: LocalDateTime, modifie
         .sortedBy { it.time }.windowed(3).maxByOrNull { w -> w.sumOf { it.eur_kwh } }
     val tomorrowKnown = prices.any { it.time.toLocalDate() == now.toLocalDate().plusDays(1) }
     Panel(modifier, compact = true) {
-        CardHeader("Mejores horas", Icons.Outlined.Schedule, Palette.Online, compact = true)
+        CardHeader("Millors hores", Icons.Outlined.Schedule, Palette.Online, compact = true)
         Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (prices.isEmpty()) Text("Encara no hi ha preus", style = Type.Body.copy(color = Palette.InkMuted))
-            car?.let { BestRow("🚗", "Cargar el coche", it, now) }
+            car?.let { BestRow("🚗", "Carregar el cotxe", it, now) }
             wash?.let { BestRow("🍽️", "Rentaplats o rentadora", it, now) }
             if ((car == null || wash == null) && prices.isNotEmpty() && !tomorrowKnown) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -216,7 +216,7 @@ private fun BestRow(emoji: String, what: String, window: Triple<LocalDateTime, L
 @Composable
 internal fun CarPanel(car: CarStatus, modifier: Modifier) {
     Panel(modifier, compact = true) {
-        CardHeader(car.modelo ?: "Coche eléctrico", Icons.Outlined.ElectricCar, Green, compact = true)
+        CardHeader(car.modelo ?: "Cotxe elèctric", Icons.Outlined.ElectricCar, Green, compact = true)
         BatteryPile(car, Modifier.fillMaxWidth().height(120.dp).padding(top = 16.dp))
         Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             CarFact(if (car.cargando) "⚡" else if (car.enchufado) "🔌" else "🅿️", if (car.cargando) "Carregant" else if (car.enchufado) "Endollat" else "Desendollat", Modifier.weight(1f))
