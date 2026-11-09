@@ -52,7 +52,7 @@ import java.time.format.TextStyle
 import java.util.Locale
 
 /** Hora de un evento para las listas: «Todo el día» si es de día completo. */
-fun Event.timeLabel(): String = if (all_day) "Todo el día" else at.format(HourMinute)
+fun Event.timeLabel(): String = if (all_day) "Tot el dia" else at.format(HourMinute)
 
 /** Hora de inicio y fin («15:00–22:00»); de día completo, nada. */
 fun Event.rangeLabel(): String? = if (all_day) null else listOfNotNull(at.format(HourMinute), end?.format(HourMinute)).joinToString("–")
@@ -206,7 +206,7 @@ fun EnergyCard(energy: Energy?, car: CarStatus?, now: LocalDateTime, modifier: M
     val min = day.minOfOrNull { it.eur_kwh } ?: 0.0
     val max = day.maxOfOrNull { it.eur_kwh } ?: 0.0
     CompactCard(
-        if (car?.bateria != null) "Llum i cotxe" else "Luz", Icons.Outlined.Bolt, Amber, modifier,
+        if (car?.bateria != null) "Llum i cotxe" else "Llum", Icons.Outlined.Bolt, Amber, modifier,
         trailing = {
             if (current != null) {
                 val color = priceColor(current.eur_kwh, min, max)
@@ -251,7 +251,7 @@ internal fun BatteryGauge(level: Double, car: CarStatus, modifier: Modifier) {
         androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.BottomCenter) {
             // Mientras carga, la potencia en pequeño justo encima del arco (no arriba del todo, junto al título)
             if (car.cargando) Text(
-                "⚡ " + (car.potencia_kw?.let(::kilowatts) ?: "cargando"),
+                "⚡ " + (car.potencia_kw?.let(::kilowatts) ?: "carregant"),
                 style = Type.Tiny.copy(color = Charging, fontWeight = FontWeight.SemiBold),
                 maxLines = 1,
                 modifier = Modifier.padding(bottom = (minOf(maxWidth, maxHeight * 2) - 18.dp) / 2 + 9.dp + 16.dp)
@@ -282,8 +282,8 @@ private fun cheapestLabel(prices: List<HourPrice>, now: LocalDateTime, today: Lo
     val rest = prices.filter { it.time.toLocalDate() == today && it.time.plusHours(1).isAfter(now) }.minByOrNull { it.eur_kwh }
     val tomorrow = prices.filter { it.time.toLocalDate() == today.plusDays(1) }.minByOrNull { it.eur_kwh }
     return listOfNotNull(
-        rest?.let { "Más barata hoy ${it.time.format(HourMinute)} · ${euros(it.eur_kwh)}" },
-        tomorrow?.let { "mañana ${it.time.format(HourMinute)} · ${euros(it.eur_kwh)}" }
+        rest?.let { "Més barata avui ${it.time.format(HourMinute)} · ${euros(it.eur_kwh)}" },
+        tomorrow?.let { "demà ${it.time.format(HourMinute)} · ${euros(it.eur_kwh)}" }
     ).joinToString("   ")
 }
 
