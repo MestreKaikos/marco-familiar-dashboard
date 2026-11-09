@@ -390,7 +390,7 @@ private fun ChoreCreator(
                     enabled = stars > 1, modifier = Modifier.heightIn(min = 62.dp)) {
                     Text("−", style = Type.Body)
                 }
-                Text("$" + "stars ⭐", style = Type.Small)
+                Text("$stars ⭐", style = Type.Small)
                 OutlinedButton(onClick = { stars = (stars + 1).coerceAtMost(5) },
                     enabled = stars < 5, modifier = Modifier.heightIn(min = 62.dp)) {
                     Text("+", style = Type.Body)
