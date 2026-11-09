@@ -62,6 +62,20 @@ fun FrameModeSettingsScreen(mode: FrameModeSettings, onBack: () -> Unit) {
                         onClick = { mode.update(config.copy(agendaSeconds = value)) }, label = { Text("$value segons", style = Type.Tiny) })
                 }
             }
+            Text("Ordre de reproducció", style = Type.Small)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                FilterChip(
+                    selected = !config.shufflePhotos,
+                    onClick = { mode.update(config.copy(shufflePhotos = false)) },
+                    label = { Text("Seguint l'ordre", style = Type.Tiny) }
+                )
+                FilterChip(
+                    selected = config.shufflePhotos,
+                    onClick = { mode.update(config.copy(shufflePhotos = true)) },
+                    label = { Text("Aleatori", style = Type.Tiny) }
+                )
+            }
+            Text("En mode aleatori, es mostren totes les fotos abans de repetir-ne cap.", style = Type.Tiny)
             Text("Canviar de fotografia cada", style = Type.Small)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 FrameCycleConfig.SLIDE_SECONDS.forEach { value ->
