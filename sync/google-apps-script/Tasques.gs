@@ -21,7 +21,7 @@ function familyTaskSheet_(name,header) {
 }
 /** Les dates de Google Sheets poden ser Date encara que les escrivim YYYY-MM-DD. */
 function taskDoneDate_(value){
-  if(value instanceof Date){
+  if(value && Object.prototype.toString.call(value)==='[object Date]'){
     if(isNaN(value.getTime()))return '';
     return Utilities.formatDate(value,Session.getScriptTimeZone()||'Europe/Madrid','yyyy-MM-dd');
   }
