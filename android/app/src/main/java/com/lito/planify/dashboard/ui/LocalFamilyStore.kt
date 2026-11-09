@@ -70,7 +70,6 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
         // L'estat local del dia actual no es pot perdre per un historial del núvol
         // més antic. Això passava en feines diàries fetes ahir i tornades a fer avui.
         val localById = chores.associateBy { it.id }
-        val today = LocalDate.now().toString()
         val history = mutableMapOf<String, MutableMap<String, MutableSet<String>>>()
         for (j in 0 until remoteDone.length()) {
             val d = remoteDone.optJSONObject(j) ?: continue
@@ -93,31 +92,13 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
                 it in listOf("daily", "once", "weekly", "weekdays", "slots")
             } ?: if (item.optBoolean("daily")) "daily" else "once"
             val doneDates = history[id].orEmpty()
-            val cloudDate = doneDates.keys.maxOrNull().orEmpty()
             val local = localById[id]?.takeIf { it.owner == owner }
-            // Preserva «pendent» o «aprovada» fins que el servidor confirmi la
-            // nova data. Només guanya la data de completament més recent.
-            val localCandidate = local?.takeIf {
-                it.status in setOf("pending", "approved") &&
-                    it.date.isNotBlank() &&
-                    (frequency == "once" || it.date == today) &&
-                    it.date >= cloudDate
-            }
-            val currentDate = when {
-                cloudDate.isBlank() -> localCandidate?.date.orEmpty()
-                localCandidate != null && localCandidate.date > cloudDate -> localCandidate.date
-                else -> cloudDate
-            }
-            val cloudApproved = cloudDate.isNotBlank() &&
-                (localCandidate == null || cloudDate >= localCandidate.date)
-            val chosenStatus = when {
-                cloudApproved -> "approved"
-                localCandidate != null -> localCandidate.status
-                else -> "todo"
-            }
-            val completedSlots = doneDates[currentDate].orEmpty().toSet() +
-                (local?.completedSlots.orEmpty().takeIf { local?.date == currentDate }
-                    ?: emptySet())
+            val resolved = reconcileChoreState(
+                completedOnDates = doneDates.mapValues { it.value.toSet() },
+                local = local,
+                frequency = frequency,
+                today = LocalDate.now()
+            )
             newChores.add(LocalChore(
                 id = id, title = title.take(100), owner = owner,
                 stars = item.optInt("stars", 1).coerceIn(1, 100),
@@ -125,9 +106,9 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
                 frequency = frequency,
                 days = item.optString("days"),
                 slots = item.optString("slots", "única"),
-                date = currentDate,
-                status = chosenStatus,
-                completedSlots = completedSlots
+                date = resolved.date,
+                status = resolved.status,
+                completedSlots = resolved.completedSlots
             ))
         }
         val newRewards = mutableListOf<LocalReward>()
