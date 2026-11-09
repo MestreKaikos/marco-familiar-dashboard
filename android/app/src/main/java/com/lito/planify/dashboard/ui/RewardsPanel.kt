@@ -191,7 +191,7 @@ fun PinOverlay(claim: RewardClaim, approve: Boolean, busy: Boolean, error: Strin
                 }
             }
             Text(
-                "Cancelar",
+                "Cancel·lar",
                 style = Type.Small.copy(color = Palette.InkSoft, fontWeight = FontWeight.SemiBold),
                 modifier = Modifier.clickable(onClick = onDismiss).padding(horizontal = 24.dp, vertical = 10.dp)
             )
