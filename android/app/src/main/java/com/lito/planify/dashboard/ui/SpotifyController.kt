@@ -43,6 +43,9 @@ internal class SpotifyController(context: Context) {
     private val prefs = context.applicationContext
         .getSharedPreferences("marc_spotify", Context.MODE_PRIVATE)
 
+    var shuffleEnabled by mutableStateOf(prefs.getBoolean("shuffle_enabled", false))
+        private set
+
     var linked by mutableStateOf(!prefs.getString("refresh_token", "").isNullOrEmpty())
         private set
     var loading by mutableStateOf(false)
@@ -72,6 +75,7 @@ internal class SpotifyController(context: Context) {
     fun disconnect() {
         prefs.edit().clear().commit()
         linked = false
+        shuffleEnabled = false
         loading = false
         speakers = emptyList()
         lists = emptyList()
@@ -232,6 +236,14 @@ internal class SpotifyController(context: Context) {
             speakers = available.filter { it.name.trim().equals(PREFERRED_SPOTIFY_SPEAKER, ignoreCase = true) }
             chooseDevice(speakers.firstOrNull()?.id ?: "")
             lists = withContext(Dispatchers.IO) { readLists() }
+            if (selectedDeviceId.isNotBlank()) {
+                runCatching {
+                    withContext(Dispatchers.IO) { spotify("/me/player") }
+                }.getOrNull()?.takeIf { it.has("shuffle_state") }?.let {
+                    shuffleEnabled = it.optBoolean("shuffle_state")
+                    prefs.edit().putBoolean("shuffle_enabled", shuffleEnabled).apply()
+                }
+            }
             status = if (lists.isEmpty())
                 "Spotify retorna 0 playlists. Comprova que tens llistes creades o desades al teu compte."
             else if (speakers.isEmpty())
@@ -293,6 +305,14 @@ internal class SpotifyController(context: Context) {
         spotify("/me/player/play" + destination(), "PUT",
             JSONObject().put("context_uri", list.uri))
         "Reproduint «" + list.title + "» al dispositiu seleccionat."
+    }
+
+    suspend fun toggleShuffle() = action("Canviant reproducció aleatòria…") {
+        val next = !shuffleEnabled
+        spotify("/me/player/shuffle?state=" + next + "&" + destination().removePrefix("?"), "PUT")
+        shuffleEnabled = next
+        prefs.edit().putBoolean("shuffle_enabled", next).apply()
+        if (next) "Reproducció aleatòria activada." else "Reproducció aleatòria desactivada."
     }
 
     suspend fun control(command: String) = action("Enviant la comanda a Spotify…") {
