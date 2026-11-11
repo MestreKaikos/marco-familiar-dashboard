@@ -32,8 +32,6 @@ internal data class RecyclePickup(val key: String, val labels: List<String>, val
 internal fun recyclePickup(now: LocalDateTime): RecyclePickup? {
     val date = now.toLocalDate()
     // El dijous al vespre continua sent orgànica i envasos; el vidre es treu divendres al matí.
-    if (date.dayOfWeek == DayOfWeek.THURSDAY && now.hour >= 20)
-        return RecyclePickup(date.plusDays(1).toString() + "-vidre", listOf("🟢 Vidre"), true)
     if (date.dayOfWeek == DayOfWeek.FRIDAY && now.hour < 8)
         return RecyclePickup(date.toString() + "-vidre", listOf("🟢 Vidre"), true)
     val items = when (date.dayOfWeek) {
@@ -78,6 +76,9 @@ internal fun RecyclePanel(pickup: RecyclePickup?, done: Boolean, onDone: (Boolea
         } else {
             Text(if (pickup.isGlass) "Vidre · divendres abans de les 8 h" else "Treure de 19 a 20 h", style = Type.Small)
             pickup.labels.forEach { Text(it, style = Type.Small.copy(color = Palette.Ink)) }
+            if (pickup.key.endsWith("-vespre") && java.time.LocalDate.parse(pickup.key.removeSuffix("-vespre")).dayOfWeek == DayOfWeek.THURSDAY) {
+                Text("Demà divendres: vidre abans de les 8 h", style = Type.Tiny.copy(color = Palette.InkSoft))
+            }
             val tint = if (done) Palette.Online else Palette.Accent
             Box(Modifier.fillMaxWidth().background(tint, RoundedCornerShape(16.dp))
                 .clickable { onDone(!done) }.padding(14.dp), contentAlignment = Alignment.Center) {
