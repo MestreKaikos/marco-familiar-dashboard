@@ -76,8 +76,15 @@ class FamilyReminders internal constructor(private val prefs: SharedPreferences)
     }
     fun replaceFromCloud(values: JSONArray) {
         val cloud = (0 until values.length()).mapNotNull { i -> values.optJSONObject(i)?.let(::parse) }.take(250)
+        // Si una sincronització arriba sense la data d'un recordatori conegut,
+        // no esborrem silenciosament la data que ja teníem desada.
+        val existingDates = items.associate { it.id to it.date }
         items.clear()
-        items.addAll(cloud)
+        items.addAll(cloud.map { incoming ->
+            if (incoming.date.isBlank() && !existingDates[incoming.id].isNullOrBlank())
+                incoming.copy(date = existingDates.getValue(incoming.id))
+            else incoming
+        })
         sort()
         persist()
     }
@@ -187,7 +194,12 @@ private fun RemindersPanel(store: FamilyReminders, today: LocalDate, modifier: M
                             }
                             val formatted = reminder.deadline?.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
                             Text(if (formatted == null) dueLabel else "$dueLabel · $formatted",
-                                style = Type.Small.copy(color = if (expired) Palette.Accent else Palette.InkSoft))
+                                style = Type.Small.copy(
+                                    color = if (expired) Palette.Accent else Palette.Ink,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 22.sp
+                                ),
+                                modifier = Modifier.padding(top = 5.dp))
                             if (reminder.notes.isNotBlank())
                                 Text(reminder.notes,
                                     style = Type.Tiny.copy(color = Palette.InkMuted), maxLines = 2)
