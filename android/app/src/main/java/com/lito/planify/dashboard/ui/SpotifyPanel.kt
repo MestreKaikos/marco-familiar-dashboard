@@ -163,6 +163,11 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
         Row(Modifier.fillMaxWidth().padding(top = 9.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = { scope.launch { player.toggleShuffle() } },
+                enabled = !player.loading && player.selectedDeviceId.isNotEmpty()) {
+                Text("🔀", style = Type.Large.copy(fontSize = 26.sp,
+                    color = if (player.shuffleEnabled) SpotifyGreen else Palette.InkMuted))
+            }
             listOf("⏮" to "previous", "⏸" to "pause",
                 "▶" to "resume", "⏭" to "next").forEach { (symbol, command) ->
                 TextButton(onClick = { scope.launch { player.control(command) } },
@@ -171,6 +176,9 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
                 }
             }
         }
+        Text(if (player.shuffleEnabled) "🔀 Aleatori activat" else "Aleatori desactivat",
+            style = Type.Tiny.copy(color = if (player.shuffleEnabled) SpotifyGreen else Palette.InkMuted,
+                fontSize = 14.sp))
         Text(player.status, style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 16.sp),
             maxLines = 3, modifier = Modifier.padding(top = 5.dp))
         Text("Reproducció configurada només per a ABAIX.",
