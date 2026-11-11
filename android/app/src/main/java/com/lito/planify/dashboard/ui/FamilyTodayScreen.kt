@@ -546,8 +546,10 @@ private fun HomeSummaryRow(item: HomeSummaryItem, tint: Color) {
         .then(if (action != null) Modifier.clickable(onClickLabel = item.actionLabel, onClick = action) else Modifier)
         .padding(horizontal = 8.dp, vertical = if (childFriendly) 7.dp else 2.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-        Text(item.glyph, style = Type.Small.copy(fontSize = 22.sp, lineHeight = 28.sp,
-            color = tint, fontWeight = FontWeight.Medium))
+        if (item.glyph.isNotBlank()) {
+            Text(item.glyph, style = Type.Small.copy(fontSize = 22.sp, lineHeight = 28.sp,
+                color = tint, fontWeight = FontWeight.Medium))
+        }
         Text(item.title, style = Type.Body.copy(fontSize = 21.sp, lineHeight = 28.sp,
             color = Palette.Ink, fontWeight = FontWeight.Medium),
             modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -580,7 +582,7 @@ private fun LocalShoppingTile(store: LocalFamilyStore, modifier: Modifier, onCli
     HomeSummaryTile("Compra", "🛒", Palette.Online,
         summary = if (pending.isEmpty()) "No falta res" else "${pending.size} producte${if (pending.size == 1) " pendent" else "s pendents"}",
         items = pending.map { product ->
-            HomeSummaryItem(title = product.name, touchLabel = "✓ Comprat",
+            HomeSummaryItem(title = product.name, glyph = "", touchLabel = "✓ Comprat",
                 onMark = { store.toggleGrocery(product.id) }, actionLabel = "Marcar comprat: " + product.name)
         }, emptyMessage = "Toca per afegir productes",
         modifier = modifier, onClick = onClick)
