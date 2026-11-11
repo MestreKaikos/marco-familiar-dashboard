@@ -369,7 +369,7 @@ fun FamilyShoppingPanel(
                 LazyColumn(Modifier.weight(1f)) {
                     items(store.groceries.sortedWith(compareBy<LocalGrocery> { it.bought }), key = { it.id }) { item ->
                         Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = item.bought, onCheckedChange = { store.toggleGrocery(item.id) })
+
                             Text(
                                 item.name, style = Type.Small.copy(
                                     color = if (item.bought) Palette.InkMuted else Palette.Ink,
@@ -378,6 +378,10 @@ fun FamilyShoppingPanel(
                                 modifier = Modifier.weight(1f).clickable { store.toggleGrocery(item.id) },
                                 maxLines = 2, overflow = TextOverflow.Ellipsis
                             )
+                            Button(onClick = { store.toggleGrocery(item.id) }, modifier = Modifier.heightIn(min = 64.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = if (item.bought) Palette.Online else Color(0xFF7857BC), contentColor = Color.White)) {
+                                Text(if (item.bought) "✓ Comprat" else "Marcar comprat", style = Type.Small.copy(color = Color.White, fontWeight = FontWeight.Bold))
+                            }
                             TextButton(onClick = { editGrocery = item }) { Text("Editar") }
                             TextButton(onClick = { store.removeGrocery(item.id) }) { Text("✕") }
                         }
