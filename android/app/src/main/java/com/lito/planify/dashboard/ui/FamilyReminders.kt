@@ -168,7 +168,7 @@ private fun RemindersPanel(store: FamilyReminders, today: LocalDate, modifier: M
                         .padding(horizontal = 12.dp, vertical = 10.dp)
                 ) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = reminder.done, onCheckedChange = { store.toggle(reminder.id, it) })
+
                         Column(Modifier.weight(1f)) {
                             Text(reminder.title, style = Type.Body.copy(
                                 color = if (reminder.done) Palette.InkMuted else Palette.Ink,
@@ -188,7 +188,11 @@ private fun RemindersPanel(store: FamilyReminders, today: LocalDate, modifier: M
                                     style = Type.Tiny.copy(color = Palette.InkMuted), maxLines = 2)
                         }
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                        Button(onClick = { store.toggle(reminder.id, !reminder.done) }, modifier = Modifier.heightIn(min = 64.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = if (reminder.done) Palette.Online else Color(0xFF7857BC), contentColor = Color.White)) {
+                            Text(if (reminder.done) "✓ Fet" else "Marcar com a fet", style = Type.Small.copy(color = Color.White, fontWeight = FontWeight.Bold))
+                        }
                         TextButton(onClick = { editing = reminder }) { Text("Editar") }
                         TextButton(onClick = { store.delete(reminder.id) }) { Text("Treure") }
                     }
