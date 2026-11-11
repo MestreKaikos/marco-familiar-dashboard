@@ -105,8 +105,11 @@ internal class SpotifyController(context: Context) {
             if (code == 204) return code to JSONObject()
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
             val text = stream?.bufferedReader(Charsets.UTF_8)
-                ?.use { it.readText().take(24_000) }.orEmpty()
-            return code to runCatching { JSONObject(text) }.getOrDefault(JSONObject())
+                ?.use { it.readText() }.orEmpty()
+            val parsed = runCatching { JSONObject(text) }.getOrNull()
+            if (parsed == null && code in 200..299 && text.isNotBlank())
+                throw IOException("Resposta JSON de Spotify no vàlida (" + text.length + " caràcters, HTTP " + code + ").")
+            return code to (parsed ?: JSONObject())
         } finally {
             connection.disconnect()
         }
@@ -191,10 +194,11 @@ internal class SpotifyController(context: Context) {
         val found = ArrayList<SpotifyList>()
         var received = 0
         var skipped = 0
-        for (offset in 0 until 200 step 50) {
-            val data = spotify("/me/playlists?limit=50&offset=" + offset)
+        for (offset in 0 until 200 step 20) {
+            val data = spotify("/me/playlists?limit=20&offset=" + offset)
             val items = data.optJSONArray("items")
-                ?: throw IOException("Spotify no ha retornat les playlists (camp items absent).")
+                ?: throw IOException("Spotify no ha retornat el camp items (claus: " +
+                    data.keys().asSequence().take(8).joinToString(", ") + ").")
             received += items.length()
             for (i in 0 until items.length()) {
                 val item = items.optJSONObject(i)
@@ -210,7 +214,7 @@ internal class SpotifyController(context: Context) {
                 found.add(SpotifyList(id, "spotify:playlist:" + id,
                     item.optString("name", "Playlist sense nom").take(110)))
             }
-            if (items.length() < 50 || found.size >= data.optInt("total", Int.MAX_VALUE))
+            if (items.length() < 20 || offset + items.length() >= data.optInt("total", Int.MAX_VALUE))
                 break
         }
         if (found.isEmpty() && received > 0)
@@ -224,10 +228,10 @@ internal class SpotifyController(context: Context) {
         loading = true
         status = "Consultant Spotify i els altaveus…"
         try {
-            val result = withContext(Dispatchers.IO) { readDevices() to readLists() }
-            speakers = result.first.filter { it.name.trim().equals(PREFERRED_SPOTIFY_SPEAKER, ignoreCase = true) }
-            lists = result.second
+            val available = withContext(Dispatchers.IO) { readDevices() }
+            speakers = available.filter { it.name.trim().equals(PREFERRED_SPOTIFY_SPEAKER, ignoreCase = true) }
             chooseDevice(speakers.firstOrNull()?.id ?: "")
+            lists = withContext(Dispatchers.IO) { readLists() }
             status = if (lists.isEmpty())
                 "Spotify retorna 0 playlists. Comprova que tens llistes creades o desades al teu compte."
             else if (speakers.isEmpty())
