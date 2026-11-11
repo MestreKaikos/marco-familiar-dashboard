@@ -71,7 +71,7 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
 
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("✅ Feines d’en Rai", style = Type.Large.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
-                Button(onClick = { addChore = true }, modifier = Modifier.heightIn(min = 68.dp)) { Text("+ Nova feina", style = Type.Small.copy(fontSize = 21.sp)) }
+                Button(onClick = { addChore = true }, modifier = Modifier.heightIn(min = 68.dp)) { Text("+ Nova feina", style = Type.Small.copy(fontSize = 21.sp, color = Color.White)) }
             }
             Spacer(Modifier.height(12.dp))
             Text("En Rai pot marcar una feina feta; un adult la valida abans de sumar estrelles.", style = Type.Tiny.copy(color = Palette.InkSoft))
@@ -202,7 +202,7 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
 
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("🎁 Recompenses", style = Type.Large.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
-                Button(onClick = { addReward = true }, modifier = Modifier.heightIn(min = 68.dp)) { Text("+ Nou premi", style = Type.Small.copy(fontSize = 21.sp)) }
+                Button(onClick = { addReward = true }, modifier = Modifier.heightIn(min = 68.dp)) { Text("+ Nou premi", style = Type.Small.copy(fontSize = 21.sp, color = Color.White)) }
             }
             Text("Rai · ⭐ ${store.stars} disponibles", style = Type.Body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 14.dp, bottom = 14.dp))
             val requested = store.rewards.firstOrNull { it.id == store.pendingRewardId }
