@@ -509,10 +509,10 @@ private fun AccentSettingsScreen(onBack: () -> Unit) {
                     Palette.setAccent(hex)
                     context.getSharedPreferences("marc_aparenca", android.content.Context.MODE_PRIVATE).edit().putLong("accent", hex).apply()
                 }.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    Box(Modifier.size(44.dp).background(Color(hex), CircleShape)
-                        .then(if (Palette.Accent == Color(hex)) Modifier.border(4.dp, Palette.Ink, CircleShape) else Modifier))
+                    Box(Modifier.size(44.dp).background(Color(hex.toInt()), CircleShape)
+                        .then(if (Palette.Accent == Color(hex.toInt())) Modifier.border(4.dp, Palette.Ink, CircleShape) else Modifier))
                     Text(name, style = Type.Body)
-                    if (Palette.Accent == Color(hex)) Text("✓", style = Type.Body.copy(color = Palette.Accent))
+                    if (Palette.Accent == Color(hex.toInt())) Text("✓", style = Type.Body.copy(color = Palette.Accent))
                 }
             }
         }
