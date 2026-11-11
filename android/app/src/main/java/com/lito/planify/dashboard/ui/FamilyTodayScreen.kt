@@ -556,13 +556,15 @@ private fun HomeSummaryRow(item: HomeSummaryItem, tint: Color) {
         if (item.touchLabel != null) {
             Box(
                 modifier = Modifier.background(
-                    if (action != null) Color(0xFF7857BC) else tint.copy(alpha = 0.19f),
+                    if (action != null) Palette.Accent else tint.copy(alpha = 0.19f),
                     RoundedCornerShape(12.dp)
                 ).padding(horizontal = 12.dp, vertical = 9.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(item.touchLabel, style = Type.Tiny.copy(
-                    color = if (action != null) Color.White else Palette.Ink,
+                    color = if (action != null) {
+                        if (Palette.Accent.luminance() > 0.42f) Color.Black else Color.White
+                    } else Palette.Ink,
                     fontSize = 18.sp, fontWeight = FontWeight.Bold, lineHeight = 22.sp
                 ), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
