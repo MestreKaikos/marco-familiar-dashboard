@@ -104,6 +104,22 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
             Text("Cap dispositiu Cast detectat. Comprova que el marc i els Nest siguin a la mateixa xarxa.",
                 style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 14.sp), maxLines = 3)
         }
+        if (cast.details.isNotEmpty()) {
+            Text("Detalls Cast (nom · model · capacitats):",
+                style = Type.Tiny.copy(color = Palette.InkMuted, fontSize = 14.sp))
+            cast.details.forEach { device ->
+                Text("• " + device, style = Type.Tiny.copy(
+                    color = Palette.InkSoft, fontSize = 14.sp), maxLines = 2)
+            }
+        }
+        val members = listOf("Cuina", "Cuina-Menjador")
+        val foundMembers = members.filter { expected ->
+            cast.names.any { it.equals(expected, ignoreCase = true) }
+        }
+        if (foundMembers.isNotEmpty()) {
+            Text("Nest del grup detectats: " + foundMembers.joinToString(" + "),
+                style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 14.sp))
+        }
         Text("Cast detecta el grup; per iniciar Spotify encara cal que aparegui a Spotify Connect.",
             style = Type.Tiny.copy(color = Palette.InkMuted, fontSize = 14.sp),
             modifier = Modifier.padding(bottom = 5.dp))
