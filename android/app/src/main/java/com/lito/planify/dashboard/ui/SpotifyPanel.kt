@@ -30,6 +30,11 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val player = remember(context) { SpotifyController(context.applicationContext) }
     val scope = rememberCoroutineScope()
+    val cast = remember(context) { CastDiscovery(context.applicationContext) }
+    DisposableEffect(cast) {
+        cast.start()
+        onDispose { cast.stop() }
+    }
     var all by remember { mutableStateOf(false) }
     var confirmUnlink by remember { mutableStateOf(false) }
 
@@ -67,6 +72,26 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
                     .background(SpotifyGreen, RoundedCornerShape(12.dp))
                     .padding(horizontal = 16.dp, vertical = 10.dp))
         }
+
+        Row(Modifier.fillMaxWidth().padding(top = 6.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Text("GOOGLE CAST · XARXA LOCAL", style = Type.Tiny.copy(
+                color = Palette.InkMuted, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
+                modifier = Modifier.weight(1f))
+            TextButton(onClick = { cast.stop(); cast.start() }) { Text("Cercar") }
+        }
+        val castGroup = cast.names.firstOrNull { it.equals("Abaix", ignoreCase = true) }
+        Text(when {
+            castGroup != null -> "✓ Abaix detectat per Google Cast"
+            cast.error.value.isNotBlank() -> cast.error.value
+            cast.scanning.value -> "Cercant Abaix per Google Cast…"
+            else -> "No s'ha detectat Abaix per Google Cast"
+        }, style = Type.Tiny.copy(
+            color = if (castGroup != null) Palette.Online else Palette.InkSoft,
+            fontSize = 16.sp))
+        Text("Cast detecta el grup; per iniciar Spotify encara cal que aparegui a Spotify Connect.",
+            style = Type.Tiny.copy(color = Palette.InkMuted, fontSize = 14.sp),
+            modifier = Modifier.padding(bottom = 5.dp))
 
         Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(if (all) "TOTES LES PLAYLISTS" else "PLAYLISTS FAVORITES",
