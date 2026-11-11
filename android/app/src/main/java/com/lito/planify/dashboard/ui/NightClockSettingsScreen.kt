@@ -43,7 +43,7 @@ fun NightClockSettingsScreen(state: UiState, callbacks: SettingsCallbacks, setti
             NightClock(state.now, c, Modifier.fillMaxSize(), drift = false)
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = { preview = true }) { Text("Provar a pantalla completa", style = Type.Tiny) }
+            Button(onClick = { preview = true }) { Text("Provar a pantalla completa", style = Type.Tiny.copy(color = Color.White)) }
             OutlinedButton(onClick = { settings.update(NightClockConfig()) }) { Text("Restablir aspecte", style = Type.Tiny) }
         }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -104,7 +104,7 @@ private fun NightChoices(label: String, selected: String, choices: List<Pair<Str
     Text(label, style = Type.Small)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         choices.forEach { (value, title) ->
-            FilterChip(selected = selected == value, onClick = { onSelect(value) }, label = { Text(title, style = Type.Tiny) })
+            FilterChip(selected = selected == value, onClick = { onSelect(value) }, label = { Text(title, style = Type.Tiny.copy(color = if (selected == value) Color.White else Palette.Ink)) })
         }
     }
 }
