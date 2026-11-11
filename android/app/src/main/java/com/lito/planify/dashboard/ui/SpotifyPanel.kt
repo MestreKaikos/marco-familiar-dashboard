@@ -36,6 +36,7 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
         onDispose { cast.stop() }
     }
     var all by remember { mutableStateOf(false) }
+    var castExpanded by remember { mutableStateOf(false) }
     var castSearchTimedOut by remember { mutableStateOf(false) }
     var castSearchAttempt by remember { mutableIntStateOf(0) }
     LaunchedEffect(castSearchAttempt) {
@@ -85,7 +86,12 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
             Text("GOOGLE CAST · XARXA LOCAL", style = Type.Tiny.copy(
                 color = Palette.InkMuted, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
                 modifier = Modifier.weight(1f))
-            TextButton(onClick = { cast.stop(); cast.start(); castSearchAttempt++ }) { Text("Cercar") }
+            TextButton(onClick = { castExpanded = !castExpanded }) {
+                Text(if (castExpanded) "Amagar ▲" else "Detalls ▼")
+            }
+            if (castExpanded) {
+                TextButton(onClick = { cast.stop(); cast.start(); castSearchAttempt++ }) { Text("Cercar") }
+            }
         }
         val castGroup = cast.names.firstOrNull { it.equals("Abaix", ignoreCase = true) }
         Text(when {
@@ -97,32 +103,32 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
         }, style = Type.Tiny.copy(
             color = if (castGroup != null) Palette.Online else Palette.InkSoft,
             fontSize = 16.sp))
-        if (cast.names.isNotEmpty()) {
-            Text("Dispositius Cast trobats: " + cast.names.joinToString(" · "),
-                style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 14.sp), maxLines = 3)
-        } else if (castSearchTimedOut) {
-            Text("Cap dispositiu Cast detectat. Comprova que el marc i els Nest siguin a la mateixa xarxa.",
-                style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 14.sp), maxLines = 3)
-        }
-        if (cast.details.isNotEmpty()) {
-            Text("Detalls Cast (nom · model · capacitats):",
-                style = Type.Tiny.copy(color = Palette.InkMuted, fontSize = 14.sp))
-            cast.details.forEach { device ->
-                Text("• " + device, style = Type.Tiny.copy(
-                    color = Palette.InkSoft, fontSize = 14.sp), maxLines = 2)
+        if (castExpanded) {
+            if (cast.names.isNotEmpty()) {
+                Text("Dispositius Cast trobats: " + cast.names.joinToString(" · "),
+                    style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 14.sp), maxLines = 3)
+            } else if (castSearchTimedOut) {
+                Text("Cap dispositiu Cast detectat. Comprova que el marc i els Nest siguin a la mateixa xarxa.",
+                    style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 14.sp), maxLines = 3)
+            }
+            if (cast.details.isNotEmpty()) {
+                Text("Detalls Cast (nom · model · capacitats):",
+                    style = Type.Tiny.copy(color = Palette.InkMuted, fontSize = 14.sp))
+                cast.details.forEach { device ->
+                    Text("• " + device, style = Type.Tiny.copy(
+                        color = Palette.InkSoft, fontSize = 14.sp), maxLines = 2)
+                }
+            }
+            val members = listOf("Cuina", "Cuina-Menjador")
+            val foundMembers = members.filter { expected ->
+                cast.names.any { it.equals(expected, ignoreCase = true) }
+            }
+            if (foundMembers.isNotEmpty()) {
+                Text("Nest del grup detectats: " + foundMembers.joinToString(" + "),
+                    style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 14.sp))
             }
         }
-        val members = listOf("Cuina", "Cuina-Menjador")
-        val foundMembers = members.filter { expected ->
-            cast.names.any { it.equals(expected, ignoreCase = true) }
-        }
-        if (foundMembers.isNotEmpty()) {
-            Text("Nest del grup detectats: " + foundMembers.joinToString(" + "),
-                style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 14.sp))
-        }
-        Text("Cast detecta el grup; per iniciar Spotify encara cal que aparegui a Spotify Connect.",
-            style = Type.Tiny.copy(color = Palette.InkMuted, fontSize = 14.sp),
-            modifier = Modifier.padding(bottom = 5.dp))
+
 
         Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(if (all) "TOTES LES PLAYLISTS" else "PLAYLISTS FAVORITES",
