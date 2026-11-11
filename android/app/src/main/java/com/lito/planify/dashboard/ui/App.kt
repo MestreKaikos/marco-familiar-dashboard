@@ -40,6 +40,7 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.Recycling
 import androidx.compose.material.icons.outlined.Thermostat
 import androidx.compose.material.icons.outlined.Today
 import androidx.compose.material3.Icon
@@ -89,7 +90,7 @@ enum class Page(val label: String, val icon: ImageVector) {
     Weather("El temps", Icons.Outlined.Thermostat),
     Energy("Energia", Icons.Outlined.Bolt),
     Home("Casa i energia", Icons.Outlined.Home),
-    Tasks("Família", Icons.Outlined.Checklist),
+    Tasks("Rai", Icons.Outlined.Checklist),
     Reminders("Recordatoris", Icons.Outlined.Checklist),
     Settings("Opcions", Icons.Outlined.Settings)
 }
@@ -145,6 +146,10 @@ fun DashboardApp(
     // Manté la reproducció en tornar de la pantalla Avui.
     val photoPlayback = remember { PhotoPlaybackState() }
     val context = LocalContext.current
+    val appearancePrefs = remember(context) { context.getSharedPreferences("marc_aparenca", Context.MODE_PRIVATE) }
+    LaunchedEffect(appearancePrefs) {
+        Palette.setAccent(appearancePrefs.getLong("accent", 0xFFC8243BL))
+    }
     val nestPrefs = remember(context) { context.getSharedPreferences("marc_nest", Context.MODE_PRIVATE) }
     var nestKey by remember(nestPrefs) { mutableStateOf(nestPrefs.getString("camera_key", "").orEmpty()) }
     var nestDevice by remember { mutableStateOf<NestDevice?>(null) }
@@ -226,6 +231,31 @@ fun DashboardApp(
         nestDevice = null
         appResumed = false
     }
+    // Recollida: el botó del lateral obre un panell sobre el contingut, sense reordenar-lo.
+    val pickup = recyclePickup(state.now)
+    val pickupKey = pickup?.key
+    var recycleOpen by remember { mutableStateOf(false) }
+    var recycleDone by remember { mutableStateOf(false) }
+    var recycleDismissed by remember { mutableStateOf(false) }
+    var recycleAutoSeen by remember { mutableStateOf<String?>(null) }
+    var recycleAlert by remember { mutableStateOf(false) }
+    LaunchedEffect(pickupKey) {
+        recycleOpen = false
+        recycleDismissed = false
+        recycleAlert = false
+        recycleDone = pickup?.let { recycleIsDone(context, it) } ?: false
+    }
+    LaunchedEffect(pickupKey, state.now.hour, state.night, page, recycleDone) {
+        val item = pickup ?: return@LaunchedEffect
+        if (state.night || page != Page.Today || recycleDone || recycleDismissed ||
+            !recycleAttention(state.now, item) || recycleAutoSeen == item.key) return@LaunchedEffect
+        recycleAutoSeen = item.key
+        recycleAlert = true
+        recycleOpen = true
+        delay(10_000L)
+        recycleOpen = false
+        recycleAlert = false
+    }
     /** Cita abierta en el aviso ([EventOverlay]); se cierra sola al volver a Hoy por inactividad. */
     var shownEvent by remember { mutableStateOf<Event?>(null) }
 
@@ -278,6 +308,7 @@ fun DashboardApp(
         when {
             nestDevice != null -> nestDevice = null
             shownEvent != null -> shownEvent = null
+            recycleOpen -> { recycleOpen = false; recycleDismissed = true }
             else -> page = Page.Today
         }
     }
@@ -348,15 +379,32 @@ fun DashboardApp(
                         }
                         Page.Tasks -> LocalFamilyScreen(family, state.now.toLocalDate(), sync.connected, sync.pendingCount, sync.cloudTasks >= 0)
                         Page.Reminders -> FamilyRemindersScreen(reminders, state.now.toLocalDate(), family, sync.connected, sync.pendingCount)
-                        Page.Settings -> SettingsScreen(state, actions, settings, sync, dinners, family, frameMode, nightClock)
+                        Page.Settings -> SettingsScreen(state, actions, settings, sync, dinners, family, frameMode, nightClock, onRefresh = {
+                            onInteraction()
+                            onSync()
+                            coroutineScope.launch { sync.synchronize(dinners, family) }
+                        })
                     }
                     }
                 }
-                if (!automaticPhotos) Rail(page, state, onSelect = selectPage, onSync = {
+                if (!automaticPhotos) Rail(page, state, recycleDue = pickup != null && recycleVisible(state.now, pickup) && !recycleDone, recycleAttention = recycleAlert, recycleDone = recycleDone, onRecycle = { onInteraction(); recycleOpen = !recycleOpen; if (!recycleOpen) recycleDismissed = true }, onSelect = selectPage, onSync = {
                     onInteraction()
                     onSync()
                     coroutineScope.launch { sync.synchronize(dinners, family) }
                 }, onSleep = actions.sleep)
+            }
+        }
+        if (!state.night && !automaticPhotos && recycleOpen) {
+            Box(Modifier.fillMaxSize().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                recycleOpen = false
+                recycleDismissed = true
+            })
+            Box(Modifier.align(Alignment.BottomEnd).padding(end = 150.dp, bottom = 42.dp)) {
+                RecyclePanel(pickup, recycleDone, onDone = { done ->
+                    recycleDone = done
+                    pickup?.let { recycleSetDone(context, it, done) }
+                    if (done) recycleOpen = false
+                }, onClose = { recycleOpen = false; recycleDismissed = true })
             }
         }
         EventOverlay(shownEvent) { shownEvent = null }
@@ -364,7 +412,7 @@ fun DashboardApp(
 }
 
 @Composable
-private fun Rail(current: Page, state: UiState, onSelect: (Page) -> Unit, onSync: () -> Unit, onSleep: () -> Unit) {
+private fun Rail(current: Page, state: UiState, recycleDue: Boolean, recycleAttention: Boolean, recycleDone: Boolean, onRecycle: () -> Unit, onSelect: (Page) -> Unit, onSync: () -> Unit, onSleep: () -> Unit) {
     BoxWithConstraints(Modifier.width(136.dp).fillMaxHeight()) {
         val compact = maxHeight < 850.dp
         Column(
@@ -379,10 +427,15 @@ private fun Rail(current: Page, state: UiState, onSelect: (Page) -> Unit, onSync
                 Page.entries.filter { it != Page.Settings && it.available() }.forEach { page ->
                     RailItem(page.shortLabel, page.icon, page == current) { onSelect(page) }
                 }
-                SyncItem(state.syncing, onSync)
                 RailItem(Page.Settings.shortLabel, Page.Settings.icon, current == Page.Settings) { onSelect(Page.Settings) }
                 RailItem("Dormir", Icons.Outlined.Bedtime, false, onClick = onSleep)
             }
+            if (!compact) Spacer(Modifier.weight(1f))
+            Box(Modifier.width(76.dp).height(2.dp).background(Palette.Line))
+            Spacer(Modifier.height(10.dp))
+            RailItem(if (recycleDone) "Recollit" else "Reciclatge", Icons.Outlined.Recycling, recycleDue || recycleDone,
+                highlightColor = if (recycleDone) Palette.Online else if (recycleAttention) Palette.Warm else if (recycleDue) Palette.Warm else Palette.Accent,
+                onClick = onRecycle)
             if (!state.online || !state.connected) {
                 if (compact) Spacer(Modifier.height(18.dp)) else Spacer(Modifier.weight(1f))
                 Text(
@@ -415,7 +468,7 @@ private fun SyncItem(syncing: Boolean, onSync: () -> Unit) {
 
 /** Botón de la barra lateral: el icono y su nombre debajo, en pequeño. */
 @Composable
-private fun RailItem(label: String, icon: ImageVector, selected: Boolean, rotation: Float = 0f, onClick: () -> Unit) {
+private fun RailItem(label: String, icon: ImageVector, selected: Boolean, rotation: Float = 0f, highlightColor: Color = Palette.Accent, onClick: () -> Unit) {
     val shape = RoundedCornerShape(26.dp)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -423,11 +476,11 @@ private fun RailItem(label: String, icon: ImageVector, selected: Boolean, rotati
         modifier = Modifier
             .size(width = 104.dp, height = 92.dp)
             .background(if (selected) Palette.Card else Palette.Rail, shape)
-            .then(if (selected) Modifier.border(2.dp, Palette.Accent.copy(alpha = 0.28f), shape) else Modifier)
+            .then(if (selected) Modifier.border(2.dp, highlightColor.copy(alpha = 0.48f), shape) else Modifier)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
     ) {
         Icon(icon, contentDescription = label,
-            tint = if (selected) Palette.Accent else Palette.InkMuted,
+            tint = if (selected) highlightColor else Palette.InkMuted,
             modifier = Modifier.size(38.dp).rotate(rotation))
         Text(
             label,

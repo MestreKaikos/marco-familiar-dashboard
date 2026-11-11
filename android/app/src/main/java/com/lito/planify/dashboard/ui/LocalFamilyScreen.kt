@@ -71,7 +71,7 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
 
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("✅ Feines d’en Rai", style = Type.Large.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
-                Button(onClick = { addChore = true }, modifier = Modifier.heightIn(min = 68.dp)) { Text("+ Nova feina", style = Type.Small.copy(fontSize = 21.sp)) }
+                Button(onClick = { addChore = true }, modifier = Modifier.heightIn(min = 68.dp)) { Text("+ Nova feina", style = Type.Small.copy(fontSize = 21.sp, color = Color.White)) }
             }
             Spacer(Modifier.height(12.dp))
             Text("En Rai pot marcar una feina feta; un adult la valida abans de sumar estrelles.", style = Type.Tiny.copy(color = Palette.InkSoft))
@@ -202,7 +202,7 @@ fun LocalFamilyScreen(store: LocalFamilyStore, today: LocalDate, connected: Bool
 
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("🎁 Recompenses", style = Type.Large.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.weight(1f))
-                Button(onClick = { addReward = true }, modifier = Modifier.heightIn(min = 68.dp)) { Text("+ Nou premi", style = Type.Small.copy(fontSize = 21.sp)) }
+                Button(onClick = { addReward = true }, modifier = Modifier.heightIn(min = 68.dp)) { Text("+ Nou premi", style = Type.Small.copy(fontSize = 21.sp, color = Color.White)) }
             }
             Text("Rai · ⭐ ${store.stars} disponibles", style = Type.Body.copy(fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(top = 14.dp, bottom = 14.dp))
             val requested = store.rewards.firstOrNull { it.id == store.pendingRewardId }
@@ -369,7 +369,7 @@ fun FamilyShoppingPanel(
                 LazyColumn(Modifier.weight(1f)) {
                     items(store.groceries.sortedWith(compareBy<LocalGrocery> { it.bought }), key = { it.id }) { item ->
                         Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = item.bought, onCheckedChange = { store.toggleGrocery(item.id) })
+
                             Text(
                                 item.name, style = Type.Small.copy(
                                     color = if (item.bought) Palette.InkMuted else Palette.Ink,
@@ -378,6 +378,10 @@ fun FamilyShoppingPanel(
                                 modifier = Modifier.weight(1f).clickable { store.toggleGrocery(item.id) },
                                 maxLines = 2, overflow = TextOverflow.Ellipsis
                             )
+                            Button(onClick = { store.toggleGrocery(item.id) }, modifier = Modifier.heightIn(min = 64.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = if (item.bought) Palette.Online else Color(0xFF7857BC), contentColor = Color.White)) {
+                                Text(if (item.bought) "✓ Comprat" else "Marcar comprat", style = Type.Small.copy(color = Color.White, fontWeight = FontWeight.Bold))
+                            }
                             TextButton(onClick = { editGrocery = item }) { Text("Editar") }
                             TextButton(onClick = { store.removeGrocery(item.id) }) { Text("✕") }
                         }

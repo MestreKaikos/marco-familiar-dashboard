@@ -13,7 +13,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -71,8 +76,15 @@ class FamilyReminders internal constructor(private val prefs: SharedPreferences)
     }
     fun replaceFromCloud(values: JSONArray) {
         val cloud = (0 until values.length()).mapNotNull { i -> values.optJSONObject(i)?.let(::parse) }.take(250)
+        // Si una sincronització arriba sense la data d'un recordatori conegut,
+        // no esborrem silenciosament la data que ja teníem desada.
+        val existingDates = items.associate { it.id to it.date }
         items.clear()
-        items.addAll(cloud)
+        items.addAll(cloud.map { incoming ->
+            if (incoming.date.isBlank() && !existingDates[incoming.id].isNullOrBlank())
+                incoming.copy(date = existingDates.getValue(incoming.id))
+            else incoming
+        })
         sort()
         persist()
     }
@@ -156,7 +168,7 @@ private fun RemindersPanel(store: FamilyReminders, today: LocalDate, modifier: M
                 Text(store.pending().size.toString() + " pendents · Els vençuts apareixen destacats",
                     style = Type.Small.copy(color = Palette.InkSoft))
             }
-            Button(onClick = { creating = true }, modifier = Modifier.heightIn(min = 68.dp)) { Text("+ Nou recordatori", style = Type.Small.copy(fontSize = 22.sp)) }
+            Button(onClick = { creating = true }, modifier = Modifier.heightIn(min = 68.dp)) { Text("+ Nou recordatori", style = Type.Small.copy(fontSize = 22.sp, color = Color.White)) }
         }
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(top = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -167,8 +179,8 @@ private fun RemindersPanel(store: FamilyReminders, today: LocalDate, modifier: M
                     Modifier.fillMaxWidth().background(Palette.Highlight, RoundedCornerShape(18.dp))
                         .padding(horizontal = 12.dp, vertical = 10.dp)
                 ) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = reminder.done, onCheckedChange = { store.toggle(reminder.id, it) })
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Column(Modifier.weight(1f)) {
                             Text(reminder.title, style = Type.Body.copy(
                                 color = if (reminder.done) Palette.InkMuted else Palette.Ink,
@@ -182,15 +194,34 @@ private fun RemindersPanel(store: FamilyReminders, today: LocalDate, modifier: M
                             }
                             val formatted = reminder.deadline?.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
                             Text(if (formatted == null) dueLabel else "$dueLabel · $formatted",
-                                style = Type.Small.copy(color = if (expired) Palette.Accent else Palette.InkSoft))
+                                style = Type.Small.copy(
+                                    color = if (expired) Palette.Accent else Palette.Ink,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 22.sp
+                                ),
+                                modifier = Modifier.padding(top = 5.dp))
                             if (reminder.notes.isNotBlank())
                                 Text(reminder.notes,
                                     style = Type.Tiny.copy(color = Palette.InkMuted), maxLines = 2)
                         }
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = { editing = reminder }) { Text("Editar") }
-                        TextButton(onClick = { store.delete(reminder.id) }) { Text("Treure") }
+                        Button(onClick = { store.toggle(reminder.id, !reminder.done) },
+                            modifier = Modifier.heightIn(min = 52.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (reminder.done) Palette.Online else Palette.Accent,
+                                contentColor = if (reminder.done || Palette.Accent.luminance() <= 0.42f) Color.White else Color.Black)) {
+                            Text(if (reminder.done) "✓ Fet" else "✓ Fer",
+                                style = Type.Small.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                                    color = if (reminder.done || Palette.Accent.luminance() <= 0.42f) Color.White else Color.Black))
+                        }
+                        IconButton(onClick = { editing = reminder }, modifier = Modifier.size(52.dp)) {
+                            Icon(androidx.compose.material.icons.Icons.Default.Edit,
+                                contentDescription = "Editar recordatori", tint = Palette.Ink)
+                        }
+                        IconButton(onClick = { store.delete(reminder.id) }, modifier = Modifier.size(52.dp)) {
+                            Icon(androidx.compose.material.icons.Icons.Default.Delete,
+                                contentDescription = "Treure recordatori", tint = Palette.Ink)
+                        }
                     }
                 }
             }

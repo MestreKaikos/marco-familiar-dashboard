@@ -35,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -126,7 +127,7 @@ internal fun urgentReminderNotice(reminders: List<FamilyReminder>, today: LocalD
 
 @Composable
 private fun UrgentReminderPill(notice: UrgentReminderNotice, modifier: Modifier, onClick: () -> Unit) {
-    val tint = if (notice.overdue) Palette.Accent else Palette.Warm
+    val tint = if (notice.overdue) Palette.Danger else Palette.Warm
     Row(
         modifier.background(tint.copy(alpha = 0.13f), RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
@@ -323,7 +324,9 @@ internal fun WeekDay(
     showEmptyFooter: Boolean = true
 ) {
     val isToday = day == today
-    Column(modifier.background(if (isToday) Palette.Card else Palette.Card.copy(alpha = 0.6f), RoundedCornerShape(24.dp)).padding(horizontal = 14.dp, vertical = 14.dp).alpha(if (day < today) 0.55f else 1f)) {
+    Column(modifier.background(if (isToday) Palette.Card else Palette.Card.copy(alpha = 0.6f), RoundedCornerShape(24.dp))
+        .then(if (isToday) Modifier.border(2.dp, Palette.Accent, RoundedCornerShape(24.dp)) else Modifier)
+        .padding(horizontal = 14.dp, vertical = 14.dp).alpha(if (day < today) 0.55f else 1f)) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
                 if (isToday) "Avui" else day.dayOfWeek.getDisplayName(TextStyle.SHORT, Spanish).trimEnd('.').capitalized(),
@@ -336,7 +339,11 @@ internal fun WeekDay(
                 style = Type.Small.copy(color = if (day.dayOfMonth == 1) Palette.Accent else Palette.InkSoft, fontWeight = FontWeight.SemiBold),
                 modifier = Modifier.padding(end = 8.dp, bottom = 3.dp)
             )
-            Text("${day.dayOfMonth}", style = Type.Large.copy(color = if (isToday) Palette.Accent else Palette.Ink, fontWeight = FontWeight.SemiBold))
+            if (isToday) {
+                Box(Modifier.size(48.dp).background(Palette.Accent, androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
+                    Text("${day.dayOfMonth}", style = Type.Large.copy(color = Color.White, fontWeight = FontWeight.SemiBold))
+                }
+            } else Text("${day.dayOfMonth}", style = Type.Large.copy(color = Palette.Ink, fontWeight = FontWeight.SemiBold))
         }
         // Calendario: el tiempo del día (icono, máx/mín y lluvia) bajo la cabecera, si hay previsión
         forecast?.dayIndex(day)?.takeIf { it >= 0 }?.let { k ->
@@ -540,21 +547,32 @@ private fun HomeSummaryRow(item: HomeSummaryItem, tint: Color) {
         .then(if (action != null) Modifier.clickable(onClickLabel = item.actionLabel, onClick = action) else Modifier)
         .padding(horizontal = 8.dp, vertical = if (childFriendly) 7.dp else 2.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-        Text(item.glyph, style = Type.Small.copy(fontSize = 22.sp, lineHeight = 28.sp,
-            color = tint, fontWeight = FontWeight.Medium))
-        Text(item.title, style = Type.Body.copy(fontSize = 21.sp, lineHeight = 28.sp,
-            color = Palette.Ink, fontWeight = FontWeight.Medium),
-            modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (item.glyph.isNotBlank()) {
+            Text(item.glyph, style = Type.Small.copy(fontSize = 22.sp, lineHeight = 28.sp,
+                color = tint, fontWeight = FontWeight.Medium))
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(item.title, style = Type.Body.copy(fontSize = 21.sp, lineHeight = 26.sp,
+                color = Palette.Ink, fontWeight = FontWeight.Medium),
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (childFriendly && !item.detail.isNullOrBlank()) {
+                Text(item.detail, style = Type.Tiny.copy(
+                    color = Palette.InkSoft, fontSize = 16.sp, lineHeight = 20.sp),
+                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        }
         if (item.touchLabel != null) {
             Box(
                 modifier = Modifier.background(
-                    if (action != null) Color(0xFF7857BC) else tint.copy(alpha = 0.19f),
+                    if (action != null) Palette.Accent else tint.copy(alpha = 0.19f),
                     RoundedCornerShape(12.dp)
                 ).padding(horizontal = 12.dp, vertical = 9.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(item.touchLabel, style = Type.Tiny.copy(
-                    color = if (action != null) Color.White else Palette.Ink,
+                    color = if (action != null) {
+                        if (Palette.Accent.luminance() > 0.42f) Color.Black else Color.White
+                    } else Palette.Ink,
                     fontSize = 18.sp, fontWeight = FontWeight.Bold, lineHeight = 22.sp
                 ), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -574,7 +592,8 @@ private fun LocalShoppingTile(store: LocalFamilyStore, modifier: Modifier, onCli
     HomeSummaryTile("Compra", "🛒", Palette.Online,
         summary = if (pending.isEmpty()) "No falta res" else "${pending.size} producte${if (pending.size == 1) " pendent" else "s pendents"}",
         items = pending.map { product ->
-            HomeSummaryItem(title = product.name, onMark = { store.toggleGrocery(product.id) })
+            HomeSummaryItem(title = product.name, glyph = "", touchLabel = "✓ Comprat",
+                onMark = { store.toggleGrocery(product.id) }, actionLabel = "Marcar comprat: " + product.name)
         }, emptyMessage = "Toca per afegir productes",
         modifier = modifier, onClick = onClick)
 }
@@ -652,8 +671,10 @@ private fun ReminderTile(store: FamilyReminders, today: LocalDate, modifier: Mod
     HomeSummaryTile("Recordatoris", "📌", Palette.Warm, summary,
         items = priority.map { reminder ->
             HomeSummaryItem(title = reminder.title,
-                detail = summaryReminderDate(reminder, today),
-                onMark = { store.toggle(reminder.id, true) })
+                detail = listOfNotNull(summaryReminderDate(reminder, today),
+                    reminder.notes.takeIf { it.isNotBlank() }).joinToString(" · "),
+                glyph = "", touchLabel = "✓ Fet",
+                onMark = { store.toggle(reminder.id, true) }, actionLabel = "Marcar recordatori fet: " + reminder.title)
         }, emptyMessage = "Toca per afegir-ne un",
         modifier = modifier, alert = overdue.isNotEmpty(), onClick = onClick)
 }

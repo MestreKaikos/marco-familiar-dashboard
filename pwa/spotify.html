@@ -1,0 +1,25 @@
+<!doctype html><html lang="ca"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Spotify · Marc Familiar</title><style>body{font:17px system-ui;background:#f5f6f1;color:#23232a;display:grid;place-items:center;min-height:100vh;margin:0;padding:18px}main{max-width:480px;background:#fff;padding:30px;border-radius:22px;box-shadow:0 8px 30px #0001}button{background:#1db954;color:white;border:0;border-radius:12px;padding:15px 24px;font:inherit;cursor:pointer}button:disabled{opacity:.5}p{line-height:1.5}small{color:#666}</style></head><body><main><h1>♫ Spotify · Marc Familiar</h1><p id="status">Preparant la connexió segura amb el marc…</p><button id="connect" hidden>Connectar Spotify</button><p><small>La música sonarà als altaveus Spotify Connect que triïs, no al marc.</small></p></main><script>
+(async()=>{
+const status=document.getElementById('status'),button=document.getElementById('connect');
+const match=location.hash.match(/^#pair=([a-f0-9]{64})\.([0-9]{13})$/);
+history.replaceState(null,'','/spotify.html');
+if(!match){status.textContent='Escaneja el codi QR de la pantalla Música del Marc Familiar per començar.';return;}
+const pair=match[1],until=Number(match[2]);
+if(Date.now()>until||until>Date.now()+6*60000){status.textContent='El QR ha caducat. Genera’n un de nou al marc.';return;}
+let config;try{const response=await fetch('/spotify/config.json',{cache:'no-store'});if(!response.ok)throw Error();config=await response.json();}catch(e){status.textContent='No es pot carregar la configuració de Spotify.';return;}
+button.hidden=false;status.textContent='Autoritza el teu compte Spotify Premium per controlar la música des del Marc Familiar.';
+button.onclick=async()=>{
+button.disabled=true;
+try{
+const verifier=Array.from(crypto.getRandomValues(new Uint8Array(64)),v=>('0'+v.toString(16)).slice(-2)).join('');
+const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier));
+const challenge=btoa(String.fromCharCode(...new Uint8Array(hash))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const state=Array.from(crypto.getRandomValues(new Uint8Array(24)),v=>('0'+v.toString(16)).slice(-2)).join('');
+sessionStorage.setItem('marc_spotify_oauth',JSON.stringify({verifier,state,pair,until,clientId:config.clientId,redirectUri:config.redirectUri}));
+const url=new URL('https://accounts.spotify.com/authorize');
+for(const [k,v] of Object.entries({response_type:'code',client_id:config.clientId,redirect_uri:config.redirectUri,scope:config.scopes.join(' '),state,code_challenge_method:'S256',code_challenge:challenge}))url.searchParams.set(k,v);
+location.assign(url.toString());
+}catch(e){status.textContent='No s’ha pogut iniciar l’autorització.';button.disabled=false;}
+};
+})();
+</script></body></html>

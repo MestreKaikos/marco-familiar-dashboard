@@ -75,9 +75,6 @@ fun HomeScreen(state: UiState, actions: HomeCallbacks) {
                 casa?.toldo?.let { AwningPanel(it, actions, Modifier.fillMaxWidth()) }
                 SpotifyPanel(Modifier.fillMaxWidth().weight(1f))
             }
-            Column(Modifier.weight(0.62f).fillMaxHeight()) {
-                ComingSoonPanel(Modifier.fillMaxSize())
-            }
         }
     }
 }
@@ -286,17 +283,22 @@ fun HomeEnergyScreen(
             }
         } else {
             ScreenPadding {
+                val hasMiddle = casa?.clima != null || car?.bateria != null
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                    NestCameraPanel(nestKey, onSaveNestKey, onOpenNest, onNestPairingChanged, Modifier.weight(1.2f).fillMaxHeight())
-                    Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                        casa?.clima?.let { ClimatePanel(it, casa.estancias.orEmpty(), actions, Modifier.fillMaxWidth().weight(1f), compact = true) }
-                        car?.bateria?.let { CarPanel(car, Modifier.fillMaxWidth()) }
+                    NestCameraPanel(nestKey, onSaveNestKey, onOpenNest, onNestPairingChanged,
+                        Modifier.weight(if (hasMiddle) 1.05f else 0.9f).fillMaxHeight())
+                    if (hasMiddle) {
+                        Column(Modifier.weight(0.95f).fillMaxHeight(),
+                            verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                            casa?.clima?.let { ClimatePanel(it, casa.estancias.orEmpty(), actions,
+                                Modifier.fillMaxWidth().weight(1f), compact = true) }
+                            car?.bateria?.let { CarPanel(car, Modifier.fillMaxWidth()) }
+                        }
                     }
-                    Column(Modifier.weight(0.95f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                    Column(Modifier.weight(if (hasMiddle) 1.35f else 1.65f).fillMaxHeight(),
+                        verticalArrangement = Arrangement.spacedBy(20.dp)) {
                         casa?.toldo?.let { AwningPanel(it, actions, Modifier.fillMaxWidth()) }
-                        // Spotify Connect també a la disposició horitzontal del marc XORO.
                         SpotifyPanel(Modifier.fillMaxWidth().weight(1f))
-                        ComingSoonRow(Modifier.fillMaxWidth())
                     }
                 }
             }
@@ -304,7 +306,7 @@ fun HomeEnergyScreen(
     }
 }
 
-/** Lo que vendrá, en una sola fila de iconos: luces, lavavajillas, aire y cargador. */
+
 @Composable
 private fun ComingSoonRow(modifier: Modifier) {
     Row(
