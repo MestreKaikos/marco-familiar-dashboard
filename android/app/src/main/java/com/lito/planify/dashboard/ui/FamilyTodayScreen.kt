@@ -661,7 +661,7 @@ private fun ReminderTile(store: FamilyReminders, today: LocalDate, modifier: Mod
     HomeSummaryTile("Recordatoris", "📌", Palette.Warm, summary,
         items = priority.map { reminder ->
             HomeSummaryItem(title = reminder.title,
-                detail = summaryReminderDate(reminder, today), touchLabel = "✓ Fet",
+                detail = summaryReminderDate(reminder, today), glyph = "", touchLabel = "✓ Fet",
                 onMark = { store.toggle(reminder.id, true) }, actionLabel = "Marcar recordatori fet: " + reminder.title)
         }, emptyMessage = "Toca per afegir-ne un",
         modifier = modifier, alert = overdue.isNotEmpty(), onClick = onClick)
