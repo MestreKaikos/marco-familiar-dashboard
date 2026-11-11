@@ -191,7 +191,8 @@ internal class SpotifyController(context: Context) {
         val found = ArrayList<SpotifyList>()
         for (offset in 0 until 200 step 50) {
             val data = spotify("/me/playlists?limit=50&offset=" + offset)
-            val items = data.optJSONArray("items") ?: break
+            val items = data.optJSONArray("items")
+                ?: throw IOException("Spotify no ha retornat la llista de playlists (resposta inesperada).")
             for (i in 0 until items.length()) {
                 val item = items.optJSONObject(i) ?: continue
                 val id = item.optString("id")
@@ -214,7 +215,9 @@ internal class SpotifyController(context: Context) {
             speakers = result.first.filter { it.name.trim().equals(PREFERRED_SPOTIFY_SPEAKER, ignoreCase = true) }
             lists = result.second
             chooseDevice(speakers.firstOrNull()?.id ?: "")
-            status = if (speakers.isEmpty())
+            status = if (lists.isEmpty())
+                "Spotify retorna 0 playlists. Comprova que tens llistes creades o desades al teu compte."
+            else if (speakers.isEmpty())
                 "No apareix ABAIX. Activa Spotify a aquest altaveu des del mòbil i prem Actualitzar."
             else lists.size.toString() + " playlists · " + speakers.size +
                 " dispositius Spotify Connect."
