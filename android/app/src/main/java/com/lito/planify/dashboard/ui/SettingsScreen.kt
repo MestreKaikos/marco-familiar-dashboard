@@ -97,7 +97,7 @@ class SettingsCallbacks(
  * Dentro de las cajas (blancas) los controles van en crema ([Control]) para que se distingan.
  */
 @Composable
-fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: SettingsCallbacks, sync: FamilySync, dinners: DinnerPlan, family: LocalFamilyStore, frameMode: FrameModeSettings, nightClock: NightClockSettings) {
+fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: SettingsCallbacks, sync: FamilySync, dinners: DinnerPlan, family: LocalFamilyStore, frameMode: FrameModeSettings, nightClock: NightClockSettings, onRefresh: () -> Unit = {}) {
     var appearanceSetup by remember { mutableStateOf(false) }
     if (appearanceSetup) {
         AccentSettingsScreen(onBack = { appearanceSetup = false })
@@ -133,6 +133,7 @@ fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: Setting
                 Text("Configura la sincronització i els calendaris des d'aquí.",
                     style = Type.Small.copy(color = Palette.InkSoft))
                 PillButton("Aparença i colors", Modifier.fillMaxWidth(), background = Control, onClick = { appearanceSetup = true })
+                PillButton("Actualitzar ara", Modifier.fillMaxWidth(), background = Control, onClick = onRefresh)
                 PillButton("Sincronització familiar", Modifier.fillMaxWidth(), background = Control, onClick = { syncSetup = true })
                 PillButton("Mode nocturn", Modifier.fillMaxWidth(), background = Control, onClick = { nightSetup = true })
                 PillButton("Fotos i agenda", Modifier.fillMaxWidth(), background = Control, onClick = { frameSetup = true })
@@ -171,6 +172,7 @@ fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: Setting
                             PillButton("Fotos i agenda", Modifier.fillMaxWidth(), background = Control, onClick = { frameSetup = true })
                             PillButton("Calendaris de Google", Modifier.fillMaxWidth(), background = Control, onClick = { calendarSetup = true })
                             PillButton("Sincronització familiar", Modifier.fillMaxWidth(), background = Control, onClick = { syncSetup = true })
+                            PillButton("Actualitzar ara", Modifier.fillMaxWidth(), background = Control, onClick = onRefresh)
                             PillButton("Opcions d’Android", Modifier.fillMaxWidth(), background = Control, onClick = actions.openSettings)
                             // Con calendarios iCal no hay sesión: borra lo descargado y vuelve a pedirlo
                             if (state.ics || state.token != null) {
