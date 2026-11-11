@@ -261,6 +261,39 @@ internal class SpotifyController(context: Context) {
         } finally { loading = false }
     }
 
+    /** Prova no destructiva: reconsulta Spotify Connect i transfereix la sessió a Abaix
+     * només si Spotify anuncia el grup com a dispositiu disponible. */
+    suspend fun reconnectAbaix() {
+        if (!linked) return
+        loading = true
+        status = "Cercant Abaix a Spotify Connect…"
+        try {
+            val message = withContext(Dispatchers.IO) {
+                val available = readDevices()
+                val group = available.firstOrNull {
+                    it.name.trim().equals(PREFERRED_SPOTIFY_SPEAKER, ignoreCase = true)
+                }
+                if (group == null) {
+                    "Abaix és visible a Google Cast, però Spotify Connect no l'anuncia. " +
+                        "No es pot activar amb l'API de transferència; conserva l'activació des del mòbil."
+                } else {
+                    spotify("/me/player", "PUT",
+                        JSONObject().put("device_ids", JSONArray().put(group.id))
+                            .put("play", false))
+                    speakers = listOf(group)
+                    chooseDevice(group.id)
+                    "Sessió transferida a Abaix. Ja pots triar una playlist."
+                }
+            }
+            status = message
+        } catch (error: Exception) {
+            status = "No s'ha pogut activar Abaix: " +
+                (error.message ?: "error de Spotify Connect.")
+        } finally {
+            loading = false
+        }
+    }
+
     /** Consulta el reproductor sense recarregar les playlists. */
     suspend fun refreshPlayback() {
         if (!linked) return
