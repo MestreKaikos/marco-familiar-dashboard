@@ -395,7 +395,7 @@ fun DashboardApp(
                 recycleOpen = false
                 recycleDismissed = true
             })
-            Box(Modifier.align(Alignment.CenterEnd).padding(end = 150.dp)) {
+            Box(Modifier.align(Alignment.BottomEnd).padding(end = 150.dp, bottom = 42.dp)) {
                 RecyclePanel(pickup, recycleDone, onDone = { done ->
                     recycleDone = done
                     pickup?.let { recycleSetDone(context, it, done) }
