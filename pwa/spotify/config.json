@@ -1,0 +1,11 @@
+{
+  "clientId": "9b638e8c035e4d1fae936f20cee31c8f",
+  "redirectUri": "https://marc-familiar-pwa.vercel.app/spotify/callback",
+  "scopes": [
+    "user-read-playback-state",
+    "user-modify-playback-state",
+    "user-read-currently-playing",
+    "playlist-read-private"
+  ],
+  "flow": "authorization_code_pkce"
+}
