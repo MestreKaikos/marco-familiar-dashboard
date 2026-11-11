@@ -75,9 +75,6 @@ fun HomeScreen(state: UiState, actions: HomeCallbacks) {
                 casa?.toldo?.let { AwningPanel(it, actions, Modifier.fillMaxWidth()) }
                 SpotifyPanel(Modifier.fillMaxWidth().weight(1f))
             }
-            Column(Modifier.weight(0.62f).fillMaxHeight()) {
-                ComingSoonPanel(Modifier.fillMaxSize())
-            }
         }
     }
 }
@@ -296,7 +293,6 @@ fun HomeEnergyScreen(
                         casa?.toldo?.let { AwningPanel(it, actions, Modifier.fillMaxWidth()) }
                         // Spotify Connect també a la disposició horitzontal del marc XORO.
                         SpotifyPanel(Modifier.fillMaxWidth().weight(1f))
-                        ComingSoonRow(Modifier.fillMaxWidth())
                     }
                 }
             }
@@ -304,7 +300,7 @@ fun HomeEnergyScreen(
     }
 }
 
-/** Lo que vendrá, en una sola fila de iconos: luces, lavavajillas, aire y cargador. */
+
 @Composable
 private fun ComingSoonRow(modifier: Modifier) {
     Row(
