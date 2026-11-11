@@ -387,6 +387,10 @@ fun DashboardApp(
             }
         }
         if (!state.night && !automaticPhotos && recycleOpen) {
+            Box(Modifier.fillMaxSize().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                recycleOpen = false
+                recycleDismissed = true
+            })
             Box(Modifier.align(Alignment.CenterEnd).padding(end = 150.dp)) {
                 RecyclePanel(pickup, recycleDone, onDone = { done ->
                     recycleDone = done
