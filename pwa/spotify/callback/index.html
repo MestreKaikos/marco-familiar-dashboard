@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ca"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><meta http-equiv="Cache-Control" content="no-store"><title>Spotify · Marc Familiar</title><style>body{font-family:system-ui,sans-serif;background:#f5f6f1;color:#29283a;min-height:100vh;display:grid;place-items:center;margin:0;padding:20px}main{max-width:440px;background:white;border-radius:20px;padding:32px;box-shadow:0 8px 28px #0001}h1{font-size:1.5rem}p{line-height:1.5}</style></head><body><main><h1>Spotify · Marc Familiar</h1><p id="status">Processant l'autorització…</p></main><script>
+(function(){
+  const params=new URLSearchParams(location.search);
+  const code=params.get('code'), state=params.get('state'), error=params.get('error');
+  history.replaceState(null,'','/spotify/callback');
+  const status=document.getElementById('status');
+  if(error){status.textContent='Spotify no ha autoritzat la connexió ('+error+'). Pots tornar a intentar-ho des del Marc Familiar.';return;}
+  if(!code||!state){status.textContent='Aquesta pàgina és el retorn de l’autorització de Spotify. Inicia la connexió des del Marc Familiar.';return;}
+  // Never put the authorization code in the page, URL, logs or persistent storage.
+  // Only a same-origin opener can receive it; exchanging it requires the PKCE verifier
+  // from the initiating session. The QR/cross-device handoff is a separate step.
+  if(window.opener){
+    try{window.opener.postMessage({type:'marc-familiar-spotify-callback',code,state},location.origin);
+      status.textContent='Autorització rebuda. Torna a la finestra del Marc Familiar per acabar la connexió.';return;
+    }catch(e){}
+  }
+  status.textContent='Spotify ha retornat l’autorització, però encara falta activar la vinculació segura entre el mòbil i el marc. No cal copiar cap codi. Pots tancar aquesta finestra.';
+})();
+</script></body></html>
