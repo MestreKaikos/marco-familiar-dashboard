@@ -123,6 +123,17 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
                     .padding(horizontal = 16.dp, vertical = 10.dp))
         }
 
+        TextButton(
+            onClick = { scope.launch { player.reconnectAbaix() } },
+            enabled = !player.loading,
+            modifier = Modifier.padding(top = 2.dp)
+        ) {
+            Text("↻ Provar connexió directa a Abaix",
+                style = Type.Tiny.copy(color = SpotifyGreen, fontSize = 17.sp))
+        }
+        Text("Prova Spotify Connect; si no està disponible, continua funcionant l'activació des del mòbil.",
+            style = Type.Tiny.copy(color = Palette.InkMuted, fontSize = 13.sp))
+
         Row(Modifier.fillMaxWidth().padding(top = 6.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Text("GOOGLE CAST · XARXA LOCAL", style = Type.Tiny.copy(
