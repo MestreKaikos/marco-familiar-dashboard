@@ -90,7 +90,8 @@ internal class SpotifyController(context: Context) {
 
     private fun request(
         url: String, method: String = "GET", authorization: String? = null,
-        payload: String? = null, contentType: String = "application/json"
+        payload: String? = null, contentType: String = "application/json",
+        expectJson: Boolean = true
     ): Pair<Int, JSONObject> {
         val connection = URL(url).openConnection() as HttpURLConnection
         try {
@@ -111,7 +112,7 @@ internal class SpotifyController(context: Context) {
             val text = stream?.bufferedReader(Charsets.UTF_8)
                 ?.use { it.readText() }.orEmpty()
             val parsed = runCatching { JSONObject(text) }.getOrNull()
-            if (parsed == null && code in 200..299 && text.isNotBlank())
+            if (expectJson && parsed == null && code in 200..299 && text.isNotBlank())
                 throw IOException("Resposta JSON de Spotify no vàlida (" + text.length + " caràcters, HTTP " + code + ").")
             return code to (parsed ?: JSONObject())
         } finally {
@@ -160,7 +161,8 @@ internal class SpotifyController(context: Context) {
 
     private fun spotify(endpoint: String, method: String = "GET", data: JSONObject? = null): JSONObject {
         fun call(token: String) = request(
-            SPOTIFY_API + endpoint, method, authorization = token, payload = data?.toString()
+            SPOTIFY_API + endpoint, method, authorization = token, payload = data?.toString(),
+            expectJson = method == "GET"
         )
         var (code, body) = call(accessToken())
         if (code == 401) {
