@@ -7,6 +7,10 @@ import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.ui.graphics.Color
+import com.lito.planify.dashboard.ui.theme.Palette
 import androidx.activity.viewModels
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -94,8 +98,17 @@ class MainActivity : ComponentActivity() {
             val state by viewModel.state.collectAsStateWithLifecycle()
             // Se diseña en píxeles nativos del panel (1920×1200): 1 dp = 1 sp = 1 px.
             CompositionLocalProvider(LocalDensity provides Density(density = 1f, fontScale = 1f)) {
-                ProvideIconClock {
-                    DashboardApp(state, actions, viewModel::loadWeek, viewModel::syncAll, settings, viewModel::peek, chores, home, nightClock)
+                MaterialTheme(colorScheme = lightColorScheme(
+                    primary = Color(0xFF7857BC), onPrimary = Color.White,
+                    primaryContainer = Color(0xFFECE5FA), onPrimaryContainer = Palette.Ink,
+                    secondary = Palette.InkSoft, onSecondary = Color.White,
+                    surface = Palette.Card, onSurface = Palette.Ink,
+                    background = Palette.Background, onBackground = Palette.Ink,
+                    surfaceVariant = Palette.Highlight, onSurfaceVariant = Palette.InkSoft
+                )) {
+                    ProvideIconClock {
+                        DashboardApp(state, actions, viewModel::loadWeek, viewModel::syncAll, settings, viewModel::peek, chores, home, nightClock)
+                    }
                 }
             }
         }
