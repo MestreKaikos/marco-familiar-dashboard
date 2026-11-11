@@ -36,6 +36,13 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
         onDispose { cast.stop() }
     }
     var all by remember { mutableStateOf(false) }
+    var castSearchTimedOut by remember { mutableStateOf(false) }
+    var castSearchAttempt by remember { mutableIntStateOf(0) }
+    LaunchedEffect(castSearchAttempt) {
+        castSearchTimedOut = false
+        kotlinx.coroutines.delay(20_000)
+        castSearchTimedOut = true
+    }
     var confirmUnlink by remember { mutableStateOf(false) }
 
     LaunchedEffect(player.linked) {
@@ -78,17 +85,25 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
             Text("GOOGLE CAST · XARXA LOCAL", style = Type.Tiny.copy(
                 color = Palette.InkMuted, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
                 modifier = Modifier.weight(1f))
-            TextButton(onClick = { cast.stop(); cast.start() }) { Text("Cercar") }
+            TextButton(onClick = { cast.stop(); cast.start(); castSearchAttempt++ }) { Text("Cercar") }
         }
         val castGroup = cast.names.firstOrNull { it.equals("Abaix", ignoreCase = true) }
         Text(when {
             castGroup != null -> "✓ Abaix detectat per Google Cast"
             cast.error.value.isNotBlank() -> cast.error.value
+            castSearchTimedOut -> "Abaix no detectat després de 20 segons de cerca."
             cast.scanning.value -> "Cercant Abaix per Google Cast…"
             else -> "No s'ha detectat Abaix per Google Cast"
         }, style = Type.Tiny.copy(
             color = if (castGroup != null) Palette.Online else Palette.InkSoft,
             fontSize = 16.sp))
+        if (cast.names.isNotEmpty()) {
+            Text("Dispositius Cast trobats: " + cast.names.joinToString(" · "),
+                style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 14.sp), maxLines = 3)
+        } else if (castSearchTimedOut) {
+            Text("Cap dispositiu Cast detectat. Comprova que el marc i els Nest siguin a la mateixa xarxa.",
+                style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 14.sp), maxLines = 3)
+        }
         Text("Cast detecta el grup; per iniciar Spotify encara cal que aparegui a Spotify Connect.",
             style = Type.Tiny.copy(color = Palette.InkMuted, fontSize = 14.sp),
             modifier = Modifier.padding(bottom = 5.dp))
