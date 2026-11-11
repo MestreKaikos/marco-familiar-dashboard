@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -168,8 +169,8 @@ private fun RemindersPanel(store: FamilyReminders, today: LocalDate, modifier: M
                     Modifier.fillMaxWidth().background(Palette.Highlight, RoundedCornerShape(18.dp))
                         .padding(horizontal = 12.dp, vertical = 10.dp)
                 ) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Column(Modifier.weight(1f)) {
                             Text(reminder.title, style = Type.Body.copy(
                                 color = if (reminder.done) Palette.InkMuted else Palette.Ink,
@@ -188,14 +189,24 @@ private fun RemindersPanel(store: FamilyReminders, today: LocalDate, modifier: M
                                 Text(reminder.notes,
                                     style = Type.Tiny.copy(color = Palette.InkMuted), maxLines = 2)
                         }
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                        Button(onClick = { store.toggle(reminder.id, !reminder.done) }, modifier = Modifier.heightIn(min = 64.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = if (reminder.done) Palette.Online else Color(0xFF7857BC), contentColor = Color.White)) {
-                            Text(if (reminder.done) "✓ Fet" else "Marcar com a fet", style = Type.Small.copy(color = Color.White, fontWeight = FontWeight.Bold))
+                        Button(onClick = { store.toggle(reminder.id, !reminder.done) },
+                            modifier = Modifier.heightIn(min = 52.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (reminder.done) Palette.Online else Palette.Accent,
+                                contentColor = if (reminder.done || Palette.Accent.luminance() <= 0.42f) Color.White else Color.Black)) {
+                            Text(if (reminder.done) "✓ Fet" else "✓ Fer",
+                                style = Type.Small.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                                    color = if (reminder.done || Palette.Accent.luminance() <= 0.42f) Color.White else Color.Black))
                         }
-                        TextButton(onClick = { editing = reminder }) { Text("Editar") }
-                        TextButton(onClick = { store.delete(reminder.id) }) { Text("Treure") }
+                        IconButton(onClick = { editing = reminder }, modifier = Modifier.size(52.dp)) {
+                            Icon(androidx.compose.material.icons.Icons.Default.Edit,
+                                contentDescription = "Editar recordatori", tint = Palette.Ink)
+                        }
+                        IconButton(onClick = { store.delete(reminder.id) }, modifier = Modifier.size(52.dp)) {
+                            Icon(androidx.compose.material.icons.Icons.Default.Delete,
+                                contentDescription = "Treure recordatori", tint = Palette.Ink)
+                        }
                     }
                 }
             }
