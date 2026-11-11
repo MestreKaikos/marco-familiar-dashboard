@@ -126,7 +126,7 @@ internal fun urgentReminderNotice(reminders: List<FamilyReminder>, today: LocalD
 
 @Composable
 private fun UrgentReminderPill(notice: UrgentReminderNotice, modifier: Modifier, onClick: () -> Unit) {
-    val tint = if (notice.overdue) Palette.Accent else Palette.Warm
+    val tint = if (notice.overdue) Palette.Danger else Palette.Warm
     Row(
         modifier.background(tint.copy(alpha = 0.13f), RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
@@ -323,7 +323,9 @@ internal fun WeekDay(
     showEmptyFooter: Boolean = true
 ) {
     val isToday = day == today
-    Column(modifier.background(if (isToday) Palette.Card else Palette.Card.copy(alpha = 0.6f), RoundedCornerShape(24.dp)).padding(horizontal = 14.dp, vertical = 14.dp).alpha(if (day < today) 0.55f else 1f)) {
+    Column(modifier.background(if (isToday) Palette.Card else Palette.Card.copy(alpha = 0.6f), RoundedCornerShape(24.dp))
+        .then(if (isToday) Modifier.border(2.dp, Palette.Accent, RoundedCornerShape(24.dp)) else Modifier)
+        .padding(horizontal = 14.dp, vertical = 14.dp).alpha(if (day < today) 0.55f else 1f)) {
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
                 if (isToday) "Avui" else day.dayOfWeek.getDisplayName(TextStyle.SHORT, Spanish).trimEnd('.').capitalized(),
@@ -336,7 +338,11 @@ internal fun WeekDay(
                 style = Type.Small.copy(color = if (day.dayOfMonth == 1) Palette.Accent else Palette.InkSoft, fontWeight = FontWeight.SemiBold),
                 modifier = Modifier.padding(end = 8.dp, bottom = 3.dp)
             )
-            Text("${day.dayOfMonth}", style = Type.Large.copy(color = if (isToday) Palette.Accent else Palette.Ink, fontWeight = FontWeight.SemiBold))
+            if (isToday) {
+                Box(Modifier.size(48.dp).background(Palette.Accent, androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
+                    Text("${day.dayOfMonth}", style = Type.Large.copy(color = Color.White, fontWeight = FontWeight.SemiBold))
+                }
+            } else Text("${day.dayOfMonth}", style = Type.Large.copy(color = Palette.Ink, fontWeight = FontWeight.SemiBold))
         }
         // Calendario: el tiempo del día (icono, máx/mín y lluvia) bajo la cabecera, si hay previsión
         forecast?.dayIndex(day)?.takeIf { it >= 0 }?.let { k ->
