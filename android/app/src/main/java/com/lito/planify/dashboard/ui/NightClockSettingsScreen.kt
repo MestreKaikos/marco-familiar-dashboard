@@ -104,7 +104,11 @@ private fun NightChoices(label: String, selected: String, choices: List<Pair<Str
     Text(label, style = Type.Small)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         choices.forEach { (value, title) ->
-            FilterChip(selected = selected == value, onClick = { onSelect(value) }, label = { Text(title, style = Type.Tiny.copy(color = if (selected == value) Color.White else Palette.Ink)) })
+            FilterChip(selected = selected == value, onClick = { onSelect(value) },
+                colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Color(0xFF7857BC), selectedLabelColor = Color.White,
+                    labelColor = Palette.Ink),
+                label = { Text(title, style = Type.Tiny.copy(color = if (selected == value) Color.White else Palette.Ink)) })
         }
     }
 }
