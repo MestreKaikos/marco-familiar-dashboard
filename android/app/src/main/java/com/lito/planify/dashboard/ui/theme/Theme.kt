@@ -25,7 +25,7 @@ object Palette {
     /** Títulos de sección (SectionLabel). */
     var Accent by mutableStateOf(Color(0xFFC8243B))
         private set
-    fun setAccent(hex: Long) { Accent = Color(hex) }
+    fun setAccent(hex: Long) { Accent = Color(hex.toInt()) }
     val Danger = Color(0xFFC8243B)
     val Rain = Color(0xFF2F80ED)
     val Warm = Color(0xFFF5A623)
