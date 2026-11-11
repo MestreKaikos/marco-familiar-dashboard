@@ -53,6 +53,7 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
     }
     var confirmUnlink by remember { mutableStateOf(false) }
     var localVolume by remember { mutableFloatStateOf(-1f) }
+    var volumeDragging by remember { mutableStateOf(false) }
     val playing = player.nowPlaying
     var artworkBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     LaunchedEffect(playing?.artwork) {
@@ -169,17 +170,17 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
                 if (artworkBitmap != null) {
                     Image(bitmap = artworkBitmap!!.asImageBitmap(),
                         contentDescription = "Caràtula de l'àlbum",
-                        modifier = Modifier.size(84.dp))
+                        modifier = Modifier.size(142.dp))
                 } else {
                     Text("♫", style = Type.Large.copy(color = SpotifyGreen, fontSize = 32.sp))
                 }
                 Column(Modifier.weight(1f)) {
                     Text(if (playing.playing) "ARA SONA · ABAIX" else "EN PAUSA · ABAIX",
                         style = Type.Tiny.copy(color = SpotifyGreen, fontSize = 13.sp))
-                    Text(playing.title, style = Type.Small.copy(fontSize = 20.sp),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(playing.title, style = Type.Small.copy(fontSize = 27.sp),
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(playing.artist, style = Type.Tiny.copy(
-                        color = Palette.InkSoft, fontSize = 16.sp), maxLines = 1)
+                        color = Palette.InkSoft, fontSize = 21.sp), maxLines = 1)
                     if (playing.album.isNotBlank())
                         Text(playing.album, style = Type.Tiny.copy(
                             color = Palette.InkMuted, fontSize = 13.sp), maxLines = 1)
@@ -198,21 +199,24 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
         }
         val remoteVolume = player.volumePercent
         if (remoteVolume != null) {
-            val currentVolume = if (localVolume >= 0f) localVolume else remoteVolume.toFloat()
+            val currentVolume = if (volumeDragging) localVolume else remoteVolume.toFloat()
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Volum", style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 15.sp))
+                Text("Volum", style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 19.sp))
                 Slider(value = currentVolume.coerceIn(0f, 100f),
-                    onValueChange = { localVolume = it },
+                    onValueChange = { localVolume = it; volumeDragging = true },
                     onValueChangeFinished = {
                         val target = currentVolume.toInt().coerceIn(0, 100)
-                        localVolume = -1f
-                        scope.launch { player.setVolume(target) }
+                        scope.launch {
+                            player.setVolume(target)
+                            volumeDragging = false
+                            localVolume = -1f
+                        }
                     },
                     valueRange = 0f..100f, modifier = Modifier.weight(1f)
                         .padding(horizontal = 12.dp),
                     enabled = !player.loading && player.selectedDeviceId.isNotEmpty())
                 Text("${currentVolume.toInt()}%",
-                    style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 15.sp))
+                    style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 19.sp))
             }
         }
         Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
