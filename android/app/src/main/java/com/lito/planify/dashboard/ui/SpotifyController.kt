@@ -27,6 +27,10 @@ internal data class SpotifySpeaker(
     val id: String, val name: String, val isActive: Boolean, val type: String
 )
 internal data class SpotifyList(val id: String, val uri: String, val title: String)
+internal data class SpotifyNowPlaying(
+    val title: String, val artist: String, val album: String, val artwork: String,
+    val playing: Boolean, val progressMs: Long, val durationMs: Long, val playlist: String
+)
 
 /** Prova privada; el codi QR conté només el SHA-256 de la prova, mai cap token. */
 internal class SpotifyPairCode {
@@ -43,6 +47,10 @@ internal class SpotifyController(context: Context) {
     private val prefs = context.applicationContext
         .getSharedPreferences("marc_spotify", Context.MODE_PRIVATE)
 
+    var nowPlaying by mutableStateOf<SpotifyNowPlaying?>(null)
+        private set
+    var volumePercent by mutableStateOf<Int?>(null)
+        private set
     var shuffleEnabled by mutableStateOf(prefs.getBoolean("shuffle_enabled", false))
         private set
 
@@ -76,6 +84,8 @@ internal class SpotifyController(context: Context) {
         prefs.edit().clear().commit()
         linked = false
         shuffleEnabled = false
+        nowPlaying = null
+        volumePercent = null
         loading = false
         speakers = emptyList()
         lists = emptyList()
@@ -238,14 +248,7 @@ internal class SpotifyController(context: Context) {
             speakers = available.filter { it.name.trim().equals(PREFERRED_SPOTIFY_SPEAKER, ignoreCase = true) }
             chooseDevice(speakers.firstOrNull()?.id ?: "")
             lists = withContext(Dispatchers.IO) { readLists() }
-            if (selectedDeviceId.isNotBlank()) {
-                runCatching {
-                    withContext(Dispatchers.IO) { spotify("/me/player") }
-                }.getOrNull()?.takeIf { it.has("shuffle_state") }?.let {
-                    shuffleEnabled = it.optBoolean("shuffle_state")
-                    prefs.edit().putBoolean("shuffle_enabled", shuffleEnabled).apply()
-                }
-            }
+            refreshPlayback()
             status = if (lists.isEmpty())
                 "Spotify retorna 0 playlists. Comprova que tens llistes creades o desades al teu compte."
             else if (speakers.isEmpty())
@@ -256,6 +259,59 @@ internal class SpotifyController(context: Context) {
             if (prefs.getString("refresh_token", "").isNullOrEmpty()) linked = false
             status = error.message ?: "No s'ha pogut consultar Spotify."
         } finally { loading = false }
+    }
+
+    /** Consulta el reproductor sense recarregar les playlists. */
+    suspend fun refreshPlayback() {
+        if (!linked) return
+        try {
+            val state = withContext(Dispatchers.IO) { spotify("/me/player") }
+            val device = state.optJSONObject("device")
+            if (!device?.optString("name").orEmpty().equals(PREFERRED_SPOTIFY_SPEAKER, ignoreCase = true)) {
+                nowPlaying = null
+                volumePercent = null
+                return
+            }
+            volumePercent = device?.optInt("volume_percent", -1)?.takeIf { it in 0..100 }
+            if (state.has("shuffle_state")) {
+                shuffleEnabled = state.optBoolean("shuffle_state")
+                prefs.edit().putBoolean("shuffle_enabled", shuffleEnabled).apply()
+            }
+            val track = state.optJSONObject("item")
+            if (track == null || track.optString("type") != "track") {
+                nowPlaying = null
+                return
+            }
+            val artists = track.optJSONArray("artists")
+            val artistNames = buildList {
+                if (artists != null) for (i in 0 until artists.length()) {
+                    artists.optJSONObject(i)?.optString("name")?.takeIf { it.isNotBlank() }?.let { add(it) }
+                }
+            }.joinToString(", ")
+            val album = track.optJSONObject("album")
+            val images = album?.optJSONArray("images")
+            val artwork = if (images != null && images.length() > 0)
+                images.optJSONObject(images.length() - 1)?.optString("url").orEmpty()
+            else ""
+            nowPlaying = SpotifyNowPlaying(
+                title = track.optString("name", "Cançó"),
+                artist = artistNames, album = album?.optString("name").orEmpty(),
+                artwork = artwork, playing = state.optBoolean("is_playing"),
+                progressMs = state.optLong("progress_ms").coerceAtLeast(0),
+                durationMs = track.optLong("duration_ms").coerceAtLeast(0),
+                playlist = state.optJSONObject("context")?.optString("uri").orEmpty()
+            )
+        } catch (_: Exception) {
+            // La consulta informativa no ha d'interrompre els controls existents.
+        }
+    }
+
+    suspend fun setVolume(percent: Int) = action("Ajustant el volum d'Abaix…") {
+        val safe = percent.coerceIn(0, 100)
+        spotify("/me/player/volume?volume_percent=" + safe + "&" +
+            destination().removePrefix("?"), "PUT")
+        volumePercent = safe
+        "Volum d'Abaix: " + safe + "%"
     }
 
     suspend fun claim(pair: SpotifyPairCode): Boolean = withContext(Dispatchers.IO) {
@@ -339,6 +395,9 @@ internal class SpotifyController(context: Context) {
         } catch (error: Exception) {
             if (prefs.getString("refresh_token", "").isNullOrEmpty()) linked = false
             status = error.message ?: "No s'ha pogut controlar Spotify."
-        } finally { loading = false }
+        } finally {
+            loading = false
+            if (linked) refreshPlayback()
+        }
     }
 }
