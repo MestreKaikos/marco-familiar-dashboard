@@ -90,7 +90,7 @@ enum class Page(val label: String, val icon: ImageVector) {
     Weather("El temps", Icons.Outlined.Thermostat),
     Energy("Energia", Icons.Outlined.Bolt),
     Home("Casa i energia", Icons.Outlined.Home),
-    Tasks("Família", Icons.Outlined.Checklist),
+    Tasks("Rai", Icons.Outlined.Checklist),
     Reminders("Recordatoris", Icons.Outlined.Checklist),
     Settings("Opcions", Icons.Outlined.Settings)
 }
@@ -379,7 +379,11 @@ fun DashboardApp(
                         }
                         Page.Tasks -> LocalFamilyScreen(family, state.now.toLocalDate(), sync.connected, sync.pendingCount, sync.cloudTasks >= 0)
                         Page.Reminders -> FamilyRemindersScreen(reminders, state.now.toLocalDate(), family, sync.connected, sync.pendingCount)
-                        Page.Settings -> SettingsScreen(state, actions, settings, sync, dinners, family, frameMode, nightClock)
+                        Page.Settings -> SettingsScreen(state, actions, settings, sync, dinners, family, frameMode, nightClock, onRefresh = {
+                            onInteraction()
+                            onSync()
+                            coroutineScope.launch { sync.synchronize(dinners, family) }
+                        })
                     }
                     }
                 }
@@ -423,11 +427,12 @@ private fun Rail(current: Page, state: UiState, recycleDue: Boolean, recycleAtte
                 Page.entries.filter { it != Page.Settings && it.available() }.forEach { page ->
                     RailItem(page.shortLabel, page.icon, page == current) { onSelect(page) }
                 }
-                SyncItem(state.syncing, onSync)
                 RailItem(Page.Settings.shortLabel, Page.Settings.icon, current == Page.Settings) { onSelect(Page.Settings) }
                 RailItem("Dormir", Icons.Outlined.Bedtime, false, onClick = onSleep)
             }
             if (!compact) Spacer(Modifier.weight(1f))
+            Box(Modifier.width(76.dp).height(2.dp).background(Palette.Line))
+            Spacer(Modifier.height(10.dp))
             RailItem(if (recycleDone) "Recollit" else "Reciclatge", Icons.Outlined.Recycling, recycleDue || recycleDone,
                 highlightColor = if (recycleDone) Palette.Online else if (recycleAttention) Palette.Warm else if (recycleDue) Palette.Warm else Palette.Accent,
                 onClick = onRecycle)
