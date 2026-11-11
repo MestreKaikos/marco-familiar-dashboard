@@ -551,9 +551,16 @@ private fun HomeSummaryRow(item: HomeSummaryItem, tint: Color) {
             Text(item.glyph, style = Type.Small.copy(fontSize = 22.sp, lineHeight = 28.sp,
                 color = tint, fontWeight = FontWeight.Medium))
         }
-        Text(item.title, style = Type.Body.copy(fontSize = 21.sp, lineHeight = 28.sp,
-            color = Palette.Ink, fontWeight = FontWeight.Medium),
-            modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(item.title, style = Type.Body.copy(fontSize = 21.sp, lineHeight = 26.sp,
+                color = Palette.Ink, fontWeight = FontWeight.Medium),
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (childFriendly && !item.detail.isNullOrBlank()) {
+                Text(item.detail, style = Type.Tiny.copy(
+                    color = Palette.InkSoft, fontSize = 16.sp, lineHeight = 20.sp),
+                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        }
         if (item.touchLabel != null) {
             Box(
                 modifier = Modifier.background(
@@ -664,7 +671,9 @@ private fun ReminderTile(store: FamilyReminders, today: LocalDate, modifier: Mod
     HomeSummaryTile("Recordatoris", "📌", Palette.Warm, summary,
         items = priority.map { reminder ->
             HomeSummaryItem(title = reminder.title,
-                detail = summaryReminderDate(reminder, today), glyph = "", touchLabel = "✓ Fet",
+                detail = listOfNotNull(summaryReminderDate(reminder, today),
+                    reminder.notes.takeIf { it.isNotBlank() }).joinToString(" · "),
+                glyph = "", touchLabel = "✓ Fet",
                 onMark = { store.toggle(reminder.id, true) }, actionLabel = "Marcar recordatori fet: " + reminder.title)
         }, emptyMessage = "Toca per afegir-ne un",
         modifier = modifier, alert = overdue.isNotEmpty(), onClick = onClick)
