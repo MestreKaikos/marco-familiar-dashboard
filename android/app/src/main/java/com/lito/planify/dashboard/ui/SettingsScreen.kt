@@ -98,6 +98,11 @@ class SettingsCallbacks(
  */
 @Composable
 fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: SettingsCallbacks, sync: FamilySync, dinners: DinnerPlan, family: LocalFamilyStore, frameMode: FrameModeSettings, nightClock: NightClockSettings) {
+    var appearanceSetup by remember { mutableStateOf(false) }
+    if (appearanceSetup) {
+        AccentSettingsScreen(onBack = { appearanceSetup = false })
+        return
+    }
     var calendarSetup by remember { mutableStateOf(false) }
     var syncSetup by remember { mutableStateOf(false) }
     var nightSetup by remember { mutableStateOf(false) }
@@ -127,6 +132,7 @@ fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: Setting
                 Text("Opcions del Marc Familiar", style = Type.Title)
                 Text("Configura la sincronització i els calendaris des d'aquí.",
                     style = Type.Small.copy(color = Palette.InkSoft))
+                PillButton("Aparença i colors", Modifier.fillMaxWidth(), background = Control, onClick = { appearanceSetup = true })
                 PillButton("Sincronització familiar", Modifier.fillMaxWidth(), background = Control, onClick = { syncSetup = true })
                 PillButton("Mode nocturn", Modifier.fillMaxWidth(), background = Control, onClick = { nightSetup = true })
                 PillButton("Fotos i agenda", Modifier.fillMaxWidth(), background = Control, onClick = { frameSetup = true })
@@ -149,18 +155,17 @@ fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: Setting
             Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
                 Panel(Modifier.weight(1f).fillMaxHeight()) {
                     LocationSection(state, callbacks)
+                    Section("Connexió") { WifiCard() }
                 }
                 Panel(Modifier.weight(1f).fillMaxHeight()) {
                     ScheduleSection(state.schedule, callbacks.onSchedule)
+                    BrightnessSection(state.brightness, callbacks.onBrightness)
                 }
                 // La columna de la derecha, en dos cajas: brillo y conexión arriba, y los botones abajo
                 Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(28.dp)) {
-                    Panel(Modifier.fillMaxWidth().weight(1f)) {
-                        BrightnessSection(state.brightness, callbacks.onBrightness)
-                        Section("Connexió") { WifiCard() }
-                    }
                     Panel(Modifier.fillMaxWidth()) {
                         Column(verticalArrangement = Arrangement.spacedBy(ButtonGap)) {
+                            PillButton("Aparença i colors", Modifier.fillMaxWidth(), background = Control, onClick = { appearanceSetup = true })
                             PillButton("Wi-Fi", Modifier.fillMaxWidth(), background = Control, onClick = actions.openWifi)
                             PillButton("Mode nocturn", Modifier.fillMaxWidth(), background = Control, onClick = { nightSetup = true })
                             PillButton("Fotos i agenda", Modifier.fillMaxWidth(), background = Control, onClick = { frameSetup = true })
@@ -478,4 +483,38 @@ fun Field(
             }
         }
     )
+}
+
+
+/** Color general del marc: independent dels colors d'estat i dels calendaris. */
+@Composable
+private fun AccentSettingsScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val colors = listOf(
+        "Vermell original" to 0xFFC8243BL,
+        "Blau" to 0xFF3979DBL,
+        "Verd" to 0xFF21966DL,
+        "Taronja" to 0xFFE38332L,
+        "Lila" to 0xFF9363D6L,
+        "Rosa" to 0xFFD45E8FL,
+        "Turquesa" to 0xFF168F9EL
+    )
+    Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        PillButton("← Tornar a Opcions", Modifier.fillMaxWidth(0.4f), background = Control, onClick = onBack)
+        Text("Aparença i colors", style = Type.Title)
+        Text("Tria el color dels elements destacats. Els avisos i els colors dels calendaris es mantenen independents.", style = Type.Small)
+        Panel(Modifier.fillMaxWidth()) {
+            colors.forEach { (name, hex) ->
+                Row(Modifier.fillMaxWidth().clickable {
+                    Palette.setAccent(hex)
+                    context.getSharedPreferences("marc_aparenca", android.content.Context.MODE_PRIVATE).edit().putLong("accent", hex).apply()
+                }.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                    Box(Modifier.size(44.dp).background(Color(hex), CircleShape)
+                        .then(if (Palette.Accent == Color(hex)) Modifier.border(4.dp, Palette.Ink, CircleShape) else Modifier))
+                    Text(name, style = Type.Body)
+                    if (Palette.Accent == Color(hex)) Text("✓", style = Type.Body.copy(color = Palette.Accent))
+                }
+            }
+        }
+    }
 }
