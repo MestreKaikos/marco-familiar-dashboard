@@ -161,42 +161,6 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
         }
 
 
-        Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(if (all) "TOTES LES PLAYLISTS" else "PLAYLISTS FAVORITES",
-                style = Type.Tiny.copy(color = Palette.InkMuted, fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp), modifier = Modifier.weight(1f))
-            TextButton(onClick = { all = !all }) {
-                Text(if (all) "Veure favorites" else "Veure totes",
-                    style = Type.Tiny.copy(color = SpotifyGreen, fontSize = 17.sp))
-            }
-        }
-        val visible = if (all || player.favorites.isEmpty()) player.lists
-            else player.lists.filter { it.uri in player.favorites }
-        Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (player.favorites.isEmpty()) {
-                Text("Marca amb ★ les playlists que vols tenir a mà.",
-                    style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 16.sp))
-            }
-            visible.forEach { playlist ->
-                Row(Modifier.fillMaxWidth()
-                    .background(Palette.Highlight, RoundedCornerShape(14.dp))
-                    .padding(horizontal = 8.dp, vertical = 5.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (playlist.uri in player.favorites) "★" else "☆",
-                        style = Type.Body.copy(color = SpotifyGreen),
-                        modifier = Modifier.clickable { player.toggleFavorite(playlist.uri) }
-                            .padding(horizontal = 9.dp, vertical = 6.dp))
-                    Text(playlist.title, style = Type.Small.copy(fontSize = 19.sp),
-                        maxLines = 2, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f))
-                    TextButton(onClick = { scope.launch { player.play(playlist) } },
-                        enabled = !player.loading && player.selectedDeviceId.isNotEmpty()) {
-                        Text("▶", style = Type.Body.copy(color = SpotifyGreen))
-                    }
-                }
-            }
-        }
         if (playing != null) {
             Row(Modifier.fillMaxWidth()
                 .background(Palette.Highlight, RoundedCornerShape(14.dp))
@@ -249,6 +213,42 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
                     enabled = !player.loading && player.selectedDeviceId.isNotEmpty())
                 Text("${currentVolume.toInt()}%",
                     style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 15.sp))
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(if (all) "TOTES LES PLAYLISTS" else "PLAYLISTS FAVORITES",
+                style = Type.Tiny.copy(color = Palette.InkMuted, fontWeight = FontWeight.SemiBold,
+                    fontSize = 16.sp), modifier = Modifier.weight(1f))
+            TextButton(onClick = { all = !all }) {
+                Text(if (all) "Veure favorites" else "Veure totes",
+                    style = Type.Tiny.copy(color = SpotifyGreen, fontSize = 17.sp))
+            }
+        }
+        val visible = if (all || player.favorites.isEmpty()) player.lists
+            else player.lists.filter { it.uri in player.favorites }
+        Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (player.favorites.isEmpty()) {
+                Text("Marca amb ★ les playlists que vols tenir a mà.",
+                    style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 16.sp))
+            }
+            visible.forEach { playlist ->
+                Row(Modifier.fillMaxWidth()
+                    .background(Palette.Highlight, RoundedCornerShape(14.dp))
+                    .padding(horizontal = 8.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (playlist.uri in player.favorites) "★" else "☆",
+                        style = Type.Body.copy(color = SpotifyGreen),
+                        modifier = Modifier.clickable { player.toggleFavorite(playlist.uri) }
+                            .padding(horizontal = 9.dp, vertical = 6.dp))
+                    Text(playlist.title, style = Type.Small.copy(fontSize = 19.sp),
+                        maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f))
+                    TextButton(onClick = { scope.launch { player.play(playlist) } },
+                        enabled = !player.loading && player.selectedDeviceId.isNotEmpty()) {
+                        Text("▶", style = Type.Body.copy(color = SpotifyGreen))
+                    }
+                }
             }
         }
         Row(Modifier.fillMaxWidth().padding(top = 9.dp),
