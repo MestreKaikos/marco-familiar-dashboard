@@ -2,7 +2,6 @@ package com.lito.planify.dashboard.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
@@ -53,30 +52,20 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
             return@Panel
         }
 
-        Text("ALTAVEUS / GRUPS NEST", style = Type.Tiny.copy(
+        Text("ALTAVEU PREDETERMINAT", style = Type.Tiny.copy(
             color = Palette.InkMuted, fontWeight = FontWeight.SemiBold, fontSize = 16.sp),
             modifier = Modifier.padding(top = 8.dp, bottom = 7.dp))
         if (player.speakers.isEmpty()) {
-            Text("No hi ha cap altaveu actiu. Activa Spotify al Nest des del mòbil i prem Actualitzar.",
+            Text("ABAIX no està disponible. Activa Spotify a ABAIX des del mòbil i prem Actualitzar.",
                 style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 17.sp),
                 modifier = Modifier.padding(bottom = 7.dp))
         } else {
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                player.speakers.forEach { speaker ->
-                    val selected = player.selectedDeviceId == speaker.id
-                    Text((if (selected) "✓ " else "") + speaker.name,
-                        style = Type.Tiny.copy(fontSize = 17.sp,
-                            color = if (selected) Color(0xFF092413) else Palette.Ink,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal),
-                        modifier = Modifier
-                            .background(if (selected) SpotifyGreen else Palette.Highlight,
-                                RoundedCornerShape(12.dp))
-                            .clickable { player.chooseDevice(speaker.id) }
-                            .padding(horizontal = 12.dp, vertical = 9.dp),
-                        maxLines = 1)
-                }
-            }
+            Text("✓ ABAIX",
+                style = Type.Tiny.copy(fontSize = 18.sp, color = Color(0xFF092413),
+                    fontWeight = FontWeight.SemiBold),
+                modifier = Modifier
+                    .background(SpotifyGreen, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 16.dp, vertical = 10.dp))
         }
 
         Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -128,7 +117,7 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
         }
         Text(player.status, style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 16.sp),
             maxLines = 3, modifier = Modifier.padding(top = 5.dp))
-        Text("Un grup Nest funciona com un sol dispositiu si Spotify el detecta.",
+        Text("Reproducció configurada només per a ABAIX.",
             style = Type.Tiny.copy(color = Palette.InkMuted, fontSize = 14.sp),
             maxLines = 2, modifier = Modifier.padding(top = 4.dp))
     }
