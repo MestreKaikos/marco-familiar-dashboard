@@ -580,7 +580,8 @@ private fun LocalShoppingTile(store: LocalFamilyStore, modifier: Modifier, onCli
     HomeSummaryTile("Compra", "🛒", Palette.Online,
         summary = if (pending.isEmpty()) "No falta res" else "${pending.size} producte${if (pending.size == 1) " pendent" else "s pendents"}",
         items = pending.map { product ->
-            HomeSummaryItem(title = product.name, onMark = { store.toggleGrocery(product.id) })
+            HomeSummaryItem(title = product.name, touchLabel = "✓ Comprat",
+                onMark = { store.toggleGrocery(product.id) }, actionLabel = "Marcar comprat: " + product.name)
         }, emptyMessage = "Toca per afegir productes",
         modifier = modifier, onClick = onClick)
 }
@@ -658,8 +659,8 @@ private fun ReminderTile(store: FamilyReminders, today: LocalDate, modifier: Mod
     HomeSummaryTile("Recordatoris", "📌", Palette.Warm, summary,
         items = priority.map { reminder ->
             HomeSummaryItem(title = reminder.title,
-                detail = summaryReminderDate(reminder, today),
-                onMark = { store.toggle(reminder.id, true) })
+                detail = summaryReminderDate(reminder, today), touchLabel = "✓ Fet",
+                onMark = { store.toggle(reminder.id, true) }, actionLabel = "Marcar recordatori fet: " + reminder.title)
         }, emptyMessage = "Toca per afegir-ne un",
         modifier = modifier, alert = overdue.isNotEmpty(), onClick = onClick)
 }
