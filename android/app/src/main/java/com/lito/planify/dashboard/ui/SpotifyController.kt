@@ -17,6 +17,7 @@ import org.json.JSONObject
 
 private const val SPOTIFY_API = "https://api.spotify.com/v1"
 private const val SPOTIFY_TOKEN = "https://accounts.spotify.com/api/token"
+private const val PREFERRED_SPOTIFY_SPEAKER = "ABAIX"
 private const val SPOTIFY_PAIR = "https://marc-familiar-pwa.vercel.app/api/spotify-pair"
 private val SPOTIFY_CLIENT = Regex("[A-Za-z0-9]{32}")
 private val SPOTIFY_ID = Regex("[A-Za-z0-9]+")
@@ -210,15 +211,11 @@ internal class SpotifyController(context: Context) {
         status = "Consultant Spotify i els altaveus…"
         try {
             val result = withContext(Dispatchers.IO) { readDevices() to readLists() }
-            speakers = result.first
+            speakers = result.first.filter { it.name.trim().equals(PREFERRED_SPOTIFY_SPEAKER, ignoreCase = true) }
             lists = result.second
-            if (speakers.none { it.id == selectedDeviceId }) {
-                chooseDevice(speakers.singleOrNull {
-                    it.type.equals("Speaker", ignoreCase = true)
-                }?.id ?: "")
-            }
+            chooseDevice(speakers.firstOrNull()?.id ?: "")
             status = if (speakers.isEmpty())
-                "No hi ha Nest disponibles. Inicia Spotify al Nest des del mòbil i prem Actualitzar."
+                "No apareix ABAIX. Activa Spotify a aquest altaveu des del mòbil i prem Actualitzar."
             else lists.size.toString() + " playlists · " + speakers.size +
                 " dispositius Spotify Connect."
         } catch (error: Exception) {
