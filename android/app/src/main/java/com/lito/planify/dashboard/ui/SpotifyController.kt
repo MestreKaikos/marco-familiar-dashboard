@@ -189,20 +189,33 @@ internal class SpotifyController(context: Context) {
 
     private fun readLists(): List<SpotifyList> {
         val found = ArrayList<SpotifyList>()
+        var received = 0
+        var skipped = 0
         for (offset in 0 until 200 step 50) {
             val data = spotify("/me/playlists?limit=50&offset=" + offset)
             val items = data.optJSONArray("items")
-                ?: throw IOException("Spotify no ha retornat la llista de playlists (resposta inesperada).")
+                ?: throw IOException("Spotify no ha retornat les playlists (camp items absent).")
+            received += items.length()
             for (i in 0 until items.length()) {
-                val item = items.optJSONObject(i) ?: continue
+                val item = items.optJSONObject(i)
+                if (item == null) {
+                    skipped++
+                    continue
+                }
                 val id = item.optString("id")
-                if (!SPOTIFY_ID.matches(id)) continue
+                if (!SPOTIFY_ID.matches(id)) {
+                    skipped++
+                    continue
+                }
                 found.add(SpotifyList(id, "spotify:playlist:" + id,
                     item.optString("name", "Playlist sense nom").take(110)))
             }
             if (items.length() < 50 || found.size >= data.optInt("total", Int.MAX_VALUE))
                 break
         }
+        if (found.isEmpty() && received > 0)
+            throw IOException("Spotify ha enviat " + received +
+                " playlists, però " + skipped + " no tenen un identificador vàlid.")
         return found.distinctBy { it.id }
     }
 
