@@ -1,5 +1,7 @@
 package com.lito.planify.dashboard.ui
 
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -9,10 +11,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Slider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -21,6 +25,9 @@ import androidx.compose.ui.unit.sp
 import com.lito.planify.dashboard.ui.theme.Palette
 import com.lito.planify.dashboard.ui.theme.Type
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.net.URL
 
 private val SpotifyGreen = Color(0xFF1DB954)
 
@@ -45,6 +52,30 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
         castSearchTimedOut = true
     }
     var confirmUnlink by remember { mutableStateOf(false) }
+    var localVolume by remember { mutableFloatStateOf(-1f) }
+    val playing = player.nowPlaying
+    var artworkBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+    LaunchedEffect(playing?.artwork) {
+        artworkBitmap = null
+        val url = playing?.artwork.orEmpty()
+        if (url.startsWith("https://")) {
+            artworkBitmap = withContext(Dispatchers.IO) {
+                runCatching {
+                    val connection = URL(url).openConnection().apply {
+                        connectTimeout = 5000
+                        readTimeout = 5000
+                    }
+                    connection.getInputStream().use { BitmapFactory.decodeStream(it) }
+                }.getOrNull()
+            }
+        }
+    }
+    LaunchedEffect(player.linked) {
+        while (player.linked) {
+            kotlinx.coroutines.delay(15_000)
+            if (!player.loading) player.refreshPlayback()
+        }
+    }
 
     LaunchedEffect(player.linked) {
         if (player.linked) player.refresh()
@@ -164,6 +195,60 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
                         Text("▶", style = Type.Body.copy(color = SpotifyGreen))
                     }
                 }
+            }
+        }
+        if (playing != null) {
+            Row(Modifier.fillMaxWidth()
+                .background(Palette.Highlight, RoundedCornerShape(14.dp))
+                .padding(10.dp), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (artworkBitmap != null) {
+                    Image(bitmap = artworkBitmap!!.asImageBitmap(),
+                        contentDescription = "Caràtula de l'àlbum",
+                        modifier = Modifier.size(84.dp))
+                } else {
+                    Text("♫", style = Type.Large.copy(color = SpotifyGreen, fontSize = 32.sp))
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(if (playing.playing) "ARA SONA · ABAIX" else "EN PAUSA · ABAIX",
+                        style = Type.Tiny.copy(color = SpotifyGreen, fontSize = 13.sp))
+                    Text(playing.title, style = Type.Small.copy(fontSize = 20.sp),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(playing.artist, style = Type.Tiny.copy(
+                        color = Palette.InkSoft, fontSize = 16.sp), maxLines = 1)
+                    if (playing.album.isNotBlank())
+                        Text(playing.album, style = Type.Tiny.copy(
+                            color = Palette.InkMuted, fontSize = 13.sp), maxLines = 1)
+                    if (playing.durationMs > 0) {
+                        val elapsed = (playing.progressMs / 1000).coerceAtLeast(0)
+                        val total = playing.durationMs / 1000
+                        Text("${elapsed / 60}:${(elapsed % 60).toString().padStart(2, '0')} / " +
+                            "${total / 60}:${(total % 60).toString().padStart(2, '0')}",
+                            style = Type.Tiny.copy(color = Palette.InkMuted, fontSize = 13.sp))
+                    }
+                }
+            }
+        } else {
+            Text("Sense reproducció activa a Abaix",
+                style = Type.Tiny.copy(color = Palette.InkMuted, fontSize = 15.sp))
+        }
+        val remoteVolume = player.volumePercent
+        if (remoteVolume != null) {
+            val currentVolume = if (localVolume >= 0f) localVolume else remoteVolume.toFloat()
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Volum", style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 15.sp))
+                Slider(value = currentVolume.coerceIn(0f, 100f),
+                    onValueChange = { localVolume = it },
+                    onValueChangeFinished = {
+                        val target = currentVolume.toInt().coerceIn(0, 100)
+                        localVolume = -1f
+                        scope.launch { player.setVolume(target) }
+                    },
+                    valueRange = 0f..100f, modifier = Modifier.weight(1f)
+                        .padding(horizontal = 12.dp),
+                    enabled = !player.loading && player.selectedDeviceId.isNotEmpty())
+                Text("${currentVolume.toInt()}%",
+                    style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 15.sp))
             }
         }
         Row(Modifier.fillMaxWidth().padding(top = 9.dp),
