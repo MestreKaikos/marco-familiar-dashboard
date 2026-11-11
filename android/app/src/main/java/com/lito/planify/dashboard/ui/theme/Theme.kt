@@ -1,6 +1,9 @@
 package com.lito.planify.dashboard.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -20,7 +23,10 @@ object Palette {
     val InkSoft = Color(0xFF6E6358)
     val InkMuted = Color(0xFFA6998A)
     /** Títulos de sección (SectionLabel). */
-    val Accent = Color(0xFFC8243B)
+    var Accent by mutableStateOf(Color(0xFFC8243B))
+        private set
+    fun setAccent(hex: Long) { Accent = Color(hex) }
+    val Danger = Color(0xFFC8243B)
     val Rain = Color(0xFF2F80ED)
     val Warm = Color(0xFFF5A623)
     val Night = Color(0xFF5B6B9A)
