@@ -157,7 +157,7 @@ private fun RemindersPanel(store: FamilyReminders, today: LocalDate, modifier: M
                 Text(store.pending().size.toString() + " pendents · Els vençuts apareixen destacats",
                     style = Type.Small.copy(color = Palette.InkSoft))
             }
-            Button(onClick = { creating = true }, modifier = Modifier.heightIn(min = 68.dp)) { Text("+ Nou recordatori", style = Type.Small.copy(fontSize = 22.sp)) }
+            Button(onClick = { creating = true }, modifier = Modifier.heightIn(min = 68.dp)) { Text("+ Nou recordatori", style = Type.Small.copy(fontSize = 22.sp, color = Color.White)) }
         }
         LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(top = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
