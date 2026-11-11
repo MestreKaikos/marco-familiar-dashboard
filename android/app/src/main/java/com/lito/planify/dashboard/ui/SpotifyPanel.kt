@@ -54,6 +54,16 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
     var confirmUnlink by remember { mutableStateOf(false) }
     var localVolume by remember { mutableFloatStateOf(-1f) }
     var volumeDragging by remember { mutableStateOf(false) }
+    var pendingVolume by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(pendingVolume) {
+        if (pendingVolume != null) {
+            kotlinx.coroutines.delay(8_000)
+            if (!volumeDragging) {
+                player.refreshPlayback()
+                pendingVolume = null
+            }
+        }
+    }
     val playing = player.nowPlaying
     var artworkBitmap by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
     LaunchedEffect(playing?.artwork) {
@@ -199,18 +209,21 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
         }
         val remoteVolume = player.volumePercent
         if (remoteVolume != null) {
-            val currentVolume = if (volumeDragging) localVolume else remoteVolume.toFloat()
+            val currentVolume = when {
+                volumeDragging -> localVolume
+                pendingVolume != null -> pendingVolume!!.toFloat()
+                else -> remoteVolume.toFloat()
+            }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("Volum", style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 19.sp))
                 Slider(value = currentVolume.coerceIn(0f, 100f),
                     onValueChange = { localVolume = it; volumeDragging = true },
                     onValueChangeFinished = {
                         val target = currentVolume.toInt().coerceIn(0, 100)
-                        scope.launch {
-                            player.setVolume(target)
-                            volumeDragging = false
-                            localVolume = -1f
-                        }
+                        pendingVolume = target
+                        volumeDragging = false
+                        localVolume = -1f
+                        scope.launch { player.setVolume(target) }
                     },
                     valueRange = 0f..100f, modifier = Modifier.weight(1f)
                         .padding(horizontal = 12.dp),
