@@ -165,8 +165,9 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
             verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { scope.launch { player.toggleShuffle() } },
                 enabled = !player.loading && player.selectedDeviceId.isNotEmpty()) {
-                Text("🔀", style = Type.Large.copy(fontSize = 26.sp,
-                    color = if (player.shuffleEnabled) SpotifyGreen else Palette.InkMuted))
+                Text(if (player.shuffleEnabled) "ALEATORI ✓" else "ALEATORI",
+                    style = Type.Tiny.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                        color = if (player.shuffleEnabled) SpotifyGreen else Palette.InkMuted))
             }
             listOf("⏮" to "previous", "⏸" to "pause",
                 "▶" to "resume", "⏭" to "next").forEach { (symbol, command) ->
@@ -176,7 +177,7 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
                 }
             }
         }
-        Text(if (player.shuffleEnabled) "🔀 Aleatori activat" else "Aleatori desactivat",
+        Text(if (player.shuffleEnabled) "Aleatori activat" else "Aleatori desactivat",
             style = Type.Tiny.copy(color = if (player.shuffleEnabled) SpotifyGreen else Palette.InkMuted,
                 fontSize = 14.sp))
         Text(player.status, style = Type.Tiny.copy(color = Palette.InkSoft, fontSize = 16.sp),
