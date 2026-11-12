@@ -188,6 +188,35 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .settings-button .ui-icon{width:18px;height:18px}
 h2 .ui-icon{width:22px;height:22px;vertical-align:-.18em}
 summary .ui-icon{width:18px;height:18px;vertical-align:-.2em}
+
+/* Portada mòbil compacta: el contingut útil ha d'aparèixer abans del primer scroll. */
+@media(max-width:719px){
+  main{padding-top:7px}
+  .app-header{padding:4px 2px 11px}
+  .brand{gap:9px}
+  .brand-mark{height:36px;width:36px;border-radius:11px;box-shadow:none}
+  .brand-mark .ui-icon{height:21px;width:21px}
+  .brand h1{font-size:19px;line-height:1.1}
+  .brand-subtitle{font-size:10px}
+  .overview-page{padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important}
+  .welcome-hero{min-height:0;padding:13px 17px;border-radius:17px;box-shadow:none}
+  .welcome-hero h2{font-size:24px;letter-spacing:-.035em;margin:3px 0}
+  .welcome-hero p{font-size:11px}
+  .welcome-hero .eyebrow{font-size:9px;letter-spacing:.1em}
+  .hero-accent{font-size:110px;right:8px;bottom:-24px}
+  .overview-heading{padding:12px 2px 8px}
+  .overview-heading h2{font-size:17px}
+  .live-dot{font-size:10px;padding:5px 8px}
+  .summary-grid{gap:7px}
+  .summary-card{min-height:0;padding:11px 12px;border-radius:14px;box-shadow:none;display:grid;grid-template-columns:22px 1fr auto;grid-template-rows:auto auto;align-items:center;gap:3px 7px}
+  .summary-icon{grid-column:1;grid-row:1;line-height:1}
+  .summary-icon .ui-icon{width:19px;height:19px}
+  .summary-label{grid-column:2;grid-row:1;font-size:12px;margin:0;white-space:nowrap}
+  .summary-card strong{grid-column:3;grid-row:1 / span 2;font-size:23px;margin:0;line-height:1}
+  .summary-card small{grid-column:1 / span 2;grid-row:2;font-size:10px;margin:0;line-height:1.2}
+  .overview-next{padding:12px 14px;border-radius:16px;margin-top:10px}
+  .overview-next h2{font-size:17px}
+}
 </style>
 </head>
 <body>
