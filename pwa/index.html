@@ -6,10 +6,10 @@
 <meta name="color-scheme" content="light">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
-<meta name="apple-mobile-web-app-title" content="Marc Familiar">
+<meta name="apple-mobile-web-app-title" content="Calendari Familiar">
 <meta name="mobile-web-app-capable" content="yes">
 <script>window.MARC_PWA_MODE = true;</script><meta name="theme-color" content="#f5f6f1"><meta name="apple-mobile-web-app-capable" content="yes">
-<title>Marc Familiar · La casa al dia</title>
+<title>Calendari Familiar · La casa al dia</title>
 <style>
 :root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#26231e;background:#f7f0e6}
 *{box-sizing:border-box}
@@ -167,6 +167,19 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 #calendarSettings form input:not([type="checkbox"]):not([type="color"]){width:100%;box-sizing:border-box;margin-top:6px}
 #calendarSettings .item{flex-wrap:wrap}#calendarSettings .name{min-width:100px;overflow-wrap:anywhere}
 #calendarSettings input[type="color"]{padding:4px;width:64px;min-height:44px}
+.settings-button{margin-left:auto;white-space:nowrap}
+.rai-section{border:1px solid #e6e1d9;border-radius:15px;margin:12px 0;padding:13px 15px;background:#fff}
+.rai-section>summary,.rai-subsection>summary{cursor:pointer;font-weight:750;min-height:28px}
+.rai-section-body{padding-top:10px}.rai-section-body h3{font-size:15px;margin:14px 0 6px}
+.rai-subsection{margin-top:14px;border-top:1px solid #eee8df;padding-top:12px}
+.rai-subsection form{display:flex;flex-wrap:wrap;gap:9px}
+.rai-subsection input,.rai-subsection select{min-width:130px;flex:1}
+.rai-subsection button{min-height:44px}
+#raiValidations{border-color:#e5c68d;background:#fff9ed}
+.photo-card{padding:8px 0;margin:0;border-bottom:1px solid #eee8df}
+.photo-card .row{justify-content:space-between;gap:10px}
+.photo-meta{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;overflow-wrap:normal}
+@media(max-width:480px){.rai-section{padding:12px}.rai-section .item{flex-wrap:wrap}.rai-section .item button{min-height:44px}}
 </style>
 </head>
 <body>
@@ -174,8 +187,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
   <header class="app-header">
     <div class="brand">
       <span class="brand-mark" aria-hidden="true">⌂</span>
-      <div><h1>Marc Familiar</h1><span class="brand-subtitle">La casa, una mica més fàcil.</span></div>
+      <div><h1>Calendari Familiar</h1><span class="brand-subtitle">La casa, una mica més fàcil.</span></div>
     </div>
+    <button type="button" id="openSettings" class="small ghost settings-button" hidden aria-label="Obrir les opcions" title="Opcions">⚙ Opcions</button>
     <button class="small ghost disconnect-button" id="disconnect" hidden>Sortir <span aria-hidden="true">↗</span></button>
   </header>
   <div id="auth" class="panel">
@@ -198,7 +212,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
         <div class="hero-accent" aria-hidden="true">✦</div>
       </div>
       <div id="installHint" class="install-hint" hidden>
-        <div><strong>📲 Marc Familiar al teu mòbil</strong><small>Instal·la la web i obre-la com una aplicació.</small></div>
+        <div><strong>📲 Calendari Familiar al teu mòbil</strong><small>Instal·la la web i obre-la com una aplicació.</small></div>
         <button id="installPwa" type="button" class="primary">Instal·lar</button>
       </div>
       <div class="overview-heading"><h2>Un cop d'ull</h2><span class="live-dot">Compartit en família</span></div>
@@ -257,39 +271,17 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
     </section>
     <section class="panel" data-tab="rai">
       <div class="row" style="justify-content:space-between;margin-bottom:12px">
-        <h2 style="margin:0">⭐ Tasques i recompenses d'en Rai</h2>
-        <span class="pill" id="raiPoints">Carregant punts…</span>
+        <h2 style="margin:0">Espai d'en Rai</h2><span class="pill" id="raiPoints">Carregant punts…</span>
       </div>
-      <div id="raiTaskList"></div>
-      <h2 style="margin-top:20px">🎁 Recompenses</h2>
-      <div id="raiRewardList"></div>
-      <h2 style="margin-top:20px">🔐 Peticions pendents</h2>
-      <div id="raiPendingRewards"></div>
-      <details class="subpanel" id="raiAdultPoints" style="margin-top:16px">
-        <summary style="cursor:pointer;font-weight:750">⭐ Ajustar els punts · pares</summary>
-        <p style="margin:8px 0">Sumar, restar o reiniciar el saldo sense esborrar les feines ni les recompenses. Els canvis queden registrats.</p>
-        <div class="row" style="flex-wrap:wrap;gap:8px;margin:10px 0">
-          <input id="raiAdjustReason" maxlength="80" autocomplete="off"
-            placeholder="Motiu (opcional)" aria-label="Motiu de l'ajust" style="flex:2;min-width:150px">
-        </div>
-        <p style="margin:8px 0;font-weight:650">Sumar punts</p>
-        <div class="row" style="flex-wrap:wrap;gap:8px">
-          <button type="button" data-points-delta="1">+1</button>
-          <button type="button" data-points-delta="2">+2</button>
-          <button type="button" data-points-delta="5">+5</button>
-          <button type="button" data-points-delta="10">+10</button>
-        </div>
-        <p style="margin:12px 0 8px;font-weight:650">Restar punts</p>
-        <div class="row" style="flex-wrap:wrap;gap:8px">
-          <button type="button" data-points-delta="-1">−1</button>
-          <button type="button" data-points-delta="-2">−2</button>
-          <button type="button" data-points-delta="-5">−5</button>
-          <button type="button" data-points-delta="-10">−10</button>
-        </div>
-        <button id="raiResetPoints" type="button" style="margin-top:14px">Posar saldo a 0</button>
-        <p id="raiAdjustStatus" role="status" aria-live="polite"></p>
-        <div id="raiPointsHistory"></div>
+      <details id="raiValidations" class="rai-section" hidden>
+        <summary>Validacions pendents <span id="raiPendingCount"></span></summary>
+        <div id="raiPendingRewards"></div>
       </details>
+      <details class="rai-section" id="raiFeines">
+        <summary>Feines</summary>
+        <div class="rai-section-body">
+          <h3>Feines actuals</h3><div id="raiTaskList"></div>
+          <details class="rai-subsection"><summary>Afegir una feina</summary>
       <form id="raiAddTask" class="row" style="margin-top:18px">
         <input id="raiTaskTitle" required maxlength="100" placeholder="Nova tasca…" aria-label="Títol de la tasca">
         <input id="raiTaskPoints" type="number" min="1" max="100" value="5" required aria-label="Punts" style="max-width:90px">
@@ -315,11 +307,50 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
         <label><input type="checkbox" value="tarda"> tarda</label>
         <label><input type="checkbox" value="vespre" checked> vespre</label>
       </div>
+
+          </details>
+        </div>
+      </details>
+      <details class="rai-section" id="raiRecompenses">
+        <summary>Recompenses</summary>
+        <div class="rai-section-body">
+          <h3>Recompenses disponibles</h3><div id="raiRewardList"></div>
+          <details class="rai-subsection"><summary>Afegir una recompensa</summary>
       <form id="raiAddReward" class="row" style="margin-top:14px">
         <input id="raiRewardTitle" required maxlength="100" placeholder="Nova recompensa" aria-label="Recompensa">
         <input id="raiRewardCost" type="number" min="1" max="10000" value="20" required style="max-width:95px" aria-label="Cost del premi">
         <button type="submit">Afegir premi</button>
       </form>
+
+          </details>
+        </div>
+      </details>
+      <details class="subpanel" id="raiAdultPoints" style="margin-top:16px">
+        <summary style="cursor:pointer;font-weight:750">⭐ Ajustar els punts · pares</summary>
+        <p style="margin:8px 0">Sumar, restar o reiniciar el saldo sense esborrar les feines ni les recompenses. Els canvis queden registrats.</p>
+        <div class="row" style="flex-wrap:wrap;gap:8px;margin:10px 0">
+          <input id="raiAdjustReason" maxlength="80" autocomplete="off"
+            placeholder="Motiu (opcional)" aria-label="Motiu de l'ajust" style="flex:2;min-width:150px">
+        </div>
+        <p style="margin:8px 0;font-weight:650">Sumar punts</p>
+        <div class="row" style="flex-wrap:wrap;gap:8px">
+          <button type="button" data-points-delta="1">+1</button>
+          <button type="button" data-points-delta="2">+2</button>
+          <button type="button" data-points-delta="5">+5</button>
+          <button type="button" data-points-delta="10">+10</button>
+        </div>
+        <p style="margin:12px 0 8px;font-weight:650">Restar punts</p>
+        <div class="row" style="flex-wrap:wrap;gap:8px">
+          <button type="button" data-points-delta="-1">−1</button>
+          <button type="button" data-points-delta="-2">−2</button>
+          <button type="button" data-points-delta="-5">−5</button>
+          <button type="button" data-points-delta="-10">−10</button>
+        </div>
+        <button id="raiResetPoints" type="button" style="margin-top:14px">Posar saldo a 0</button>
+        <p id="raiAdjustStatus" role="status" aria-live="polite"></p>
+        <div id="raiPointsHistory"></div>
+      </details>
+
       <p id="raiTaskStatus" role="status" aria-live="polite"></p>
     </section>
     <section class="panel" data-tab="fotos">
@@ -335,13 +366,14 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
       <p id="photoNotice" role="status" aria-live="polite"></p>
       <div id="photoItems"></div>
     </section>
-    <nav class="app-nav" aria-label="Seccions de Marc Familiar">
+    <nav class="app-nav" aria-label="Seccions de Calendari Familiar">
       <button type="button" data-open="avui"><span>⌂</span>Avui</button>
       <button type="button" data-open="compra"><span>🛒</span>Compra</button>
       <button type="button" data-open="recordatoris"><span>📌</span>Recordatoris</button>
       <button type="button" data-open="fotos"><span>📸</span>Fotos</button>
       <button type="button" data-open="rai"><span>⭐</span>Rai</button>
     </nav>
+    <section class="panel" data-tab="opcions"><h2>Opcions</h2>
     <details class="panel" id="syncSettings">
       <summary>Ajustos de sincronització</summary>
       <p><label>Dades <select id="dataInterval" aria-label="Interval de dades">
@@ -373,6 +405,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
       <span id="syncTime">Connectat · Sincronització automàtica</span>
       <button class="small" id="refresh">Actualitzar ara</button>
     </div>
+    </section>
   </div>
 </main>
 <script>
@@ -464,18 +497,20 @@ function serverCall(method,...args){
 }
 
 function openTab(name){
-  if(!['avui','compra','recordatoris','fotos','rai'].includes(name)) name='avui';
+  if(!['avui','compra','recordatoris','fotos','rai','opcions'].includes(name)) name='avui';
   document.querySelectorAll('[data-tab]').forEach(el=>el.classList.toggle('active',el.dataset.tab===name));
   document.querySelectorAll('[data-open]').forEach(el=>{
     const active=el.dataset.open===name;
     el.classList.toggle('active',active);
     el.setAttribute('aria-current',active?'page':'false');
   });
+  $('openSettings').setAttribute('aria-pressed',name==='opcions'?'true':'false');
   if(name==='fotos'&&key&&queueStorageKey)refreshPhotos(5);
   try{sessionStorage.setItem('marc-active-tab',name);}catch(_){}
   window.scrollTo({top:0,behavior:'instant'});
 }
 document.querySelectorAll('[data-open]').forEach(el=>el.addEventListener('click',()=>openTab(el.dataset.open)));
+$('openSettings').addEventListener('click',()=>openTab('opcions'));
 try{openTab(sessionStorage.getItem('marc-active-tab')||'avui')}catch(_){openTab('compra')}
 
 document.querySelectorAll('[data-go]').forEach(el=>el.addEventListener('click',()=>openTab(el.dataset.go)));
@@ -519,11 +554,11 @@ function showLogin(){
   photos=[];renderPhotos();raiSnapshot=null;
   data={groceries:[],dinners:{}};lastDataAt=lastRaiAt=lastPhotosAt=0;queueStorageKey='';
   key='';try { sessionStorage.removeItem('marc-sync-key'); } catch (_) {}
-  $('auth').hidden=false;$('application').hidden=true;$('disconnect').hidden=true;
+  $('auth').hidden=false;$('application').hidden=true;$('disconnect').hidden=true;$('openSettings').hidden=true;
 }
 async function showApp(){
   await prepareQueue();
-  $('auth').hidden=true;$('application').hidden=false;$('disconnect').hidden=false;
+  $('auth').hidden=true;$('application').hidden=false;$('disconnect').hidden=false;$('openSettings').hidden=false;
   render();renderPhotos();if(raiSnapshot)renderRai();renderOverview();
   refreshAll(5);
 }
@@ -768,6 +803,8 @@ function renderRai(){
   });
   const rewards=$('raiRewardList');rewards.replaceChildren();
   const pending=(snapshot.requests||[]).filter(x=>x.status==='pendent'&&x.kid==='Rai');
+  $('raiValidations').hidden=pending.length===0;
+  $('raiPendingCount').textContent=pending.length?'('+pending.length+')':'';
   const reserved=pending.reduce((sum,x)=>sum+(Number(x.cost)||0),0);
   (snapshot.rewards||[]).filter(r=>r.active).forEach(reward=>{
     const row=makeText('div','','item'),btn=makeText('button','Demanar','small');
@@ -781,7 +818,7 @@ function renderRai(){
   });
   if(!snapshot.rewards.some(r=>r.active))rewards.appendChild(makeText('p','Encara no hi ha recompenses.'));
   const approvals=$('raiPendingRewards');approvals.replaceChildren();
-  if(!pending.length)approvals.appendChild(makeText('p','Cap recompensa pendent.'));
+  if(!pending.length)approvals.replaceChildren();
   pending.forEach(request=>{
     const reward=snapshot.rewards.find(r=>r.id===request.rewardId);
     const row=makeText('div','','item');
@@ -862,6 +899,7 @@ function renderPhotos(){
     const outer=makeText('div','','photo-card');
     const line=makeText('div','','row');
     const meta=makeText('div',photo.name||'Fotografia','photo-meta');
+    meta.title=photo.name||'Fotografia';
     line.appendChild(meta);
     const view=makeText('button','Veure','small');
     view.type='button';
