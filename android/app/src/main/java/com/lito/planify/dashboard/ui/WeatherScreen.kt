@@ -24,6 +24,17 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.Duration
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.viewinterop.AndroidView
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,7 +60,13 @@ fun WeatherScreen(state: UiState) {
         val pager = rememberPagerState { 3 }
         val scope = rememberCoroutineScope()
         val today = state.now.toLocalDate()
+        var radarOpen by remember { mutableStateOf(false) }
         Column(Modifier.fillMaxSize()) {
+            if (pager.currentPage == 0) {
+                Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.End) {
+                    Button(onClick = { radarOpen = true }) { Text("☁ Radar de Catalunya") }
+                }
+            }
             HorizontalPager(pager, Modifier.fillMaxWidth().weight(1f), pageSpacing = 40.dp) { page ->
                 if (page == 0) {
                     // Al pasar del último día de la gráfica sigue la semana siguiente, y antes de la semana vuelve al día
@@ -64,6 +81,7 @@ fun WeatherScreen(state: UiState) {
                     AstronomyCard(forecast, location.name, today, Modifier.fillMaxSize())
                 }
             }
+            if (radarOpen) RadarDialog { radarOpen = false }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
                 modifier = Modifier.fillMaxWidth().padding(top = 20.dp)
@@ -146,5 +164,41 @@ private fun AstronomyPanel(
         Text(title, style = Type.Large.copy(fontWeight = FontWeight.SemiBold))
         Text(subtitle, style = Type.Small.copy(color = Palette.InkMuted))
         content()
+    }
+}
+
+/**
+ * Radar en una modal independent. El reproductor i la línia temporal són els del
+ * proveïdor del mapa; no es generen imatges fictícies de precipitació.
+ */
+@Composable
+private fun RadarDialog(onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Column(
+            Modifier.fillMaxWidth(0.94f).fillMaxSize(0.92f)
+                .background(Palette.Card, RoundedCornerShape(26.dp))
+                .padding(18.dp)
+        ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) {
+                Text("Radar de Catalunya", style = Type.Title)
+                TextButton(onClick = onDismiss) { Text("TANCAR") }
+            }
+            Text("Precipitació i evolució temporal · Font: Windy",
+                style = Type.Small.copy(color = Palette.InkMuted))
+            AndroidView(
+                factory = { context ->
+                    WebView(context).apply {
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        webViewClient = WebViewClient()
+                        loadUrl(
+                            "https://embed.windy.com/embed2.html?lat=41.75&lon=1.65&detailLat=41.75&detailLon=1.65&width=1000&height=650&zoom=8&level=surface&overlay=radar&product=radar&menu=&message=false&marker=false&calendar=now&pressure=false&type=map&location=coordinates&detail=false&metricWind=km%2Fh&metricTemp=%C2%B0C"
+                        )
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().weight(1f)
+            )
+        }
     }
 }
