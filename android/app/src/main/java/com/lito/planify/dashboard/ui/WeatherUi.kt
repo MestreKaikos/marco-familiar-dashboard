@@ -364,6 +364,9 @@ fun WeatherCard(
             .padding(horizontal = 36.dp, vertical = 28.dp)
     ) {
         WeatherHeader(forecast, location, today, selected, compact)
+        if (compact) {
+            SunMoonStrip(forecast, selected ?: today)
+        }
         // La gráfica es siempre un día entero (de 00 a 23): hoy, con la banda de la hora actual avanzando por ella
         val chartModifier = Modifier.fillMaxWidth().weight(1f).padding(top = 12.dp)
         if (chartDays.isEmpty()) {
@@ -376,10 +379,47 @@ fun WeatherCard(
         // La gráfica del día y los días quedan separados por una línea
         Hairline(Modifier.padding(top = if (compact) 12.dp else 18.dp, bottom = if (compact) 12.dp else 18.dp))
         if (compact) {
-            DaysPager(forecast, today, days, selected ?: today, onDay)
+            DaysPager(forecast, today, minOf(days, 4), selected ?: today, onDay)
         } else {
             DaysRow(forecast, (0 until days).map { today.plusDays(it.toLong()) }, highlight = selected ?: today, today = today, modifier = Modifier.fillMaxWidth(), showDate = true, onClick = onDay)
         }
+    }
+}
+
+/**
+ * Informació astronòmica compacta dins la targeta del temps, sense tocar la columna
+ * del rellotge ni la data. Les hores del sol provenen de la previsió Open-Meteo.
+ * La fase lunar és una estimació astronòmica, no una dada de l'API meteorològica.
+ */
+@Composable
+private fun SunMoonStrip(forecast: Forecast, date: LocalDate) {
+    val sunrise = forecast.sunrise(date) ?: "—"
+    val sunset = forecast.sunset(date) ?: "—"
+    val moon = moonPhaseLabel(date)
+    Row(
+        Modifier.fillMaxWidth().padding(top = 9.dp),
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("☀  Sol  ↑ $sunrise  ↓ $sunset", style = Type.Small, maxLines = 1)
+        Text("☾  Lluna  ·  $moon", style = Type.Small, maxLines = 1)
+    }
+}
+
+/** Fase lunar aproximada, calculada a partir d'una lluna nova coneguda (UTC). */
+internal fun moonPhaseLabel(date: LocalDate): String {
+    val reference = LocalDate.of(2000, 1, 6)
+    val days = java.time.temporal.ChronoUnit.DAYS.between(reference, date).toDouble()
+    val age = ((days + 0.76) % 29.530588853 + 29.530588853) % 29.530588853
+    return when {
+        age < 1.85 || age >= 27.68 -> "Lluna nova"
+        age < 5.54 -> "Creixent"
+        age < 9.23 -> "Quart creixent"
+        age < 12.92 -> "Gibosa creixent"
+        age < 16.61 -> "Lluna plena"
+        age < 20.30 -> "Gibosa minvant"
+        age < 23.99 -> "Quart minvant"
+        else -> "Minvant"
     }
 }
 
