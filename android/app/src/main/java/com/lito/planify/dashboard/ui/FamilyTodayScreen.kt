@@ -564,7 +564,7 @@ private fun HomeSummaryRow(item: HomeSummaryItem, tint: Color) {
         if (item.touchLabel != null) {
             Box(
                 modifier = Modifier.background(
-                    if (action != null) Palette.Accent else tint.copy(alpha = 0.19f),
+                    if (action != null) Palette.Accent else if (item.touchLabel.startsWith("✓ Feta")) Palette.Online else tint.copy(alpha = 0.19f),
                     RoundedCornerShape(12.dp)
                 ).padding(horizontal = 12.dp, vertical = 9.dp),
                 contentAlignment = Alignment.Center
@@ -572,7 +572,7 @@ private fun HomeSummaryRow(item: HomeSummaryItem, tint: Color) {
                 Text(item.touchLabel, style = Type.Tiny.copy(
                     color = if (action != null) {
                         if (Palette.Accent.luminance() > 0.42f) Color.Black else Color.White
-                    } else Palette.Ink,
+                    } else if (item.touchLabel.startsWith("✓ Feta")) Color.White else Palette.Ink,
                     fontSize = 18.sp, fontWeight = FontWeight.Bold, lineHeight = 22.sp
                 ), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -592,7 +592,7 @@ private fun LocalShoppingTile(store: LocalFamilyStore, modifier: Modifier, onCli
     HomeSummaryTile("Compra", "🛒", Palette.Online,
         summary = if (pending.isEmpty()) "No falta res" else "${pending.size} producte${if (pending.size == 1) " pendent" else "s pendents"}",
         items = pending.map { product ->
-            HomeSummaryItem(title = product.name, glyph = "", touchLabel = "✓ Comprat",
+            HomeSummaryItem(title = product.name, glyph = "", touchLabel = "Comprat?",
                 onMark = { store.toggleGrocery(product.id) }, actionLabel = "Marcar comprat: " + product.name)
         }, emptyMessage = "Toca per afegir productes",
         modifier = modifier, onClick = onClick)
@@ -612,18 +612,18 @@ private fun LocalRaiTile(store: LocalFamilyStore, today: LocalDate, modifier: Mo
                 actionLabel = "Obrir les feines per franges")
         } else {
             HomeSummaryItem(title = task.title, glyph = "⭐",
-                touchLabel = "✓ Ja l'he feta!",
+                touchLabel = "Ja ho he fet!",
                 onMark = { store.requestDone(task.id, today) },
                 actionLabel = "Ja he fet: " + task.title + ". Demanar validació")
         }
     } + awaiting.map {
         HomeSummaryItem(title = it.title, glyph = "⏳", rowTint = Palette.Warm,
-            touchLabel = "Esperant validació")
+            touchLabel = "Pendent de validar")
     } + approved.map { task ->
         HomeSummaryItem(
             title = task.title,
             glyph = "✓", rowTint = Palette.Online,
-            touchLabel = if (task.frequency == "once") "Feta" else "Feta avui"
+            touchLabel = "✓ Feta!"
         )
     }
     HomeSummaryTile("Feines d'en Rai", "⭐", parseColor("#7857BC"),
@@ -673,7 +673,7 @@ private fun ReminderTile(store: FamilyReminders, today: LocalDate, modifier: Mod
             HomeSummaryItem(title = reminder.title,
                 detail = listOfNotNull(summaryReminderDate(reminder, today),
                     reminder.notes.takeIf { it.isNotBlank() }).joinToString(" · "),
-                glyph = "", touchLabel = "✓ Fet",
+                glyph = "", touchLabel = "Fet?",
                 onMark = { store.toggle(reminder.id, true) }, actionLabel = "Marcar recordatori fet: " + reminder.title)
         }, emptyMessage = "Toca per afegir-ne un",
         modifier = modifier, alert = overdue.isNotEmpty(), onClick = onClick)
