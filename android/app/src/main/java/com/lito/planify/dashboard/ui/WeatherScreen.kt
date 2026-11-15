@@ -35,6 +35,8 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.viewinterop.AndroidView
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.WebChromeClient
+import android.webkit.ConsoleMessage
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceError
 import android.content.Intent
@@ -195,7 +197,17 @@ private fun RadarDialog(onDismiss: () -> Unit) {
                 WebView(context).apply {
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
-                    webViewClient = WebViewClient()
+                    webChromeClient = object : WebChromeClient() {
+                        override fun onConsoleMessage(message: ConsoleMessage): Boolean {
+                            android.util.Log.e("MarcRadar", message.message())
+                            return true
+                        }
+                    }
+                    webViewClient = object : WebViewClient() {
+                        override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                            android.util.Log.e("MarcRadar", "WebView error: "+error?.description)
+                        }
+                    }
                     loadDataWithBaseURL("https://api.rainviewer.com/", RADAR_HTML, "text/html", "UTF-8", null)
                 }
             }, modifier = Modifier.fillMaxWidth().weight(1f))
