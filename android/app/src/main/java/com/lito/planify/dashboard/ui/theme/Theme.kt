@@ -1,6 +1,7 @@
 package com.lito.planify.dashboard.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -26,6 +27,9 @@ object Palette {
     var Accent by mutableStateOf(Color(0xFFC8243B))
         private set
     fun setAccent(hex: Long) { Accent = Color(hex.toInt()) }
+    var AccentTextOverride by mutableStateOf<Color?>(null)
+    val AccentText: Color get() = AccentTextOverride ?: if (Accent.luminance() > 0.45f) Ink else Color.White
+    fun setAccentText(hex: Long?) { AccentTextOverride = hex?.let { Color(it.toInt()) } }
     val Danger = Color(0xFFC8243B)
     val Rain = Color(0xFF2F80ED)
     val Warm = Color(0xFFF5A623)
