@@ -32,6 +32,7 @@ import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material.icons.outlined.WifiOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.Slider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -488,10 +489,11 @@ fun Field(
 }
 
 
-/** Color general del marc: independent dels colors d'estat i dels calendaris. */
+/** Aparença: paleta ràpida, color lliure RGB i contrast del text independent. */
 @Composable
 private fun AccentSettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val prefs = remember(context) { context.getSharedPreferences("marc_aparenca", android.content.Context.MODE_PRIVATE) }
     val colors = listOf(
         "Vermell original" to 0xFFC8243BL,
         "Blau" to 0xFF3979DBL,
@@ -501,22 +503,79 @@ private fun AccentSettingsScreen(onBack: () -> Unit) {
         "Rosa" to 0xFFD45E8FL,
         "Turquesa" to 0xFF168F9EL
     )
-    Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+    var customHex by remember { mutableStateOf("#%06X".format(Palette.Accent.value.toLong() and 0xFFFFFFL)) }
+    var textHex by remember { mutableStateOf("#%06X".format((Palette.AccentTextOverride ?: Palette.AccentText).value.toLong() and 0xFFFFFFL)) }
+    var automatic by remember { mutableStateOf(Palette.AccentTextOverride == null) }
+    fun updateAccent(hex: Long) {
+        Palette.setAccent(hex)
+        prefs.edit().putLong("accent", hex).apply()
+        customHex = "#%06X".format(hex and 0xFFFFFFL)
+    }
+    fun updateText(hex: Long?) {
+        Palette.setAccentText(hex)
+        prefs.edit().putBoolean("accent_text_auto", hex == null).apply()
+        if (hex != null) prefs.edit().putLong("accent_text", hex).apply()
+        if (hex != null) textHex = "#%06X".format(hex and 0xFFFFFFL)
+    }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(32.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)) {
         PillButton("← Tornar a Opcions", Modifier.fillMaxWidth(0.4f), background = Control, onClick = onBack)
         Text("Aparença i colors", style = Type.Title)
-        Text("Tria el color dels elements destacats. Els avisos i els colors dels calendaris es mantenen independents.", style = Type.Small)
-        Panel(Modifier.fillMaxWidth()) {
+        Text("Personalitza els ressaltats. Els avisos i els calendaris mantenen els seus colors.", style = Type.Small)
+        Text("Colors ràpids", style = Type.Body)
+        Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             colors.forEach { (name, hex) ->
-                Row(Modifier.fillMaxWidth().clickable {
-                    Palette.setAccent(hex)
-                    context.getSharedPreferences("marc_aparenca", android.content.Context.MODE_PRIVATE).edit().putLong("accent", hex).apply()
-                }.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    Box(Modifier.size(44.dp).background(Color(hex.toInt()), CircleShape)
-                        .then(if (Palette.Accent == Color(hex.toInt())) Modifier.border(4.dp, Palette.Ink, CircleShape) else Modifier))
-                    Text(name, style = Type.Body)
-                    if (Palette.Accent == Color(hex.toInt())) Text("✓", style = Type.Body.copy(color = Palette.Accent))
+                Box(Modifier.size(52.dp).background(Color(hex.toInt()), CircleShape)
+                    .then(if (Palette.Accent == Color(hex.toInt())) Modifier.border(4.dp, Palette.Ink, CircleShape) else Modifier)
+                    .clickable { updateAccent(hex) })
+            }
+        }
+        Text("Color lliure del ressaltat (HEX o RGB)", style = Type.Body)
+        BasicTextField(value = customHex, onValueChange = { input ->
+            customHex = input.take(7)
+            if (Regex("#[0-9a-fA-F]{6}").matches(customHex)) {
+                updateAccent(0xFF000000L or customHex.drop(1).toLong(16))
+            }
+        }, singleLine = true, textStyle = Type.Body.copy(color = Palette.Ink),
+            modifier = Modifier.background(Palette.Card, RoundedCornerShape(12.dp)).padding(14.dp))
+        val accentRgb = Palette.Accent.value.toLong()
+        listOf("Vermell", "Verd", "Blau").forEachIndexed { index, name ->
+            val shift = (2 - index) * 8
+            val channel = ((accentRgb shr shift) and 255).toFloat()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(name, style = Type.Small, modifier = Modifier.width(130.dp))
+                Slider(value = channel, onValueChange = { v ->
+                    val mask = 255L shl shift
+                    val updated = (accentRgb and mask.inv()) or (v.roundToInt().toLong() shl shift)
+                    updateAccent(0xFF000000L or (updated and 0xFFFFFFL))
+                }, valueRange = 0f..255f, modifier = Modifier.weight(1f))
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text("Color del text", style = Type.Body)
+            PillButton(if (automatic) "Automàtic ✓" else "Automàtic", background = Control,
+                onClick = { automatic = true; updateText(null) })
+            PillButton(if (!automatic) "Personalitzat ✓" else "Personalitzat", background = Control,
+                onClick = { automatic = false; updateText(0xFF000000L or textHex.drop(1).toLongOrNull(16).orZero()) })
+        }
+        if (!automatic) {
+            BasicTextField(value = textHex, onValueChange = { input ->
+                textHex = input.take(7)
+                if (Regex("#[0-9a-fA-F]{6}").matches(textHex))
+                    updateText(0xFF000000L or textHex.drop(1).toLong(16))
+            }, singleLine = true, textStyle = Type.Body.copy(color = Palette.Ink),
+                modifier = Modifier.background(Palette.Card, RoundedCornerShape(12.dp)).padding(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                listOf("Blanc" to 0xFFFFFFFFL, "Negre" to 0xFF000000L).forEach { (name, hex) ->
+                    PillButton(name, background = Control, onClick = { updateText(hex) })
                 }
             }
         }
+        Text("Previsualització", style = Type.Small)
+        Box(Modifier.background(Palette.Accent, RoundedCornerShape(18.dp)).padding(horizontal = 30.dp, vertical = 18.dp)) {
+            Text("Fet? · Ressaltat", style = Type.Body.copy(color = Palette.AccentText, fontWeight = FontWeight.SemiBold))
+        }
     }
 }
+
+private fun Long?.orZero(): Long = this ?: 0L
