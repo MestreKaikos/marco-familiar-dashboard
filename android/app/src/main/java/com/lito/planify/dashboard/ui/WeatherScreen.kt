@@ -62,16 +62,20 @@ fun WeatherScreen(state: UiState) {
         val today = state.now.toLocalDate()
         var radarOpen by remember { mutableStateOf(false) }
         Column(Modifier.fillMaxSize()) {
-            if (pager.currentPage == 0) {
-                Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.End) {
-                    Button(onClick = { radarOpen = true }) { Text("☁ Radar de Catalunya") }
-                }
-            }
             HorizontalPager(pager, Modifier.fillMaxWidth().weight(1f), pageSpacing = 40.dp) { page ->
                 if (page == 0) {
                     // Al pasar del último día de la gráfica sigue la semana siguiente, y antes de la semana vuelve al día
-                    WeatherCard(forecast, location.name, state.now, days = 7, modifier = Modifier.fillMaxSize()) { edge ->
-                        if (edge > 0) scope.launch { pager.animateScrollToPage(1) }
+                    Box(Modifier.fillMaxSize()) {
+                        WeatherCard(forecast, location.name, state.now, days = 7, modifier = Modifier.fillMaxSize()) { edge ->
+                            if (edge > 0) scope.launch { pager.animateScrollToPage(1) }
+                        }
+                        TextButton(
+                            onClick = { radarOpen = true },
+                            modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 14.dp)
+                                .background(Palette.Card.copy(alpha = 0.92f), RoundedCornerShape(16.dp))
+                        ) {
+                            Text("◉ Radar", style = Type.Small.copy(fontWeight = FontWeight.SemiBold))
+                        }
                     }
                 } else if (page == 1) {
                     WeekWeatherCard(forecast, location.name, "La setmana vinent", today.plusDays(7), state.now, Modifier.fillMaxSize()) { edge ->
@@ -184,7 +188,7 @@ private fun RadarDialog(onDismiss: () -> Unit) {
                 Text("Radar de Catalunya", style = Type.Title)
                 TextButton(onClick = onDismiss) { Text("TANCAR") }
             }
-            Text("Precipitació i evolució temporal · Font: Windy",
+            Text("Precipitació · Font: Meteocat",
                 style = Type.Small.copy(color = Palette.InkMuted))
             AndroidView(
                 factory = { context ->
@@ -192,9 +196,8 @@ private fun RadarDialog(onDismiss: () -> Unit) {
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
                         webViewClient = WebViewClient()
-                        loadUrl(
-                            "https://embed.windy.com/embed2.html?lat=41.75&lon=1.65&detailLat=41.75&detailLon=1.65&width=1000&height=650&zoom=8&level=surface&overlay=radar&product=radar&menu=&message=false&marker=false&calendar=now&pressure=false&type=map&location=coordinates&detail=false&metricWind=km%2Fh&metricTemp=%C2%B0C"
-                        )
+                        // Giny oficial de Meteocat: radar de precipitació de Catalunya.
+                        loadUrl("https://static-m.meteo.cat/ginys/mapaRadar?color=2c3e50&language=ca&target=_blank")
                     }
                 },
                 modifier = Modifier.fillMaxWidth().weight(1f)

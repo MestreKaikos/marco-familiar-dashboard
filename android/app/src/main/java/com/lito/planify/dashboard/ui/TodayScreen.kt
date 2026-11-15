@@ -99,7 +99,7 @@ fun TodayScreen(state: UiState, lastTouch: Long) {
                 val forecast = state.forecast
                 val location = state.location
                 if (forecast != null && location != null) {
-                    WeatherCard(forecast, location.name, state.now, days = 7, modifier = Modifier.width(column * 2 + Gap).fillMaxHeight(), compact = true)
+                    WeatherCard(forecast, location.name, state.now, days = 3, modifier = Modifier.width(column * 2 + Gap).fillMaxHeight(), compact = true)
                 } else {
                     Card(Modifier.width(column * 2 + Gap).fillMaxHeight()) {
                         CardHeader("El temps", Icons.Outlined.Thermostat, Palette.Warm)
