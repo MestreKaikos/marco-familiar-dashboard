@@ -76,13 +76,7 @@ fun WeatherScreen(state: UiState) {
                             if (edge > 0) scope.launch { pager.animateScrollToPage(1) }
                         }
                         TextButton(
-                            onClick = {
-                                try {
-                                    radarContext.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.meteo.cat/observacions/radar")))
-                                } catch (_: Exception) {
-                                    radarOpen = true
-                                }
-                            },
+                            onClick = { radarOpen = true },
                             modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 14.dp)
                                 .background(Palette.Card.copy(alpha = 0.92f), RoundedCornerShape(16.dp))
                         ) {
@@ -183,17 +177,30 @@ private fun AstronomyPanel(
     }
 }
 
-/** Alternativa si el dispositiu no té cap navegador capaç d'obrir el radar. */
+/** Radar integrat: mapa OSM i capes de precipitació RainViewer; no abandona l'APK. */
 @Composable
 private fun RadarDialog(onDismiss: () -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
-            Modifier.background(Palette.Card, RoundedCornerShape(26.dp)).padding(28.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            Modifier.fillMaxWidth(0.94f).fillMaxSize(0.92f)
+                .background(Palette.Card, RoundedCornerShape(26.dp)).padding(18.dp)
         ) {
-            Text("Radar de Catalunya", style = Type.Title)
-            Text("No s'ha pogut obrir el navegador del dispositiu. Cal un navegador compatible per veure el radar oficial de Meteocat.", style = Type.Body)
-            TextButton(onClick = onDismiss) { Text("TANCAR") }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) {
+                Text("Radar de Catalunya", style = Type.Title)
+                TextButton(onClick = onDismiss) { Text("TANCAR") }
+            }
+            Text("Precipitació observada · RainViewer (no és una predicció)", style = Type.Small)
+            AndroidView(factory = { context ->
+                WebView(context).apply {
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    webViewClient = WebViewClient()
+                    loadDataWithBaseURL("https://api.rainviewer.com/", RADAR_HTML, "text/html", "UTF-8", null)
+                }
+            }, modifier = Modifier.fillMaxWidth().weight(1f))
         }
     }
 }
+
+private val RADAR_HTML = """<!doctype html><html lang="ca"><head><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"/><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/><style>html,body,#map{height:100%;margin:0;background:#e6edf2}#msg{position:absolute;z-index:9999;top:10px;left:10px;background:white;padding:10px;border-radius:8px;font:16px sans-serif}#controls{position:absolute;z-index:9999;bottom:14px;left:14px;background:white;padding:10px;border-radius:8px;font:17px sans-serif}button{font-size:19px;padding:8px}</style></head><body><div id="map"></div><div id="msg">Carregant el radar…</div><div id="controls"><button id="play">▶</button> <span id="time"></span> · Dades: RainViewer</div><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>(async function(){const msg=document.getElementById('msg');try{if(!window.L)throw Error('No s’ha carregat el mapa');const map=L.map('map',{zoomControl:true}).setView([41.75,1.65],8);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap'}).addTo(map);const res=await fetch('https://api.rainviewer.com/public/weather-maps.json');if(!res.ok)throw Error('Error HTTP '+res.status);const data=await res.json();const frames=(data.radar&&data.radar.past||[]).slice(-6);if(!frames.length)throw Error('No hi ha imatges de radar');let index=frames.length-1,overlay=null,playing=false,timer=null;function show(){if(overlay)map.removeLayer(overlay);overlay=L.tileLayer(data.host+frames[index].path+'/256/{z}/{x}/{y}/2/1_1.png',{opacity:.75,maxNativeZoom:7,maxZoom:18,attribution:'Radar: RainViewer'}).addTo(map);document.getElementById('time').textContent=new Date(frames[index].time*1000).toLocaleTimeString('ca-ES',{hour:'2-digit',minute:'2-digit'});}show();msg.style.display='none';const button=document.getElementById('play');button.onclick=function(){playing=!playing;button.textContent=playing?'Ⅱ':'▶';if(timer)clearInterval(timer);if(playing)timer=setInterval(()=>{index=(index+1)%frames.length;show()},900);};}catch(e){msg.textContent='Radar no disponible: '+e.message;}})();</script></body></html>"""
