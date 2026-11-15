@@ -35,6 +35,11 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.viewinterop.AndroidView
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceError
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -177,6 +182,9 @@ private fun AstronomyPanel(
  */
 @Composable
 private fun RadarDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    var radarError by remember { mutableStateOf(false) }
+    val radarUrl = "https://www.meteo.cat/observacions/radar"
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
             Modifier.fillMaxWidth(0.94f).fillMaxSize(0.92f)
@@ -188,6 +196,8 @@ private fun RadarDialog(onDismiss: () -> Unit) {
                 Text("Radar de Catalunya", style = Type.Title)
                 TextButton(onClick = onDismiss) { Text("TANCAR") }
             }
+            TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(radarUrl))) }) { Text("OBRIR RADAR AL NAVEGADOR") }
+            if (radarError) Text("El radar no es carrega dins del marc. Obre\u0027l al navegador.", style = Type.Small)
             Text("Precipitació · Font: Meteocat",
                 style = Type.Small.copy(color = Palette.InkMuted))
             AndroidView(
@@ -195,7 +205,11 @@ private fun RadarDialog(onDismiss: () -> Unit) {
                     WebView(context).apply {
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
-                        webViewClient = WebViewClient()
+                        webViewClient = object : WebViewClient() {
+                            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                                if (request?.isForMainFrame == true) radarError = true
+                            }
+                        }
                         // Giny oficial de Meteocat: radar de precipitació de Catalunya.
                         loadUrl("https://static-m.meteo.cat/ginys/mapaRadar?color=2c3e50&language=ca&target=_blank")
                     }
