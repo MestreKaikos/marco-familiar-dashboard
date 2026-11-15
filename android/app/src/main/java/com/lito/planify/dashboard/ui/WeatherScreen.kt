@@ -66,6 +66,7 @@ fun WeatherScreen(state: UiState) {
         val scope = rememberCoroutineScope()
         val today = state.now.toLocalDate()
         var radarOpen by remember { mutableStateOf(false) }
+        val radarContext = LocalContext.current
         Column(Modifier.fillMaxSize()) {
             HorizontalPager(pager, Modifier.fillMaxWidth().weight(1f), pageSpacing = 40.dp) { page ->
                 if (page == 0) {
@@ -75,7 +76,13 @@ fun WeatherScreen(state: UiState) {
                             if (edge > 0) scope.launch { pager.animateScrollToPage(1) }
                         }
                         TextButton(
-                            onClick = { radarOpen = true },
+                            onClick = {
+                                try {
+                                    radarContext.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.meteo.cat/observacions/radar")))
+                                } catch (_: Exception) {
+                                    radarOpen = true
+                                }
+                            },
                             modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 14.dp)
                                 .background(Palette.Card.copy(alpha = 0.92f), RoundedCornerShape(16.dp))
                         ) {
@@ -176,46 +183,17 @@ private fun AstronomyPanel(
     }
 }
 
-/**
- * Radar en una modal independent. El reproductor i la línia temporal són els del
- * proveïdor del mapa; no es generen imatges fictícies de precipitació.
- */
+/** Alternativa si el dispositiu no té cap navegador capaç d'obrir el radar. */
 @Composable
 private fun RadarDialog(onDismiss: () -> Unit) {
-    val context = LocalContext.current
-    var radarError by remember { mutableStateOf(false) }
-    val radarUrl = "https://www.meteo.cat/observacions/radar"
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(onDismissRequest = onDismiss) {
         Column(
-            Modifier.fillMaxWidth(0.94f).fillMaxSize(0.92f)
-                .background(Palette.Card, RoundedCornerShape(26.dp))
-                .padding(18.dp)
+            Modifier.background(Palette.Card, RoundedCornerShape(26.dp)).padding(28.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically) {
-                Text("Radar de Catalunya", style = Type.Title)
-                TextButton(onClick = onDismiss) { Text("TANCAR") }
-            }
-            TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(radarUrl))) }) { Text("OBRIR RADAR AL NAVEGADOR") }
-            if (radarError) Text("El radar no es carrega dins del marc. Obre\u0027l al navegador.", style = Type.Small)
-            Text("Precipitació · Font: Meteocat",
-                style = Type.Small.copy(color = Palette.InkMuted))
-            AndroidView(
-                factory = { context ->
-                    WebView(context).apply {
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        webViewClient = object : WebViewClient() {
-                            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
-                                if (request?.isForMainFrame == true) radarError = true
-                            }
-                        }
-                        // Giny oficial de Meteocat: radar de precipitació de Catalunya.
-                        loadUrl("https://static-m.meteo.cat/ginys/mapaRadar?color=2c3e50&language=ca&target=_blank")
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().weight(1f)
-            )
+            Text("Radar de Catalunya", style = Type.Title)
+            Text("No s'ha pogut obrir el navegador del dispositiu. Cal un navegador compatible per veure el radar oficial de Meteocat.", style = Type.Body)
+            TextButton(onClick = onDismiss) { Text("TANCAR") }
         }
     }
 }
