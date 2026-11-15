@@ -28,18 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.material3.Button
 import androidx.compose.material3.TextButton
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.viewinterop.AndroidView
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import android.webkit.WebResourceRequest
-import android.webkit.WebResourceError
-import android.content.Intent
-import android.net.Uri
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -173,49 +162,5 @@ private fun AstronomyPanel(
         Text(title, style = Type.Large.copy(fontWeight = FontWeight.SemiBold))
         Text(subtitle, style = Type.Small.copy(color = Palette.InkMuted))
         content()
-    }
-}
-
-/**
- * Radar en una modal independent. El reproductor i la línia temporal són els del
- * proveïdor del mapa; no es generen imatges fictícies de precipitació.
- */
-@Composable
-private fun RadarDialog(onDismiss: () -> Unit) {
-    val context = LocalContext.current
-    var radarError by remember { mutableStateOf(false) }
-    val radarUrl = "https://www.meteo.cat/observacions/radar"
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(
-            Modifier.fillMaxWidth(0.94f).fillMaxSize(0.92f)
-                .background(Palette.Card, RoundedCornerShape(26.dp))
-                .padding(18.dp)
-        ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically) {
-                Text("Radar de Catalunya", style = Type.Title)
-                TextButton(onClick = onDismiss) { Text("TANCAR") }
-            }
-            TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(radarUrl))) }) { Text("OBRIR RADAR AL NAVEGADOR") }
-            if (radarError) Text("El radar no es carrega dins del marc. Obre\u0027l al navegador.", style = Type.Small)
-            Text("Precipitació · Font: Meteocat",
-                style = Type.Small.copy(color = Palette.InkMuted))
-            AndroidView(
-                factory = { context ->
-                    WebView(context).apply {
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        webViewClient = object : WebViewClient() {
-                            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
-                                if (request?.isForMainFrame == true) radarError = true
-                            }
-                        }
-                        // Giny oficial de Meteocat: radar de precipitació de Catalunya.
-                        loadUrl("https://static-m.meteo.cat/ginys/mapaRadar?color=2c3e50&language=ca&target=_blank")
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().weight(1f)
-            )
-        }
     }
 }

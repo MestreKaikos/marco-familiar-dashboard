@@ -128,10 +128,10 @@ internal fun SpotifyPanel(modifier: Modifier = Modifier) {
             enabled = !player.loading,
             modifier = Modifier.padding(top = 2.dp)
         ) {
-            Text("↻ Provar connexió directa a Abaix",
+            Text("↻ Comprovar Spotify Connect a Abaix",
                 style = Type.Tiny.copy(color = SpotifyGreen, fontSize = 17.sp))
         }
-        Text("Prova Spotify Connect; si no està disponible, continua funcionant l'activació des del mòbil.",
+        Text("Google Cast només detecta Abaix. Per iniciar Spotify sense mòbil cal un reproductor Spotify actiu compatible; la transferència no el pot encendre.",
             style = Type.Tiny.copy(color = Palette.InkMuted, fontSize = 13.sp))
 
         Row(Modifier.fillMaxWidth().padding(top = 6.dp),
