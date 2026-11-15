@@ -8,13 +8,12 @@ import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -89,22 +88,13 @@ internal fun RadarDialog(onDismiss: () -> Unit) {
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(
-            Modifier.fillMaxWidth(0.94f).fillMaxSize(0.92f)
-                .background(Palette.Card, RoundedCornerShape(26.dp)).padding(18.dp)
+            Modifier.fillMaxWidth(0.98f).fillMaxSize(0.98f)
+                .background(Palette.Card, RoundedCornerShape(26.dp)).padding(horizontal = 12.dp, vertical = 4.dp)
         ) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Radar de Catalunya", style = Type.Title)
-                TextButton(onClick = onDismiss) { Text("TANCAR") }
-            }
-            Text("Precipitació observada · Meteocat (XRAD)", style = Type.Small)
-            BoxWithConstraints(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 val map = radar?.map
                 if (map != null && frame != null) {
-                    val mapSize = Modifier.size(minOf(maxWidth, maxHeight))
+                    val mapSize = Modifier.fillMaxSize()
                     Image(map, contentDescription = "Mapa de Catalunya", modifier = mapSize)
                     Image(frame.image, contentDescription = null, modifier = mapSize, alpha = 0.85f)
                 } else if (loading) {
@@ -121,6 +111,7 @@ internal fun RadarDialog(onDismiss: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                Text("METEOCAT", style = Type.Small)
                 TextButton(enabled = frames.size > 1 && !loading, onClick = {
                     if (!playing && frameIndex == frames.lastIndex) frameIndex = 0
                     playing = !playing
@@ -137,6 +128,7 @@ internal fun RadarDialog(onDismiss: () -> Unit) {
                 TextButton(enabled = !loading, onClick = { reload++ }) {
                     Text(if (failed) "REINTENTA" else "ACTUALITZA")
                 }
+                TextButton(onClick = onDismiss) { Text("TANCAR") }
             }
         }
     }
@@ -205,7 +197,10 @@ private object MeteocatRadar {
             canvas.drawBitmap(tile, (index % 2 * TILE_SIZE).toFloat(), (index / 2 * TILE_SIZE).toFloat(), paint)
             tile.recycle()
         }
-        image.asImageBitmap()
+        // Mateix enquadrament per al fons i per a cada fotograma.
+        val catalonia = Bitmap.createBitmap(image, 0, 0, 340, 336)
+        image.recycle()
+        catalonia.asImageBitmap()
     }
 
     private fun <T> request(url: String, read: (okhttp3.ResponseBody) -> T): T {
