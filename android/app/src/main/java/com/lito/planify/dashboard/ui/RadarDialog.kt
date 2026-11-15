@@ -9,11 +9,14 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -27,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.window.Dialog
@@ -43,18 +47,25 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+
+private const val MAP_WIDTH = 340
+private const val MAP_HEIGHT = 336
 
 @Composable
 internal fun RadarDialog(onDismiss: () -> Unit) {
     var radar by remember { mutableStateOf<RadarSequence?>(null) }
     var frameIndex by remember { mutableIntStateOf(0) }
+    var animationStarted by remember { mutableStateOf(false) }
     var playing by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
     var failed by remember { mutableStateOf(false) }
@@ -64,9 +75,10 @@ internal fun RadarDialog(onDismiss: () -> Unit) {
         loading = true
         failed = false
         playing = false
+        animationStarted = false
         try {
             val sequence = MeteocatRadar.load()
-            frameIndex = sequence.frames.lastIndex
+            frameIndex = sequence.frames.indexOfLast { !it.forecast }
             radar = sequence
         } catch (error: IOException) {
             Log.w("MarcRadar", "No s’ha pogut carregar el radar de Meteocat", error)
@@ -87,94 +99,132 @@ internal fun RadarDialog(onDismiss: () -> Unit) {
     }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Column(
-            Modifier.fillMaxWidth(0.98f).fillMaxSize(0.98f)
-                .background(Palette.Card, RoundedCornerShape(26.dp)).padding(horizontal = 12.dp, vertical = 4.dp)
-        ) {
-            Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                val map = radar?.map
-                if (map != null && frame != null) {
-                    val mapSize = Modifier.fillMaxSize()
-                    Image(map, contentDescription = "Mapa de Catalunya", modifier = mapSize)
-                    Image(frame.image, contentDescription = null, modifier = mapSize, alpha = 0.85f)
-                } else if (loading) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator()
-                        Text("Carregant el radar…", Modifier.padding(top = 12.dp))
-                    }
-                } else {
-                    Text("Radar no disponible. Comprova la connexió i torna-ho a provar.")
-                }
-            }
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        BoxWithConstraints(contentAlignment = Alignment.Center) {
+            val ratio = MAP_WIDTH.toFloat() / MAP_HEIGHT
+            val mapWidth = minOf(maxWidth * 0.96f - 16.dp, (maxHeight - 88.dp) * ratio)
+            Column(
+                Modifier.width(mapWidth + 16.dp)
+                    .background(Palette.Card, RoundedCornerShape(18.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                Text("METEOCAT", style = Type.Small)
-                TextButton(enabled = frames.size > 1 && !loading, onClick = {
-                    if (!playing && frameIndex == frames.lastIndex) frameIndex = 0
-                    playing = !playing
-                }) { Text(if (playing) "PAUSA" else "ANIMA") }
-                Text(
-                    when {
-                        loading && frame != null -> "Actualitzant…"
-                        failed && frame != null -> "${frame.label} · Sense actualitzar"
-                        frames.size == 1 -> "${frame?.label} · Una imatge disponible"
-                        else -> frame?.label.orEmpty()
-                    },
-                    style = Type.Small
-                )
-                TextButton(enabled = !loading, onClick = { reload++ }) {
-                    Text(if (failed) "REINTENTA" else "ACTUALITZA")
+                Box(
+                    Modifier.fillMaxWidth().aspectRatio(ratio),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val map = radar?.map
+                    if (map != null && frame != null) {
+                        val mapSize = Modifier.fillMaxSize()
+                        Image(map, contentDescription = "Mapa de Catalunya", modifier = mapSize)
+                        Image(frame.image, contentDescription = null, modifier = mapSize, alpha = 0.85f)
+                    } else if (loading) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator()
+                            Text("Carregant el radar…", Modifier.padding(top = 12.dp))
+                        }
+                    } else {
+                        Text("Radar no disponible. Comprova la connexió i torna-ho a provar.")
+                    }
                 }
-                TextButton(onClick = onDismiss) { Text("TANCAR") }
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("METEOCAT", style = Type.Small)
+                    Text(
+                        when {
+                            loading && frame != null -> "Actualitzant…"
+                            failed && frame != null -> "${frame.label} · Sense actualitzar"
+                            frame?.forecast == true -> "${frame.label} · Predicció"
+                            frame != null -> "${frame.label} · Observació"
+                            else -> ""
+                        },
+                        color = if (frame?.forecast == true) Color(0xFF9A4700) else Palette.Ink,
+                        style = Type.Small
+                    )
+                }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(enabled = frames.size > 1 && !loading, onClick = {
+                        if (!playing && !animationStarted) frameIndex = 0
+                        animationStarted = true
+                        playing = !playing
+                    }) { Text(if (playing) "PAUSA" else "ANIMA") }
+                    TextButton(enabled = !loading, onClick = { reload++ }) {
+                        Text(if (failed) "REINTENTA" else "ACTUALITZA")
+                    }
+                    TextButton(onClick = onDismiss) { Text("TANCAR") }
+                }
             }
         }
     }
 }
 
-private data class RadarFrame(val label: String, val image: ImageBitmap)
+private data class RadarFrame(val label: String, val image: ImageBitmap, val forecast: Boolean)
 private data class RadarSequence(val map: ImageBitmap, val frames: List<RadarFrame>)
 
 private object MeteocatRadar {
     private const val TILES = "https://static-m.meteo.cat/tiles"
     private const val TILE_SIZE = 256
     private val timestamp = Regex("""dataDarreraRadar\s*:\s*['"](\d{2}/\d{2}/\d{4} \d{2}:\d{2})Z['"]""")
+    private val forecastTimestamp = Regex("""dataDarreraAdveccio\s*:\s*['"]([^'"]+)['"]""")
     private val pageFormat = DateTimeFormatter.ofPattern("MM/dd/uuuu HH:mm", Locale.ROOT)
-    private val tileFormat = DateTimeFormatter.ofPattern("uuuu/MM/dd/HH/mm", Locale.ROOT)
+    private val tileDate = DateTimeFormatter.ofPattern("uuuu/MM/dd", Locale.ROOT).withZone(ZoneOffset.UTC)
+    private val tileTime = DateTimeFormatter.ofPattern("HH/mm", Locale.ROOT).withZone(ZoneOffset.UTC)
     private val labelFormat = DateTimeFormatter.ofPattern("dd/MM HH:mm", Locale.ROOT)
         .withZone(ZoneId.of("Europe/Madrid"))
     private val client = OkHttpClient.Builder().callTimeout(8, TimeUnit.SECONDS).build()
 
     suspend fun load(): RadarSequence = withContext(Dispatchers.IO) {
-        // La pàgina oficial publica l'hora UTC de l'última observació disponible.
-        val observation = request("https://www.meteo.cat/observacions/radar") { body ->
-            val stamp = timestamp.find(body.string())?.groupValues?.get(1)
+        // Meteocat publica per separat l'hora de l'observació i la base de la predicció.
+        val (observation, forecastBase) = request("https://www.meteo.cat/observacions/radar") { body ->
+            val page = body.string()
+            val stamp = timestamp.find(page)?.groupValues?.get(1)
                 ?: throw IOException("Meteocat no ha publicat l'hora del radar")
-            try {
-                LocalDateTime.parse(stamp, pageFormat)
+            val observed = try {
+                LocalDateTime.parse(stamp, pageFormat).toInstant(ZoneOffset.UTC)
             } catch (error: DateTimeParseException) {
                 throw IOException("Hora del radar de Meteocat no vàlida", error)
             }
-        }
-        val map = async { mosaic("$TILES/fons/GoogleMapsCompatible/07") }
-        val frames = (5 downTo 0).map { step ->
-            async {
-                val time = observation.minusMinutes(step * 6L)
+            val base = forecastTimestamp.find(page)?.groupValues?.get(1)?.let {
                 try {
-                    RadarFrame(
-                        labelFormat.format(time.toInstant(ZoneOffset.UTC)),
-                        mosaic("$TILES/radar/${tileFormat.format(time)}/07")
-                    )
-                } catch (error: IOException) {
-                    Log.w("MarcRadar", "Fotograma de radar omès: $time UTC", error)
+                    OffsetDateTime.parse(it).toInstant()
+                } catch (error: DateTimeParseException) {
+                    Log.w("MarcRadar", "Hora de la predicció de Meteocat no vàlida", error)
                     null
                 }
             }
-        }.awaitAll().filterNotNull()
-        if (frames.isEmpty()) throw IOException("Cap fotograma complet del radar de Meteocat")
-        RadarSequence(map.await(), frames)
+            observed to base
+        }
+        val map = async { mosaic("$TILES/fons/GoogleMapsCompatible/07") }
+        val observedFrames = (5 downTo 0).map { step ->
+            val time = observation.minus(step * 6L, ChronoUnit.MINUTES)
+            async { loadFrame(time, "$TILES/radar/${tileDate.format(time)}/${tileTime.format(time)}/07", false) }
+        }
+        val predictedFrames = forecastBase?.let { base ->
+            (1..5).map { step -> observation.plus(step * 6L, ChronoUnit.MINUTES) }
+                .filter { it > base && it <= base.plus(60, ChronoUnit.MINUTES) }
+                .map { time ->
+                    val dates = "${tileDate.format(base)}/${tileDate.format(time)}"
+                    val times = "${tileTime.format(base)}/${tileTime.format(time)}"
+                    async { loadFrame(time, "$TILES/adveccio/$dates/$times/07", true) }
+                }
+        }.orEmpty()
+        val observations = observedFrames.awaitAll().filterNotNull()
+        if (observations.isEmpty()) throw IOException("Cap fotograma complet del radar de Meteocat")
+        RadarSequence(map.await(), observations + predictedFrames.awaitAll().filterNotNull())
+    }
+
+    private suspend fun loadFrame(time: Instant, url: String, forecast: Boolean): RadarFrame? {
+        return try {
+            RadarFrame(labelFormat.format(time), mosaic(url), forecast)
+        } catch (error: IOException) {
+            Log.w("MarcRadar", "Fotograma de radar omès: $time UTC", error)
+            null
+        }
     }
 
     private suspend fun mosaic(base: String): ImageBitmap = coroutineScope {
@@ -198,7 +248,7 @@ private object MeteocatRadar {
             tile.recycle()
         }
         // Mateix enquadrament per al fons i per a cada fotograma.
-        val catalonia = Bitmap.createBitmap(image, 0, 0, 340, 336)
+        val catalonia = Bitmap.createBitmap(image, 0, 0, MAP_WIDTH, MAP_HEIGHT)
         image.recycle()
         catalonia.asImageBitmap()
     }
