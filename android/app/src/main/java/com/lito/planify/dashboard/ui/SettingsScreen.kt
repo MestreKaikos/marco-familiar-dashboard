@@ -48,6 +48,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
@@ -503,8 +504,8 @@ private fun AccentSettingsScreen(onBack: () -> Unit) {
         "Rosa" to 0xFFD45E8FL,
         "Turquesa" to 0xFF168F9EL
     )
-    var customHex by remember { mutableStateOf("#%06X".format(Palette.Accent.value.toLong() and 0xFFFFFFL)) }
-    var textHex by remember { mutableStateOf("#%06X".format((Palette.AccentTextOverride ?: Palette.AccentText).value.toLong() and 0xFFFFFFL)) }
+    var customHex by remember { mutableStateOf("#%06X".format(Palette.Accent.toArgb().toLong() and 0xFFFFFFL)) }
+    var textHex by remember { mutableStateOf("#%06X".format((Palette.AccentTextOverride ?: Palette.AccentText).toArgb().toLong() and 0xFFFFFFL)) }
     var automatic by remember { mutableStateOf(Palette.AccentTextOverride == null) }
     fun updateAccent(hex: Long) {
         Palette.setAccent(hex)
@@ -538,7 +539,7 @@ private fun AccentSettingsScreen(onBack: () -> Unit) {
             }
         }, singleLine = true, textStyle = Type.Body.copy(color = Palette.Ink),
             modifier = Modifier.background(Palette.Card, RoundedCornerShape(12.dp)).padding(14.dp))
-        val accentRgb = Palette.Accent.value.toLong()
+        val accentRgb = Palette.Accent.toArgb().toLong()
         listOf("Vermell", "Verd", "Blau").forEachIndexed { index, name ->
             val shift = (2 - index) * 8
             val channel = ((accentRgb shr shift) and 255).toFloat()
