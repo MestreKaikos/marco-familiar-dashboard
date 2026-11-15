@@ -17,7 +17,11 @@ class FrameModeSettings(context: Context) {
         photoMinutes = prefs.getInt("photo_minutes", 10),
         agendaSeconds = prefs.getInt("agenda_seconds", 30),
         slideSeconds = prefs.getInt("slide_seconds", 20),
-        shufflePhotos = prefs.getBoolean("shuffle_photos", false)
+        shufflePhotos = prefs.getBoolean("shuffle_photos", false),
+        returnSeconds = prefs.getInt("return_seconds", 30),
+        photoTransition = PhotoTransition.entries.firstOrNull {
+            it.name == prefs.getString("photo_transition", null)
+        } ?: PhotoTransition.FADE
     ).validated())
         private set
     fun update(value: FrameCycleConfig) {
@@ -25,7 +29,9 @@ class FrameModeSettings(context: Context) {
         prefs.edit().putBoolean("enabled", config.enabled)
             .putInt("idle_minutes", config.idleMinutes).putInt("photo_minutes", config.photoMinutes)
             .putInt("agenda_seconds", config.agendaSeconds).putInt("slide_seconds", config.slideSeconds)
-            .putBoolean("shuffle_photos", config.shufflePhotos).apply()
+            .putBoolean("shuffle_photos", config.shufflePhotos)
+            .putInt("return_seconds", config.returnSeconds)
+            .putString("photo_transition", config.photoTransition.name).apply()
     }
 }
 

@@ -295,7 +295,7 @@ internal class SpotifyController(context: Context) {
     }
 
     /** Consulta el reproductor sense recarregar les playlists. */
-    suspend fun refreshPlayback() {
+    suspend fun refreshPlayback(selectActiveSpeaker: Boolean = false) {
         if (!linked) return
         try {
             val state = withContext(Dispatchers.IO) { spotify("/me/player") }
@@ -304,6 +304,16 @@ internal class SpotifyController(context: Context) {
                 nowPlaying = null
                 volumePercent = null
                 return
+            }
+            if (selectActiveSpeaker) {
+                val id = device?.optString("id").orEmpty()
+                if (id.isNotBlank() && device?.optBoolean("is_restricted") != true) {
+                    speakers = listOf(SpotifySpeaker(id, PREFERRED_SPOTIFY_SPEAKER,
+                        device?.optBoolean("is_active") == true, device?.optString("type").orEmpty()))
+                    if (selectedDeviceId != id) chooseDevice(id)
+                } else {
+                    speakers = emptyList()
+                }
             }
             volumePercent = device?.optInt("volume_percent", -1)?.takeIf { it in 0..100 }
             if (state.has("shuffle_state")) {

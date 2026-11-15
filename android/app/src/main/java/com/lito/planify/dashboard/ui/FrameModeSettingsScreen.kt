@@ -41,6 +41,14 @@ fun FrameModeSettingsScreen(mode: FrameModeSettings, onBack: () -> Unit) {
         }
         Column(Modifier.fillMaxWidth().background(Palette.Card, RoundedCornerShape(24.dp)).padding(22.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Tornar a Avui per inactivitat", style = Type.Small)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                FrameCycleConfig.RETURN_SECONDS.forEach { value ->
+                    FilterChip(selected = config.returnSeconds == value,
+                        onClick = { mode.update(config.copy(returnSeconds = value)) },
+                        label = { Text(if (value == 0) "Desactivat" else "$value segons", style = Type.Tiny) })
+                }
+            }
             Text("Començar les fotos després de", style = Type.Small)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 FrameCycleConfig.IDLE_MINUTES.forEach { value ->
@@ -76,6 +84,14 @@ fun FrameModeSettingsScreen(mode: FrameModeSettings, onBack: () -> Unit) {
                 )
             }
             Text("En mode aleatori, es mostren totes les fotos abans de repetir-ne cap.", style = Type.Tiny)
+            Text("Transició entre fotos", style = Type.Small)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                PhotoTransition.entries.forEach { value ->
+                    FilterChip(selected = config.photoTransition == value,
+                        onClick = { mode.update(config.copy(photoTransition = value)) },
+                        label = { Text(value.label, style = Type.Tiny) })
+                }
+            }
             Text("Canviar de fotografia cada", style = Type.Small)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 FrameCycleConfig.SLIDE_SECONDS.forEach { value ->

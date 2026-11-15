@@ -21,6 +21,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -104,7 +110,7 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
         }
         Row(Modifier.fillMaxWidth().weight(0.29f), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             ReminderTile(reminders, today, Modifier.weight(1.3f).fillMaxHeight()) { onOpen(Page.Reminders) }
-            LocalShoppingTile(family, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Reminders) }
+            ShoppingAndSpotify(family, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Reminders) }
             LocalRaiTile(family, today, Modifier.weight(1.1f).fillMaxHeight()) { onOpen(Page.Tasks) }
         }
     }
@@ -592,7 +598,7 @@ private fun LocalShoppingTile(store: LocalFamilyStore, modifier: Modifier, onCli
     HomeSummaryTile("Compra", "🛒", Palette.Online,
         summary = if (pending.isEmpty()) "No falta res" else "${pending.size} producte${if (pending.size == 1) " pendent" else "s pendents"}",
         items = pending.map { product ->
-            HomeSummaryItem(title = product.name, glyph = "", touchLabel = "Comprat?",
+            HomeSummaryItem(title = product.name, glyph = "", touchLabel = "Fet?",
                 onMark = { store.toggleGrocery(product.id) }, actionLabel = "Confirmar compra de: " + product.name)
         }, emptyMessage = "Toca per afegir productes",
         modifier = modifier, onClick = onClick)
@@ -730,6 +736,55 @@ private fun EnergyTile(state: UiState, modifier: Modifier, onClick: () -> Unit) 
                 if (window.isNotEmpty()) {
                     PriceBars(window, now, min, max, Modifier.fillMaxWidth().weight(1f).padding(top = 8.dp, bottom = 4.dp))
                     PriceHours(window, fontSize = 13)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShoppingAndSpotify(store: LocalFamilyStore, modifier: Modifier, onShopping: () -> Unit) {
+    val context = LocalContext.current
+    val player = remember(context) { SpotifyController(context.applicationContext) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(player) {
+        while (player.linked) {
+            if (!player.loading) player.refreshPlayback(selectActiveSpeaker = true)
+            delay(12_000L)
+        }
+    }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (store.groceries.any { !it.bought }) {
+            LocalShoppingTile(store, Modifier.fillMaxWidth().weight(1f), onShopping)
+        } else {
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                .background(Palette.Card).padding(horizontal = 12.dp, vertical = 8.dp)) {
+                HomeSummaryHeader("Compra", "🛒", Palette.Online, "No falta res", 0, null, onShopping)
+            }
+        }
+        player.nowPlaying?.let { current ->
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                .background(Palette.Card).padding(horizontal = 8.dp, vertical = 4.dp)) {
+                Text("${current.title} · Abaix", style = Type.Small, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 8.dp))
+                val controlsEnabled = !player.loading && player.speakers.isNotEmpty()
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(enabled = controlsEnabled, onClick = {
+                        scope.launch { player.control(if (current.playing) "pause" else "resume") }
+                    }) { Text(if (current.playing) "Pausa" else "Reprèn") }
+                    TextButton(enabled = controlsEnabled, onClick = {
+                        scope.launch { player.control("next") }
+                    }) { Text("Següent") }
+                    player.volumePercent?.let { volume ->
+                        TextButton(enabled = controlsEnabled && volume > 0, onClick = {
+                            scope.launch { player.setVolume(volume - 5) }
+                        }) { Text("−") }
+                        Text("$volume%", style = Type.Tiny)
+                        TextButton(enabled = controlsEnabled && volume < 100, onClick = {
+                            scope.launch { player.setVolume(volume + 5) }
+                        }) { Text("+") }
+                    }
                 }
             }
         }
