@@ -149,6 +149,7 @@ fun DashboardApp(
     val appearancePrefs = remember(context) { context.getSharedPreferences("marc_aparenca", Context.MODE_PRIVATE) }
     LaunchedEffect(appearancePrefs) {
         Palette.setAccent(appearancePrefs.getLong("accent", 0xFFC8243BL))
+        Palette.setAccentText(if (appearancePrefs.getBoolean("accent_text_auto", true)) null else appearancePrefs.getLong("accent_text", 0xFFFFFFFFL))
     }
     val nestPrefs = remember(context) { context.getSharedPreferences("marc_nest", Context.MODE_PRIVATE) }
     var nestKey by remember(nestPrefs) { mutableStateOf(nestPrefs.getString("camera_key", "").orEmpty()) }
