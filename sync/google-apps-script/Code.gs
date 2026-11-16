@@ -304,6 +304,7 @@ function readFamily_() {
     .reduce((sum, r) => sum + r.cost, 0);
   return {
     tasks: tasks, taskDone: done, rewards: rewards,
+    taskRequests: original.taskRequests,
     stars: Math.max(0, original.points), pointsReserved: reserved,
     pendingReward: pending ? pending.rewardId : "",
     pendingRequestId: pending ? pending.id : ""
@@ -364,6 +365,8 @@ function taskComplete_(op) {
   if (!already) {
     tabs.done.appendRow([op.date,id,"Rai",task.points,slot]);
   }
+  snapshot.taskRequests.filter(r=>r.taskId===id&&r.date===op.date&&r.slot===slot)
+    .forEach(r=>decideTaskValidation_({id:r.id,approve:true}));
 }
 function rewardSet_(op) {
   const tab = familySheets_().rewards;
@@ -426,6 +429,8 @@ function perform_(ops) {
       case "task_set": taskSet_(op); break;
       case "task_delete": taskDelete_(op); break;
       case "task_complete": taskComplete_(op); break;
+      case "task_request": requestTaskValidation_(op); break;
+      case "task_decide": decideTaskValidation_(op); break;
       case "reward_set": rewardSet_(op); break;
       case "reward_delete": rewardDelete_(op); break;
       case "reward_request": rewardRequest_(op); break;

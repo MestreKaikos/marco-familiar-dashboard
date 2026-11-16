@@ -69,6 +69,48 @@ function familyPositive_(n,max){
   if(!Number.isInteger(n)||n<1||n>max)throw Error('Punts invàlids');
   return n;
 }
+function taskRequestSheet_(){
+  return familyTaskSheet_('PeticionsFeines',['id','data','tascaId','franja','titol','punts','estat']);
+}
+function readTaskRequests_(){
+  return rows_(taskRequestSheet_(),7).filter(r=>r[0]).map(r=>({
+    id:String(r[0]), date:taskDoneDate_(r[1]), taskId:String(r[2]), slot:String(r[3]),
+    title:String(r[4]), points:Number(r[5]), status:String(r[6])
+  }));
+}
+function taskRequestMatchesDone_(request,done){
+  return done.some(d=>d.kid==='Rai'&&d.taskId===request.taskId&&
+    d.date===request.date&&d.slot===request.slot);
+}
+// Aquestes operacions s'executen sota el mateix bloqueig que TasquesFetes.
+function requestTaskValidation_(payload){
+  const id=familyTaskId_(payload.id), taskId=familyTaskId_(payload.taskId);
+  const date=taskDoneDate_(payload.date), snapshot=familyTasksSnapshot_();
+  const slot=String(payload.slot||'única'), task=snapshot.tasks.find(t=>t.id===taskId);
+  if(!date||date>snapshot.today)return;
+  if(!task||!task.active||!task.slots.split(',').includes(slot)||!taskOccursToday_(task,date))return;
+  const request={taskId,date,slot};
+  if(taskRequestMatchesDone_(request,snapshot.done)||readTaskRequests_().some(r=>
+    r.id===id||(r.status==='pendent'&&r.taskId===taskId&&r.slot===slot&&
+      (r.date===date||task.frequency==='once'))))return;
+  taskRequestSheet_().appendRow([id,date,taskId,slot,task.title,task.points,'pendent']);
+}
+function decideTaskValidation_(payload){
+  const id=familyTaskId_(payload.id), requests=readTaskRequests_();
+  if(typeof payload.approve!=='boolean')throw Error('Decisió no vàlida');
+  const request=requests.find(r=>r.id===id);
+  if(!request||request.status!=='pendent')return;
+  const snapshot=familyTasksSnapshot_();
+  const task=snapshot.tasks.find(t=>t.id===request.taskId);
+  const done=taskRequestMatchesDone_(request,snapshot.done);
+  if(payload.approve&&!done&&!(task?.frequency==='once'&&task.everDone)){
+    familyTaskSheet_(TASK_DONE_TAB_,['data','tascaId','persona','punts','franja'])
+      .appendRow([request.date,request.taskId,'Rai',request.points,request.slot]);
+  }
+  const tab=taskRequestSheet_();
+  const row=rows_(tab,7).findIndex(r=>String(r[0])===id);
+  tab.getRange(row+2,7).setValue(payload.approve||done?'aprovat':'rebutjat');
+}
 function familyTasksSnapshot_(){
   const tasks=rows_(familyTaskSheet_(TASKS_TAB_,['id','titol','punts','activa','frequencia','dies','franges']),7)
     .filter(r=>r[0]&&r[1]).map(r=>({id:String(r[0]),title:String(r[1]),points:Number(r[2])||0,
@@ -95,6 +137,8 @@ function familyTasksSnapshot_(){
   const manual=adjustments.reduce((s,r)=>s+r.delta,0);
   return {kid:'Rai',today:taskDate_(),tasks:tasks,done:done,rewards:rewards,
     claims:claims,requests:requests,points:earned-spent+manual,
+    taskRequests:readTaskRequests_().filter(r=>r.status==='pendent'&&!taskRequestMatchesDone_(r,done)&&
+      !tasks.some(t=>t.id===r.taskId&&t.frequency==='once'&&t.everDone)),
     adjustments:adjustments.slice(-15).reverse()};
 }
 /** Només per ús amb la clau familiar existent; no habilita canvis sense autenticació. */
@@ -116,6 +160,8 @@ function familyTasksAction(key,action,payload){
       const rows=rows_(tab,4),index=rows.findIndex(r=>r[0]===id);
       if(index<0){if(rows.length>=MAX_FAMILY_TASKS_)throw Error('Massa tasques');tab.appendRow([id,title,points,true,schedule.frequency,schedule.days,schedule.slots]);}
       else tab.getRange(index+2,1,1,7).setValues([[id,title,points,payload.active!==false,schedule.frequency,schedule.days,schedule.slots]]);
+    }else if(action==='tasks_decide'){
+      decideTaskValidation_(payload);
     }else if(action==='tasks_done'){
       const id=familyTaskId_(payload.id),snapshot=familyTasksSnapshot_();
       const task=snapshot.tasks.find(t=>t.id===id&&t.active);
@@ -124,6 +170,8 @@ function familyTasksAction(key,action,payload){
       if(!task.slots.split(',').includes(slot))throw Error('Franja no vàlida');
       if(!snapshot.done.some(d=>d.taskId===id&&d.date===date&&d.kid==='Rai'&&d.slot===slot))
         familyTaskSheet_(TASK_DONE_TAB_,['data','tascaId','persona','punts','franja']).appendRow([date,id,'Rai',task.points,slot]);
+      snapshot.taskRequests.filter(r=>r.taskId===id&&r.date===date&&r.slot===slot)
+        .forEach(r=>decideTaskValidation_({id:r.id,approve:true}));
     }else if(action==='tasks_undo'){
       const id=familyTaskId_(payload.id),slot=String(payload.slot||'única'),tab=familyTaskSheet_(TASK_DONE_TAB_,['data','tascaId','persona','punts','franja']);
       const rows=rows_(tab,5),idx=rows.findIndex(r=>taskDoneDate_(r[0])===date&&r[1]===id&&r[2]==='Rai'&&String(r[4]||'única')===slot);

@@ -189,8 +189,10 @@ fun DashboardApp(
         if (!sync.connected) return@LaunchedEffect
         sync.synchronize(dinners, family, minAgeMillis = 5 * 60_000L)
         while (true) {
-            delay(60_000L)
-            sync.synchronize(dinners, family, minAgeMillis = sync.dataIntervalMinutes * 60_000L)
+            delay(30_000L)
+            val awaitingValidation = family.chores.any { it.requestId.isNotBlank() && it.status == "pending" }
+            val refreshAge = if (awaitingValidation) 30_000L else sync.dataIntervalMinutes * 60_000L
+            sync.synchronize(dinners, family, minAgeMillis = refreshAge)
         }
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
