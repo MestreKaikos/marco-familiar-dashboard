@@ -34,7 +34,6 @@ import androidx.compose.ui.layout.ContentScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.URL
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
@@ -819,25 +818,27 @@ private fun ShoppingAndSpotify(store: LocalFamilyStore, modifier: Modifier, onSh
                         contentAlignment = Alignment.Center) { Text("♫", style = Type.Body) }
                 }
                 val enabled = !player.loading && player.speakers.isNotEmpty()
-                val transport: @Composable () -> Unit = {
-                    Button(enabled = enabled, colors = ButtonDefaults.buttonColors(
+                val transport: @Composable (Modifier) -> Unit = { buttonWidth ->
+                    Button(enabled = enabled, modifier = buttonWidth.heightIn(min = 48.dp),
+                        shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(
                         containerColor = Palette.Accent,
                         contentColor = if (Palette.Accent.luminance() > 0.42f) Color.Black else Color.White
                     ), contentPadding = PaddingValues(horizontal = 10.dp), onClick = {
                         scope.launch { player.control(if (current.playing) "pause" else "resume") }
                     }) { Text(if (current.playing) "Pausa" else "Reprèn", maxLines = 1) }
-                    FilledTonalButton(enabled = enabled, contentPadding = PaddingValues(horizontal = 10.dp),
+                    FilledTonalButton(enabled = enabled, modifier = buttonWidth.heightIn(min = 48.dp),
+                        shape = RoundedCornerShape(10.dp), contentPadding = PaddingValues(horizontal = 10.dp),
                         onClick = { scope.launch { player.control("next") } }) {
                         Text("Següent", maxLines = 1)
                     }
                 }
                 val volumeControls: @Composable (Int) -> Unit = { volume ->
-                    TextButton(enabled = enabled && volume > 0, contentPadding = PaddingValues(0.dp),
+                    FilledTonalButton(shape = RoundedCornerShape(10.dp), enabled = enabled && volume > 0, contentPadding = PaddingValues(0.dp),
                         modifier = Modifier.size(44.dp), onClick = {
                             scope.launch { player.setVolume(volume - 5) }
                         }) { Text("−", fontSize = 22.sp) }
-                    Text("$volume%", style = Type.Tiny)
-                    TextButton(enabled = enabled && volume < 100, contentPadding = PaddingValues(0.dp),
+                    Text("$volume%", style = Type.Tiny.copy(fontWeight = FontWeight.SemiBold))
+                    FilledTonalButton(shape = RoundedCornerShape(10.dp), enabled = enabled && volume < 100, contentPadding = PaddingValues(0.dp),
                         modifier = Modifier.size(44.dp), onClick = {
                             scope.launch { player.setVolume(volume + 5) }
                         }) { Text("+", fontSize = 22.sp) }
@@ -846,12 +847,13 @@ private fun ShoppingAndSpotify(store: LocalFamilyStore, modifier: Modifier, onSh
                     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically) {
                         cover()
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-                            metadata()
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalAlignment = Alignment.CenterVertically) { transport() }
+                        Column(Modifier.weight(1f).heightIn(min = coverSize), verticalArrangement = Arrangement.SpaceBetween) {
+                            Column { metadata() }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically) { transport(Modifier.weight(1f)) }
                             player.volumePercent?.let { volume ->
-                                Row(verticalAlignment = Alignment.CenterVertically) { volumeControls(volume) }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically) { volumeControls(volume) }
                             }
                         }
                     }
@@ -864,7 +866,7 @@ private fun ShoppingAndSpotify(store: LocalFamilyStore, modifier: Modifier, onSh
                         }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically) {
-                            transport()
+                            transport(Modifier)
                             player.volumePercent?.let { volumeControls(it) }
                         }
                     }
