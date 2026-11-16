@@ -21,6 +21,24 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.net.URL
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -104,7 +122,7 @@ fun FamilyTodayScreen(state: UiState, reminders: FamilyReminders, family: LocalF
         }
         Row(Modifier.fillMaxWidth().weight(0.29f), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             ReminderTile(reminders, today, Modifier.weight(1.3f).fillMaxHeight()) { onOpen(Page.Reminders) }
-            LocalShoppingTile(family, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Reminders) }
+            ShoppingAndSpotify(family, Modifier.weight(1f).fillMaxHeight()) { onOpen(Page.Reminders) }
             LocalRaiTile(family, today, Modifier.weight(1.1f).fillMaxHeight()) { onOpen(Page.Tasks) }
         }
     }
@@ -592,7 +610,7 @@ private fun LocalShoppingTile(store: LocalFamilyStore, modifier: Modifier, onCli
     HomeSummaryTile("Compra", "🛒", Palette.Online,
         summary = if (pending.isEmpty()) "No falta res" else "${pending.size} producte${if (pending.size == 1) " pendent" else "s pendents"}",
         items = pending.map { product ->
-            HomeSummaryItem(title = product.name, glyph = "", touchLabel = "Comprat?",
+            HomeSummaryItem(title = product.name, glyph = "", touchLabel = "Fet?",
                 onMark = { store.toggleGrocery(product.id) }, actionLabel = "Confirmar compra de: " + product.name)
         }, emptyMessage = "Toca per afegir productes",
         modifier = modifier, onClick = onClick)
@@ -730,6 +748,128 @@ private fun EnergyTile(state: UiState, modifier: Modifier, onClick: () -> Unit) 
                 if (window.isNotEmpty()) {
                     PriceBars(window, now, min, max, Modifier.fillMaxWidth().weight(1f).padding(top = 8.dp, bottom = 4.dp))
                     PriceHours(window, fontSize = 13)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShoppingAndSpotify(store: LocalFamilyStore, modifier: Modifier, onShopping: () -> Unit) {
+    val context = LocalContext.current
+    val player = remember(context) { SpotifyController(context.applicationContext) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(player) {
+        while (player.linked) {
+            if (!player.loading) player.refreshPlayback(selectActiveSpeaker = true)
+            delay(12_000L)
+        }
+    }
+    val hasShopping = store.groceries.any { !it.bought }
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (hasShopping) {
+            LocalShoppingTile(store, Modifier.fillMaxWidth().weight(1f), onShopping)
+        } else {
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                .background(Palette.Card).padding(horizontal = 12.dp, vertical = 8.dp)) {
+                HomeSummaryHeader("Compra", "🛒", Palette.Online, "No falta res", 0, null, onShopping)
+            }
+        }
+        player.nowPlaying?.let { current ->
+            val artwork by produceState<ImageBitmap?>(null, current.artwork) {
+                value = null
+                if (current.artwork.startsWith("https://")) {
+                    value = withContext(Dispatchers.IO) {
+                        runCatching {
+                            val connection = URL(current.artwork).openConnection().apply {
+                                connectTimeout = 5_000
+                                readTimeout = 5_000
+                            }
+                            connection.getInputStream().use { BitmapFactory.decodeStream(it)?.asImageBitmap() }
+                        }.getOrNull()
+                    }
+                }
+            }
+            BoxWithConstraints(
+                Modifier.fillMaxWidth()
+                    .then(if (hasShopping) Modifier else Modifier.weight(1f))
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Brush.horizontalGradient(listOf(
+                        Palette.Accent.copy(alpha = 0.10f).compositeOver(Palette.Card), Palette.Card
+                    )))
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                val expanded = !hasShopping && maxWidth >= 260.dp && maxHeight >= 150.dp
+                val coverSize = if (expanded) minOf(maxHeight, maxWidth * 0.40f, 156.dp) else 40.dp
+                val metadata: @Composable () -> Unit = {
+                    Text(current.title, style = Type.Body.copy(fontWeight = FontWeight.Bold,
+                        fontSize = if (expanded) 24.sp else 19.sp),
+                        maxLines = if (expanded) 2 else 1, overflow = TextOverflow.Ellipsis)
+                    Text(listOf(current.artist, "Abaix").filter { it.isNotBlank() }.joinToString(" · "),
+                        style = Type.Tiny.copy(color = Palette.InkSoft),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                val cover: @Composable () -> Unit = {
+                    val shape = Modifier.size(coverSize).clip(RoundedCornerShape(12.dp))
+                    val image = artwork
+                    if (image != null) Image(image, contentDescription = "Portada del disc",
+                        modifier = shape, contentScale = ContentScale.Crop)
+                    else Box(shape.background(Palette.Accent.copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center) { Text("♫", style = Type.Body) }
+                }
+                val enabled = !player.loading && player.speakers.isNotEmpty()
+                val transport: @Composable (Modifier) -> Unit = { buttonWidth ->
+                    Button(enabled = enabled, modifier = buttonWidth.heightIn(min = 48.dp),
+                        shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(
+                        containerColor = Palette.Accent,
+                        contentColor = if (Palette.Accent.luminance() > 0.42f) Color.Black else Color.White
+                    ), contentPadding = PaddingValues(horizontal = 10.dp), onClick = {
+                        scope.launch { player.control(if (current.playing) "pause" else "resume") }
+                    }) { Text(if (current.playing) "Pausa" else "Reprèn", maxLines = 1) }
+                    FilledTonalButton(enabled = enabled, modifier = buttonWidth.heightIn(min = 48.dp),
+                        shape = RoundedCornerShape(10.dp), contentPadding = PaddingValues(horizontal = 10.dp),
+                        onClick = { scope.launch { player.control("next") } }) {
+                        Text("Següent", maxLines = 1)
+                    }
+                }
+                val volumeControls: @Composable (Int) -> Unit = { volume ->
+                    FilledTonalButton(shape = RoundedCornerShape(10.dp), enabled = enabled && volume > 0, contentPadding = PaddingValues(0.dp),
+                        modifier = Modifier.size(44.dp), onClick = {
+                            scope.launch { player.setVolume(volume - 5) }
+                        }) { Text("−", fontSize = 22.sp) }
+                    Text("$volume%", style = Type.Tiny.copy(fontWeight = FontWeight.SemiBold))
+                    FilledTonalButton(shape = RoundedCornerShape(10.dp), enabled = enabled && volume < 100, contentPadding = PaddingValues(0.dp),
+                        modifier = Modifier.size(44.dp), onClick = {
+                            scope.launch { player.setVolume(volume + 5) }
+                        }) { Text("+", fontSize = 22.sp) }
+                }
+                if (expanded) {
+                    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        cover()
+                        Column(Modifier.weight(1f).heightIn(min = coverSize), verticalArrangement = Arrangement.SpaceBetween) {
+                            Column { metadata() }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically) { transport(Modifier.weight(1f)) }
+                            player.volumePercent?.let { volume ->
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically) { volumeControls(volume) }
+                            }
+                        }
+                    }
+                } else {
+                    Column(Modifier.fillMaxWidth()) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            cover()
+                            Column(Modifier.weight(1f)) { metadata() }
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically) {
+                            transport(Modifier)
+                            player.volumePercent?.let { volumeControls(it) }
+                        }
+                    }
                 }
             }
         }

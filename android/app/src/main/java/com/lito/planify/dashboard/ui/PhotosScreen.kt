@@ -6,6 +6,16 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.util.Size
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.CancellationException
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -113,6 +123,7 @@ fun PhotosScreen(
     presentationMode: Boolean = false,
     slideSeconds: Int = 20,
     shufflePhotos: Boolean = false,
+    transition: PhotoTransition = PhotoTransition.FADE,
     playback: PhotoPlaybackState = remember { PhotoPlaybackState() },
     onPhotosAvailable: (Boolean) -> Unit = {},
     onExitPresentation: () -> Unit = {}
@@ -187,7 +198,6 @@ fun PhotosScreen(
 
     val photo = photos.firstOrNull { it.identity == playback.currentKey }
     LaunchedEffect(photo?.key) {
-        bitmap = null
         if (photo != null) {
             try {
                 bitmap = withContext(Dispatchers.IO) {
@@ -199,7 +209,11 @@ fun PhotosScreen(
                     }
                 }
                 error = null
-            } catch (_: Exception) { error = "No s'ha pogut obrir aquesta fotografia." }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                error = "No s'ha pogut obrir aquesta fotografia."
+            }
         }
     }
 
@@ -247,8 +261,7 @@ fun PhotosScreen(
                     Text("Envia fotos des de la web del mòbil o tria una carpeta del marc.",
                         style = Type.Small, color = Color.LightGray)
                 }
-                bitmap != null -> Image(bitmap = bitmap!!, contentDescription = photo.name,
-                    modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                bitmap != null -> PhotoSlide(bitmap!!, photo.name, transition, slideSeconds)
                 error != null -> Text("No es pot mostrar aquesta fotografia", color = Color.White)
                 else -> CircularProgressIndicator()
             }
@@ -312,3 +325,41 @@ private fun listLocalPhotos(context: Context, treeUri: Uri): List<LocalPhoto> {
     }
     return list.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
 }
+
+@Composable
+private fun PhotoSlide(bitmap: ImageBitmap, name: String, transition: PhotoTransition, slideSeconds: Int) {
+    val sequence = remember(transition) { PhotoTransitionSequence() }
+    val effect = remember(bitmap, transition) { sequence.next++ }
+    val style = when {
+        transition != PhotoTransition.VARIED -> transition
+        effect % 3 == 0 -> PhotoTransition.MOTION
+        effect % 3 == 1 -> PhotoTransition.FADE
+        else -> PhotoTransition.VARIED
+    }
+    AnimatedContent(
+        targetState = bitmap,
+        transitionSpec = {
+            val fade = fadeIn(tween(750))
+            val enter = if (style == PhotoTransition.VARIED) {
+                fade + slideInHorizontally(tween(750)) { it / 10 }
+            } else fade
+            enter togetherWith fadeOut(tween(750))
+        },
+        modifier = Modifier.fillMaxSize(),
+        label = "Canvi de fotografia"
+    ) { image ->
+        val scale = remember(image) { Animatable(1f) }
+        LaunchedEffect(image, style, slideSeconds) {
+            if (style == PhotoTransition.MOTION && image.width >= image.height) {
+                scale.animateTo(1.06f, tween(slideSeconds * 1_000, easing = LinearEasing))
+            }
+        }
+        Image(image, contentDescription = name,
+            modifier = Modifier.fillMaxSize().graphicsLayer {
+                scaleX = scale.value
+                scaleY = scale.value
+            }, contentScale = ContentScale.Fit)
+    }
+}
+
+private class PhotoTransitionSequence(var next: Int = 0)

@@ -238,24 +238,24 @@ fun DashboardApp(
     var recycleOpen by remember { mutableStateOf(false) }
     var recycleDone by remember { mutableStateOf(false) }
     var recycleDismissed by remember { mutableStateOf(false) }
-    var recycleAutoSeen by remember { mutableStateOf<String?>(null) }
-    var recycleAlert by remember { mutableStateOf(false) }
+    val recycleAlert = pickup != null && recycleAttention(state.now, pickup) && !recycleDone
+    var recycleOpenedAutomatically by remember { mutableStateOf(false) }
     LaunchedEffect(pickupKey) {
         recycleOpen = false
         recycleDismissed = false
-        recycleAlert = false
+        recycleOpenedAutomatically = false
         recycleDone = pickup?.let { recycleIsDone(context, it) } ?: false
     }
-    LaunchedEffect(pickupKey, state.now.hour, state.night, page, recycleDone) {
-        val item = pickup ?: return@LaunchedEffect
-        if (state.night || page != Page.Today || recycleDone || recycleDismissed ||
-            !recycleAttention(state.now, item) || recycleAutoSeen == item.key) return@LaunchedEffect
-        recycleAutoSeen = item.key
-        recycleAlert = true
-        recycleOpen = true
-        delay(10_000L)
-        recycleOpen = false
-        recycleAlert = false
+    LaunchedEffect(pickupKey, recycleAlert, state.night, page, automaticPhotos) {
+        if (recycleOpenedAutomatically && (!recycleAlert || state.night || page != Page.Today || automaticPhotos)) {
+            recycleOpen = false
+            recycleOpenedAutomatically = false
+        }
+        if (pickupKey != null && recycleAlert && !state.night && page == Page.Today &&
+            !automaticPhotos && !recycleDismissed && !recycleOpen) {
+            recycleOpenedAutomatically = true
+            recycleOpen = true
+        }
     }
     /** Cita abierta en el aviso ([EventOverlay]); se cierra sola al volver a Hoy por inactividad. */
     var shownEvent by remember { mutableStateOf<Event?>(null) }
@@ -264,7 +264,7 @@ fun DashboardApp(
     // Una sola màquina d'estats coordina les fotos i les visites periòdiques a Avui.
     LaunchedEffect(frameMode.config, page, shownEvent, nestDevice, nestPairing, state.night, appResumed, pointerDown, hasPhotos, windowFocused, keyboardVisible) {
         val config = frameMode.config
-        if (!config.enabled || !appResumed || state.night || pointerDown || !windowFocused || keyboardVisible || page == Page.Settings || shownEvent != null || nestDevice != null || nestPairing || !hasPhotos) {
+        if (!appResumed || state.night || pointerDown || !windowFocused || keyboardVisible || page == Page.Settings || shownEvent != null || nestDevice != null || nestPairing) {
             if (cycle.phase != FrameCyclePhase.MANUAL) page = Page.Today
             cycle = FrameCycle.interact(SystemClock.elapsedRealtime())
             cycleSuspended = true
@@ -275,7 +275,17 @@ fun DashboardApp(
             cycleSuspended = false
         }
         while (true) {
-            val updated = FrameCycle.advance(cycle, SystemClock.elapsedRealtime(), config)
+            val now = SystemClock.elapsedRealtime()
+            if (cycle.phase == FrameCyclePhase.MANUAL && page != Page.Today && page != Page.Photos &&
+                config.returnSeconds > 0 && now - cycle.lastInteractionAt >= config.returnSeconds * 1_000L) {
+                page = Page.Today
+                continue
+            }
+            if (!config.enabled || !hasPhotos || (page == Page.Photos && cycle.phase == FrameCyclePhase.MANUAL)) {
+                delay(1_000L)
+                continue
+            }
+            val updated = FrameCycle.advance(cycle, now, config)
             if (updated != cycle) {
                 cycle = updated
                 page = if (updated.phase == FrameCyclePhase.PHOTOS) Page.Photos else Page.Today
@@ -290,12 +300,6 @@ fun DashboardApp(
             sharedPhotos.refresh(sync, minAgeMillis = sync.photoIntervalMinutes * 60_000L)
             delay(60_000L)
         }
-    }
-    // Amb l'alternança desactivada, es conserva el retorn habitual de dos minuts.
-    LaunchedEffect(page, lastTouch, frameMode.config.enabled, nestDevice, nestPairing) {
-        if (nestDevice != null || nestPairing || frameMode.config.enabled || page == Page.Today || page == Page.Photos || page == Page.Settings) return@LaunchedEffect
-        delay(IDLE_MILLIS)
-        page = Page.Today
     }
     // Tras 2 minutos sin tocar, el aviso de una cita también se cierra (en cualquier pestaña).
     LaunchedEffect(shownEvent, lastTouch) {
@@ -353,6 +357,7 @@ fun DashboardApp(
                         Page.Photos -> PhotosScreen(sync, shared = sharedPhotos, presentationMode = automaticPhotos,
                             slideSeconds = frameMode.config.slideSeconds,
                             shufflePhotos = frameMode.config.shufflePhotos,
+                            transition = frameMode.config.photoTransition,
                             playback = photoPlayback,
                             onPhotosAvailable = { photosAvailable = it },
                             onExitPresentation = { selectPage(Page.Today) })
@@ -388,7 +393,7 @@ fun DashboardApp(
                     }
                     }
                 }
-                if (!automaticPhotos) Rail(page, state, recycleDue = pickup != null && recycleVisible(state.now, pickup) && !recycleDone, recycleAttention = recycleAlert, recycleDone = recycleDone, onRecycle = { onInteraction(); recycleOpen = !recycleOpen; if (!recycleOpen) recycleDismissed = true }, onSelect = selectPage, onSync = {
+                if (!automaticPhotos) Rail(page, state, recycleDue = pickup != null && recycleVisible(state.now, pickup) && !recycleDone, recycleAttention = recycleAlert, recycleDone = recycleDone, onRecycle = { onInteraction(); recycleOpenedAutomatically = false; recycleOpen = !recycleOpen; if (!recycleOpen) recycleDismissed = true }, onSelect = selectPage, onSync = {
                     onInteraction()
                     onSync()
                     coroutineScope.launch { sync.synchronize(dinners, family) }

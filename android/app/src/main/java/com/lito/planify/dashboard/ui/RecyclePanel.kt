@@ -45,11 +45,11 @@ internal fun recyclePickup(now: LocalDateTime): RecyclePickup? {
 }
 
 internal fun recycleVisible(now: LocalDateTime, pickup: RecyclePickup): Boolean =
-    if (pickup.isGlass) true else now.hour >= 17
+    if (pickup.isGlass) true else now.hour in 17..19
 
 internal fun recycleAttention(now: LocalDateTime, pickup: RecyclePickup): Boolean =
     if (pickup.isGlass) now.dayOfWeek == DayOfWeek.FRIDAY && now.hour >= 7
-    else now.hour >= 19
+    else now.hour == 19
 
 /** Desat local: una confirmació no es reutilitza en recollides futures. */
 internal fun recycleIsDone(context: Context, pickup: RecyclePickup): Boolean =
@@ -69,7 +69,7 @@ internal fun RecyclePanel(pickup: RecyclePickup?, done: Boolean, onDone: (Boolea
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically) {
             Text("♻ Porta a porta", style = Type.Body.copy(fontWeight = FontWeight.Bold))
-            Text("✕", style = Type.Body, modifier = Modifier.clickable(onClick = onClose).padding(8.dp))
+            Text("Minimitza", style = Type.Small, modifier = Modifier.clickable(onClick = onClose).padding(8.dp))
         }
         if (pickup == null) {
             Text("Avui no hi ha cap recollida prevista.", style = Type.Small)

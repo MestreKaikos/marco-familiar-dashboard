@@ -7,20 +7,28 @@ data class FrameCycleConfig(
     val photoMinutes: Int = 10,
     val agendaSeconds: Int = 30,
     val slideSeconds: Int = 20,
-    val shufflePhotos: Boolean = false
+    val shufflePhotos: Boolean = false,
+    val returnSeconds: Int = 30,
+    val photoTransition: PhotoTransition = PhotoTransition.FADE
 ) {
     fun validated() = copy(
         idleMinutes = idleMinutes.takeIf { it in IDLE_MINUTES } ?: 2,
         photoMinutes = photoMinutes.takeIf { it in PHOTO_MINUTES } ?: 10,
         agendaSeconds = agendaSeconds.takeIf { it in AGENDA_SECONDS } ?: 30,
+        returnSeconds = returnSeconds.takeIf { it in RETURN_SECONDS } ?: 30,
         slideSeconds = slideSeconds.takeIf { it in SLIDE_SECONDS } ?: 20
     )
     companion object {
+        val RETURN_SECONDS = listOf(0, 15, 30, 45)
         val IDLE_MINUTES = listOf(1, 2, 5, 10)
         val PHOTO_MINUTES = listOf(5, 10, 15, 30)
         val AGENDA_SECONDS = listOf(15, 30, 60)
         val SLIDE_SECONDS = listOf(10, 20, 30, 60)
     }
+}
+
+enum class PhotoTransition(val label: String) {
+    FADE("Fosa suau"), MOTION("Moviment lent"), VARIED("Variat")
 }
 
 enum class FrameCyclePhase { MANUAL, PHOTOS, AGENDA }
