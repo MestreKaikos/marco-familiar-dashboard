@@ -220,9 +220,13 @@ summary .ui-icon{width:18px;height:18px;vertical-align:-.2em}
 
 .rai-summary{position:relative}
 .rai-alert{display:block;grid-column:1/-1;grid-row:3;font-size:11px;font-weight:750;color:#74470d;background:#fff0d3;padding:5px 8px;border-radius:9px;margin-top:3px}
+#raiValidations{border-color:#efc5c5;background:#fff7f7}
+#raiValidations h3{margin:0;font-size:17px}
+#raiValidationHint{margin:6px 0 0;color:#695858}
+#raiPendingTasks .item{margin-top:8px;background:#fff;border-radius:12px}
 .rai-alert[hidden],.rai-nav-badge[hidden]{display:none!important}
 .app-nav button[data-open="rai"]>span{position:relative;display:inline-flex}
-.rai-nav-badge{position:absolute;top:-9px;right:-13px;background:#b45309;color:white;font-size:10px;font-weight:800;line-height:1;min-width:18px;height:18px;padding:4px;border-radius:20px;display:grid;place-items:center;border:2px solid white}
+.rai-nav-badge{position:absolute;top:-9px;right:-13px;background:#b91c1c;color:white;font-size:10px;font-weight:800;line-height:1;min-width:18px;height:18px;padding:4px;border-radius:20px;display:grid;place-items:center;border:2px solid white}
 #raiValidations{scroll-margin-top:20px}
 </style>
 </head>
@@ -317,8 +321,14 @@ summary .ui-icon{width:18px;height:18px;vertical-align:-.2em}
       <div class="row" style="justify-content:space-between;margin-bottom:12px">
         <h2 style="margin:0">Espai d'en Rai</h2><span class="pill" id="raiPoints">Carregant punts…</span>
       </div>
-      <details id="raiValidations" class="rai-section" hidden>
-        <summary>Validacions pendents <span id="raiPendingCount"></span></summary>
+      <section id="raiValidations" class="rai-section" aria-labelledby="raiValidationTitle">
+        <h3 id="raiValidationTitle">Feines pendents de validar <span id="raiPendingCount"></span></h3>
+        <p id="raiValidationHint" role="status">Carregant les peticions del marc…</p>
+        <div id="raiPendingTasks"></div>
+      </section>
+      <p id="raiTaskStatus" role="status" aria-live="polite"></p>
+      <details id="raiRewardApprovals" class="rai-section" hidden>
+        <summary>Recompenses pendents <span id="raiPendingRewardCount"></span></summary>
         <div id="raiPendingRewards"></div>
       </details>
       <details class="rai-section" id="raiFeines">
@@ -395,7 +405,6 @@ summary .ui-icon{width:18px;height:18px;vertical-align:-.2em}
         <div id="raiPointsHistory"></div>
       </details>
 
-      <p id="raiTaskStatus" role="status" aria-live="polite"></p>
     </section>
     <section class="panel" data-tab="fotos">
       <div class="row" style="justify-content:space-between;margin-bottom:12px">
@@ -550,6 +559,7 @@ function openTab(name){
   });
   $('openSettings').setAttribute('aria-pressed',name==='opcions'?'true':'false');
   if(name==='fotos'&&key&&queueStorageKey)refreshPhotos(5);
+  if(name==='rai')refreshRai(5_000);
   try{sessionStorage.setItem('marc-active-tab',name);}catch(_){}
   window.scrollTo({top:0,behavior:'instant'});
 }
@@ -560,7 +570,6 @@ try{openTab(sessionStorage.getItem('marc-active-tab')||'avui')}catch(_){openTab(
 document.querySelectorAll('[data-go]').forEach(el=>el.addEventListener('click',()=>{
   openTab(el.dataset.go);
   if(el.dataset.go==='rai'&&$('overviewRaiAlert')&&!$('overviewRaiAlert').hidden){
-    $('raiValidations').open=true;
     $('raiValidations').scrollIntoView({block:'start',behavior:'smooth'});
   }
 }));
@@ -602,6 +611,11 @@ function call(ops=[], onDone, minAgeMinutes=0) {
 function showLogin(){
   resetCalendarForm();$('calendarItems').replaceChildren();
   photos=[];renderPhotos();raiSnapshot=null;
+  $('raiPendingTasks').replaceChildren();
+  $('raiPendingCount').textContent='';
+  $('raiValidationHint').textContent='Carregant les peticions del marc…';
+  $('raiTaskStatus').textContent='';
+  $('raiRewardApprovals').hidden=true;
   data={groceries:[],dinners:{}};lastDataAt=lastRaiAt=lastPhotosAt=0;queueStorageKey='';
   key='';try { sessionStorage.removeItem('marc-sync-key'); } catch (_) {}
   $('auth').hidden=false;$('application').hidden=true;$('disconnect').hidden=true;$('openSettings').hidden=true;
@@ -711,10 +725,10 @@ function renderOverview(){
   $('overviewRemindersDetail').textContent=overdue.length?overdue.length+' vençuts · prioritari':dueToday.length?dueToday.length+' per avui':'Per fer';
   $('overviewGroceries').textContent=(data.groceries||[]).filter(x=>!x.bought).length;
   $('overviewPhotos').textContent=photos.length;
-  const pendingRai=raiSnapshot?(raiSnapshot.requests||[]).filter(x=>x.status==='pendent'&&x.kid==='Rai').length:0;
+  const pendingRai=pendingRaiTasks().length;
   const raiAlert=$('overviewRaiAlert'),raiBadge=$('raiNavBadge');
   raiAlert.hidden=pendingRai===0;raiBadge.hidden=pendingRai===0;
-  raiAlert.textContent=pendingRai===1?'1 validació pendent':pendingRai+' validacions pendents';
+  raiAlert.textContent=pendingRai===1?'1 feina per validar':pendingRai+' feines per validar';
   raiBadge.textContent=pendingRai>99?'99+':String(pendingRai);
   document.querySelector('[data-open="rai"]').setAttribute('aria-label',pendingRai?'Rai: '+raiAlert.textContent:'Rai');
   if(raiSnapshot){
@@ -799,14 +813,25 @@ $('addReminder').addEventListener('submit',e=>{
 });
 // L'API familiar existent continua sent la font de veritat de dies, franges i premis.
 let raiBusy=false,raiSnapshot=null;
+function pendingRaiTasks(){
+  return (raiSnapshot?.taskRequests||[]).filter(request=>request.status==='pendent');
+}
+function refreshRai(minAgeMs=0){
+  if(key&&queueStorageKey&&Date.now()-lastRaiAt>=minAgeMs)raiAction('tasks_snapshot');
+}
 function raiAction(action,payload={},onDone){
   if(!key)return Promise.resolve();
   if(raiFlight){
     if(action==='tasks_snapshot')return raiFlight;
-    return raiFlight.then(()=>raiAction(action,payload,onDone));
+    const queuedKey=key;
+    return raiFlight.then(()=>{if(key===queuedKey)return raiAction(action,payload,onDone);});
   }
-  raiBusy=true;$('raiTaskStatus').textContent='Sincronitzant les tasques…';
-  raiFlight=serverCall('familyTasksAction',key,action,payload).then(result=>{
+  const requestKey=key;
+  const isRefresh=action==='tasks_snapshot';
+  raiBusy=!isRefresh;
+  if(!isRefresh)$('raiTaskStatus').textContent='Desant…';
+  raiFlight=serverCall('familyTasksAction',requestKey,action,payload).then(result=>{
+    if(key!==requestKey)return;
     raiBusy=false;
     if(!result||!result.ok){
       const message=(result&&result.error)||'No s’han pogut desar les tasques';
@@ -814,11 +839,12 @@ function raiAction(action,payload={},onDone){
       if(action==='points_adjust')$('raiAdjustStatus').textContent=message;
       return;
     }
-    lastRaiAt=Date.now();raiSnapshot=result.data;saveSessionSnapshot();renderRai();renderOverview();
+    lastRaiAt=Date.now();raiSnapshot=result.data;saveSessionSnapshot();renderRai();
     $('raiTaskStatus').textContent='';
-    if(action!=='tasks_snapshot')call([]);
+    if(!isRefresh)call([]);
     if(onDone)onDone();
   }).catch(err=>{
+    if(key!==requestKey)return;
     raiBusy=false;
     const message=err&&err.message||'Error de connexió';
     $('raiTaskStatus').textContent=message;
@@ -840,6 +866,31 @@ function renderRai(){
       history.appendChild(makeText('p',label,''));
     });
   }
+  const pendingTasks=pendingRaiTasks();
+  const taskApprovals=$('raiPendingTasks');taskApprovals.replaceChildren();
+  $('raiPendingCount').textContent=pendingTasks.length?'('+pendingTasks.length+')':'';
+  $('raiValidationHint').textContent=!Array.isArray(snapshot.taskRequests)
+    ?'El servei familiar encara no envia les peticions del marc.'
+    :pendingTasks.length?'En Rai ha marcat aquestes feines com a fetes al marc. Valida-les per sumar-li els punts.'
+    :'Ara mateix no hi ha cap feina per validar.';
+  pendingTasks.forEach(request=>{
+    const row=makeText('div','','item'),info=makeText('div','','name');
+    const date=request.date.split('-').reverse().join('/');
+    info.append(makeText('strong',request.title),makeText('div',
+      [date,request.slot==='única'?'':request.slot,'+'+request.points+' punts'].filter(Boolean).join(' · '),'muted'));
+    const approve=makeText('button','Valida','small primary');
+    const reject=makeText('button','Rebutja','small ghost');
+    approve.type=reject.type='button';
+    const decide=value=>{
+      if(raiBusy)return;
+      raiAction('tasks_decide',{id:request.id,approve:value});
+    };
+    approve.setAttribute('aria-label','Valida '+request.title);
+    reject.setAttribute('aria-label','Rebutja '+request.title);
+    approve.addEventListener('click',()=>decide(true));
+    reject.addEventListener('click',()=>decide(false));
+    row.append(info,approve,reject);taskApprovals.appendChild(row);
+  });
   const completed=new Set(snapshot.done.filter(d=>d.date===snapshot.today)
     .map(d=>d.taskId+'|'+d.slot));
   const tasks=snapshot.tasks.filter(t=>t.active&&t.dueToday);
@@ -851,6 +902,10 @@ function renderRai(){
       const line=makeText('div','','item');
       const title=task.title+(slot==='única'?'':' · '+slot)+' · +'+task.points+' punts';
       line.appendChild(makeText('span',title,'name'+(done?' bought':'')));
+      if(!done&&pendingTasks.some(r=>r.taskId===task.id&&r.slot===slot&&
+        (r.date===snapshot.today||task.frequency==='once'))){
+        line.appendChild(makeText('span','Pendent de validar','pill'));target.appendChild(line);return;
+      }
       const toggle=makeText('button',done?'↩ Desfer':'✓ Feta','small');
       toggle.type='button';toggle.disabled=raiBusy;
       toggle.addEventListener('click',()=>raiAction(done?'tasks_undo':'tasks_done',{id:task.id,slot}));
@@ -859,8 +914,8 @@ function renderRai(){
   });
   const rewards=$('raiRewardList');rewards.replaceChildren();
   const pending=(snapshot.requests||[]).filter(x=>x.status==='pendent'&&x.kid==='Rai');
-  $('raiValidations').hidden=pending.length===0;
-  $('raiPendingCount').textContent=pending.length?'('+pending.length+')':'';
+  $('raiRewardApprovals').hidden=pending.length===0;
+  $('raiPendingRewardCount').textContent=pending.length?'('+pending.length+')':'';
   renderOverview();
   const reserved=pending.reduce((sum,x)=>sum+(Number(x.cost)||0),0);
   (snapshot.rewards||[]).filter(r=>r.active).forEach(reward=>{
@@ -1096,7 +1151,7 @@ $('addProduct').addEventListener('submit',e=>{
 function refreshAll(minAgeMinutes=0){
   if(!key||!queueStorageKey)return;
   call([],null,minAgeMinutes);
-  if(!minAgeMinutes||stale(lastRaiAt,minAgeMinutes))raiAction('tasks_snapshot');
+  refreshRai(minAgeMinutes?5_000:0);
   refreshPhotos(minAgeMinutes);
 }
 $('dataInterval').value=String(intervals.data);
@@ -1116,9 +1171,9 @@ if(key)showApp();
 setInterval(()=>{
   if(!key||document.hidden||!queueStorageKey)return;
   call([],null,intervals.data);
-  if(stale(lastRaiAt,intervals.data))raiAction('tasks_snapshot');
   refreshPhotos(intervals.photos);
 },60000);
+setInterval(()=>{if(!document.hidden)refreshRai(25_000);},30000);
 })();
 </script>
 </body>
