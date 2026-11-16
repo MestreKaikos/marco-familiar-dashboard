@@ -5,13 +5,14 @@ import vm from 'node:vm';
 import {webcrypto} from 'node:crypto';
 const mobile=process.env.MARC_MOBILE_HTML||new URL('../../sync/google-apps-script/Mobile.html',import.meta.url);
 const paths=[new URL('../index.html',import.meta.url),...(fs.existsSync(mobile)?[mobile]:[])];
-function harness(path,stored=new Map()){
+function harness(path,stored=new Map(),renderRaiUi=false){
  const html=fs.readFileSync(path,'utf8');
  let source=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].at(-1)[1];
  const nodes=new Map(),events={},timers=[],requests=[];let now=10_000_000;
  const storage={getItem:k=>stored.get(k)||null,setItem:(k,v)=>stored.set(k,v),removeItem:k=>stored.delete(k)};
  const get=id=>{if(!nodes.has(id))nodes.set(id,{value:'',addEventListener:(name,fn)=>events[id+':'+name]=fn,classList:{toggle(){}},setAttribute(){},children:[],replaceChildren(){this.children=[];},appendChild(node){this.children.push(node);},append(...nodes){this.children.push(...nodes);},style:{}});return nodes.get(id);};
- source=source.replace(/\}\)\(\);\s*$/,`render=renderRai=renderPhotos=renderOverview=()=>{};
+ source=source.replace(/\}\)\(\);\s*$/,`render=renderPhotos=()=>{};
+ ${renderRaiUi?'':'renderRai=renderOverview=()=>{};'}
  serverCall=(method,...args)=>new Promise((resolve,reject)=>requests.push({method,args,resolve,reject}));
  globalThis.api={calendarPayload,renderCalendars,setData:value=>{data=value;},call,refreshPhotos,refreshAll,raiAction,prepareQueue,stale,intervals,
  start:async()=>{key='a'.repeat(64);await prepareQueue();},
@@ -19,21 +20,44 @@ function harness(path,stored=new Map()){
  stamp:()=>{lastDataAt=lastRaiAt=lastPhotosAt=Date.now();}};
  })();`);
  const FakeDate=class extends Date{static now(){return now;}};
- const context={requests,document:{hidden:false,getElementById:get,querySelectorAll:()=>[],createElement:tag=>get('created-'+nodes.size),addEventListener:(n,f)=>events[n]=f},window:{scrollTo(){},addEventListener:(n,f)=>events[n]=f},sessionStorage:storage,localStorage:storage,crypto:webcrypto,TextEncoder,self:{crypto:webcrypto},Date:FakeDate,setInterval:fn=>timers.push(fn),console};
+ const context={requests,document:{hidden:false,getElementById:get,querySelectorAll:()=>[],querySelector:selector=>get(selector),createElement:tag=>get('created-'+nodes.size),addEventListener:(n,f)=>events[n]=f},window:{scrollTo(){},addEventListener:(n,f)=>events[n]=f},sessionStorage:storage,localStorage:storage,crypto:webcrypto,TextEncoder,self:{crypto:webcrypto},Date:FakeDate,setInterval:fn=>timers.push(fn),console};
  vm.runInNewContext(source,context);
  return {api:context.api,requests,events,timers,stored,context,nodes,advance:ms=>now+=ms};
 }
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 for(const path of paths){
  const label=String(path).includes('Mobile')?'Apps Script':'PWA';
+ if(label==='PWA')test('PWA: el comptador de Rai es refresca en tornar i cada 30 s en primer pla',async()=>{
+  const h=harness(path,new Map(),true);await h.api.start();h.api.stamp();
+  const task={id:'walk_request',taskId:'walk',title:'Treure en Llamp',date:'2026-10-29',slot:'única',points:3,status:'pendent'};
+  const data={today:task.date,points:0,tasks:[],done:[],rewards:[],requests:[],taskRequests:[task]};
+  h.advance(6000);h.events.focus();
+  assert.equal(h.requests.length,1);
+  assert.equal(h.requests[0].args[1],'tasks_snapshot');
+  h.requests[0].resolve({ok:true,data});await tick();
+  assert.equal(h.nodes.get('raiNavBadge').textContent,'1');
+  assert.equal(h.nodes.get('raiNavBadge').hidden,false);
+  assert.equal(h.nodes.get('raiPendingTasks').children.length,1);
+  h.advance(30000);h.context.document.hidden=true;h.timers[1]();
+  assert.equal(h.requests.length,1);
+  h.context.document.hidden=false;h.timers[1]();
+  h.requests[1].resolve({ok:true,data:{...data,taskRequests:[],
+    requests:[{rewardId:'reward',status:'pendent',kid:'Rai',cost:2}]}});
+  await tick();
+  assert.equal(h.nodes.get('raiNavBadge').hidden,true);
+  assert.equal(h.nodes.get('raiPendingTasks').children.length,0);
+  assert.equal(h.nodes.get('raiRewardApprovals').hidden,false);
+ });
  test(label+': 15/30 min, pestanya oculta i represa de 5 min',async()=>{
   const h=harness(path);await h.api.start();h.api.stamp();h.timers[0]();assert.equal(h.requests.length,0);
-  h.advance(5*60000-1);h.events.focus();assert.equal(h.requests.length,0);
+  h.advance(5*60000-1);h.events.focus();assert.equal(h.requests.length,label==='PWA'?1:0);
   h.advance(1);h.events.focus();assert.equal(h.requests.length,3);
   h.events.pageshow();assert.equal(h.requests.length,3,'peticions en curs es comparteixen');
-  h.requests[0].resolve({ok:true,data:{groceries:[]}});h.requests[1].resolve({ok:true,data:{}});h.requests[2].resolve({ok:true,photos:[]});await tick();
+  h.requests.find(r=>r.args[1]==='sync').resolve({ok:true,data:{groceries:[]}});
+  h.requests.find(r=>r.args[1]==='tasks_snapshot').resolve({ok:true,data:{}});
+  h.requests.find(r=>r.args[1]==='photo_list').resolve({ok:true,photos:[]});await tick();
   h.api.stamp();h.advance(15*60000);h.context.document.hidden=true;h.timers[0]();assert.equal(h.requests.length,3);
-  h.context.document.hidden=false;h.timers[0]();assert.equal(h.requests.length,5,'fotos encara recents');
+  h.context.document.hidden=false;h.timers[0]();if(label==='PWA')h.timers[1]();assert.equal(h.requests.length,5,'fotos encara recents');
   h.advance(15*60000);h.timers[0]();assert.equal(h.requests.length,6,'fotos als 30 min');
  });
  test(label+': canvi durant consulta i reintent sense perdre cua',async()=>{
@@ -51,7 +75,9 @@ for(const path of paths){
  });
  test(label+': recàrrega recent conserva antiguitat i evita consultes',async()=>{
   const h=harness(path);await h.api.start();h.api.refreshAll();
-  h.requests[0].resolve({ok:true,data:{groceries:[]}});h.requests[1].resolve({ok:true,data:{}});h.requests[2].resolve({ok:true,photos:[]});await tick();
+  h.requests.find(r=>r.args[1]==='sync').resolve({ok:true,data:{groceries:[]}});
+  h.requests.find(r=>r.args[1]==='tasks_snapshot').resolve({ok:true,data:{}});
+  h.requests.find(r=>r.args[1]==='photo_list').resolve({ok:true,photos:[]});await tick();
   const reloaded=harness(path,h.stored);await reloaded.api.start();reloaded.api.refreshAll(5);
   assert.equal(reloaded.requests.length,0);
   reloaded.advance(5*60000);reloaded.api.refreshAll(5);assert.equal(reloaded.requests.length,3);
