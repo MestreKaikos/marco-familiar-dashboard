@@ -30,7 +30,8 @@ data class LocalChore(
     val frequency: String = if (daily) "daily" else "once",
     val days: String = "",
     val slots: String = "única",
-    val completedSlots: Set<String> = emptySet()
+    val completedSlots: Set<String> = emptySet(),
+    val requestId: String = ""
 )
 data class LocalReward(val id: String, val title: String, val cost: Int)
 
@@ -44,7 +45,9 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
     val rewards = mutableStateListOf<LocalReward>()
     /** Una vegada migrades les tasques al Sheets no s'aproven premis localment. */
     val cloudManaged: Boolean get() = prefs.contains("family_before_cloud")
-    /** Només notificacions de la compra; les feines/premis continuen locals. */
+    private var sharedTaskRequests = false
+
+    /** Notificacions per a la cua de sincronització del marc. */
     var onGroceryMutation: ((JSONObject) -> Unit)? = null
     var onFamilyMutation: ((JSONObject) -> Unit)? = null
 
@@ -81,6 +84,23 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
                 .getOrPut(date) { mutableSetOf() }
                 .add(d.optString("slot", "única").ifBlank { "única" })
         }
+        val remoteRequests = data.optJSONArray("taskRequests")
+        sharedTaskRequests = remoteRequests != null
+        val today = LocalDate.now()
+        val pendingByTask = mutableMapOf<String, JSONObject>()
+        if (remoteRequests != null) {
+            for (i in 0 until remoteRequests.length()) {
+                val request = remoteRequests.optJSONObject(i) ?: continue
+                val taskId = request.optString("taskId")
+                if (taskId.isNotBlank() && request.optString("status") == "pendent") {
+                    val previous = pendingByTask[taskId]
+                    if (previous == null || request.optString("date") >= previous.optString("date")) {
+                        pendingByTask[taskId] = request
+                    }
+                }
+            }
+        }
+        val migratedRequests = mutableListOf<LocalChore>()
         val newChores = mutableListOf<LocalChore>()
         for (i in 0 until remoteTasks.length()) {
             val item = remoteTasks.optJSONObject(i) ?: continue
@@ -92,14 +112,25 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
                 it in listOf("daily", "once", "weekly", "weekdays", "slots")
             } ?: if (item.optBoolean("daily")) "daily" else "once"
             val doneDates = history[id].orEmpty()
-            val local = localById[id]?.takeIf { it.owner == owner }
+            // El sincronitzador aplica la resposta quan ja no queden canvis a la cua.
+            // Si una petició compartida ha desaparegut, l'historial indicarà si s'ha aprovat.
+            val local = localById[id]?.takeIf {
+                it.owner == owner && (!sharedTaskRequests || it.requestId.isBlank())
+            }
+            val request = pendingByTask[id]?.takeIf {
+                frequency == "once" || it.optString("date") == today.toString()
+            }
+            val pending = request?.let {
+                LocalChore(id, title, owner, date = it.optString("date"),
+                    status = "pending", requestId = it.optString("id"))
+            } ?: local
             val resolved = reconcileChoreState(
                 completedOnDates = doneDates.mapValues { it.value.toSet() },
-                local = local,
+                local = pending,
                 frequency = frequency,
-                today = LocalDate.now()
+                today = today
             )
-            newChores.add(LocalChore(
+            var chore = LocalChore(
                 id = id, title = title.take(100), owner = owner,
                 stars = item.optInt("stars", 1).coerceIn(1, 100),
                 daily = item.optBoolean("daily"),
@@ -108,8 +139,15 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
                 slots = item.optString("slots", "única"),
                 date = resolved.date,
                 status = resolved.status,
-                completedSlots = resolved.completedSlots
-            ))
+                completedSlots = resolved.completedSlots,
+                requestId = pending?.requestId.orEmpty().takeIf { resolved.status == "pending" }.orEmpty()
+            )
+            if (sharedTaskRequests && onFamilyMutation != null && owner == "Rai" &&
+                chore.status == "pending" && chore.requestId.isBlank()) {
+                chore = chore.copy(requestId = newId())
+                migratedRequests.add(chore)
+            }
+            newChores.add(chore)
         }
         val newRewards = mutableListOf<LocalReward>()
         for (i in 0 until remoteRewards.length()) {
@@ -129,6 +167,7 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
         // també de la pantalla Android. No es pot retenir una petició local obsoleta.
         pendingRewardId = remotePending
         persist()
+        migratedRequests.forEach(::publishTaskRequest)
     }
 
     private fun emitSet(item: LocalGrocery) {
@@ -173,6 +212,7 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
                             frequency = item.optString("frequency").takeIf {
                                 it in listOf("daily","once","weekly","weekdays","slots")
                             } ?: if (item.optBoolean("daily")) "daily" else "once",
+                            requestId = item.optString("requestId"),
                             days = item.optString("days"),
                             slots = item.optString("slots","única"),
                             completedSlots = buildSet {
@@ -208,7 +248,7 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
             chores.forEach { item ->
                 put(JSONObject().put("id", item.id).put("title", item.title).put("owner", item.owner)
                      .put("stars", item.stars).put("daily", item.daily).put("date", item.date).put("status", item.status)
-                    .put("frequency", item.frequency).put("days", item.days).put("slots", item.slots)
+                    .put("requestId", item.requestId).put("frequency", item.frequency).put("days", item.days).put("slots", item.slots)
                     .put("completedSlots", JSONArray().apply { item.completedSlots.forEach { put(it) } }))
             }
         })
@@ -293,15 +333,30 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
         if (i < 0) return
         val task = chores[i]
         if (status(task, today) != "todo") return
+        val share = task.owner == "Rai" && sharedTaskRequests
         chores[i] = task.copy(
+            requestId = if (share) newId() else "",
             date = today.toString(),
             status = if (task.owner == "Rai") "pending" else "approved"
         )
         persist()
+        if (share) publishTaskRequest(chores[i])
         if (task.owner != "Rai") {
             onFamilyMutation?.invoke(JSONObject().put("type","task_complete").put("id",id)
                 .put("date",today.toString()))
         }
+    }
+
+    private fun publishTaskRequest(task: LocalChore) {
+        onFamilyMutation?.invoke(JSONObject().put("type", "task_request")
+            .put("id", task.requestId).put("taskId", task.id).put("date", task.date))
+    }
+
+    private fun decideSharedTask(task: LocalChore, approve: Boolean): Boolean {
+        if (!sharedTaskRequests || task.requestId.isBlank() || onFamilyMutation == null) return false
+        onFamilyMutation?.invoke(JSONObject().put("type", "task_decide")
+            .put("id", task.requestId).put("approve", approve))
+        return true
     }
 
     /** L'aprovació només acredita una vegada la mateixa tasca i data. */
@@ -310,6 +365,7 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
         if (i < 0) return
         val task = chores[i]
         if (task.owner != "Rai" || status(task, today) != "pending") return
+        if (decideSharedTask(task, true)) return
         chores[i] = task.copy(status = "approved")
         stars += task.stars
         persist()
@@ -320,7 +376,8 @@ class LocalFamilyStore internal constructor(private val prefs: SharedPreferences
     fun rejectChore(id: String, today: LocalDate) {
         val i = chores.indexOfFirst { it.id == id }
         if (i >= 0 && status(chores[i], today) == "pending") {
-            chores[i] = chores[i].copy(status = "todo", date = "")
+            if (decideSharedTask(chores[i], false)) return
+            chores[i] = chores[i].copy(status = "todo", date = "", requestId = "")
             persist()
         }
     }

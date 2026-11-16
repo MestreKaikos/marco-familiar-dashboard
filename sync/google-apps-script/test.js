@@ -566,3 +566,26 @@ console.log("OK · Calendaris privats: validació, fusió, colors, activació i 
 
 assert.equal(syncCal([{...calOp,id:"re-added"}]).ok,true,"Es pot tornar a afegir un calendari eliminat expressament");
 assert.equal(syncCal([{...calOp,id:"re-added-duplicate"}]).ok,false,"Una fila eliminada no ha d'amagar duplicats actius");
+
+const taskAction=(action,payload)=>context.familyTasksAction(secret,action,payload);
+assert.equal(taskAction('tasks_set',{id:'walk_rai',title:'Treure en Llamp',points:3}).ok,true);
+const walkRequest={type:'task_request',id:'walk_request_1',taskId:'walk_rai',date:currentDay};
+assert.equal(syncCal([walkRequest,walkRequest,{...walkRequest,id:'duplicate_request'}]).data.taskRequests.length,1);
+assert.equal(taskAction('tasks_snapshot',{}).data.taskRequests[0].title,'Treure en Llamp');
+assert.equal(taskAction('tasks_snapshot',{}).data.points,0);
+assert.equal(taskAction('tasks_decide',{id:walkRequest.id,approve:false}).data.taskRequests.length,0);
+assert.equal(syncCal([walkRequest]).data.taskRequests.length,0,'Un reintent antic no reobre la petició');
+const retry={...walkRequest,id:'walk_request_2'};
+assert.equal(syncCal([retry]).data.taskRequests.length,1);
+const originalDate=currentDay;
+currentDay='2026-10-30';
+const approval=taskAction('tasks_decide',{id:retry.id,approve:true});
+assert.equal(approval.data.points,3);
+assert.equal(approval.data.taskRequests.length,0);
+assert.equal(approval.data.done.find(d=>d.taskId==='walk_rai').date,originalDate);
+assert.equal(taskAction('tasks_decide',{id:retry.id,approve:true}).data.points,3);
+assert.equal(syncCal([{type:'task_decide',id:retry.id,approve:false}]).data.stars,3);
+assert.equal(syncCal([]).data.taskDone.filter(d=>d.taskId==='walk_rai').length,1);
+assert.equal(syncCal([{...walkRequest,id:'walk_request_3',date:currentDay}]).data.taskRequests.length,1,
+  'La feina diària es pot tornar a fer l’endemà');
+console.log('OK · Validacions de feines entre el marc i la PWA, reintents i punts únics.');
