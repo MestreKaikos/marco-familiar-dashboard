@@ -24,6 +24,9 @@ import androidx.compose.material3.Text
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -788,47 +791,82 @@ private fun ShoppingAndSpotify(store: LocalFamilyStore, modifier: Modifier, onSh
                     }
                 }
             }
-            Column(Modifier.fillMaxWidth()
-                .then(if (hasShopping) Modifier else Modifier.weight(1f))
-                .clip(RoundedCornerShape(16.dp)).background(Palette.Card)
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalArrangement = Arrangement.SpaceBetween) {
-                Row(
-                    Modifier.fillMaxWidth().then(if (hasShopping) Modifier else Modifier.weight(1f)),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val cover = Modifier.size(if (hasShopping) 36.dp else 64.dp)
-                        .clip(RoundedCornerShape(9.dp))
+            BoxWithConstraints(
+                Modifier.fillMaxWidth()
+                    .then(if (hasShopping) Modifier else Modifier.weight(1f))
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Brush.horizontalGradient(listOf(
+                        Palette.Accent.copy(alpha = 0.10f).compositeOver(Palette.Card), Palette.Card
+                    )))
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                val expanded = !hasShopping && maxWidth >= 260.dp && maxHeight >= 150.dp
+                val coverSize = if (expanded) minOf(maxHeight, maxWidth * 0.40f, 156.dp) else 40.dp
+                val metadata: @Composable () -> Unit = {
+                    Text(current.title, style = Type.Body.copy(fontWeight = FontWeight.Bold,
+                        fontSize = if (expanded) 24.sp else 19.sp),
+                        maxLines = if (expanded) 2 else 1, overflow = TextOverflow.Ellipsis)
+                    Text(listOf(current.artist, "Abaix").filter { it.isNotBlank() }.joinToString(" · "),
+                        style = Type.Tiny.copy(color = Palette.InkSoft),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                val cover: @Composable () -> Unit = {
+                    val shape = Modifier.size(coverSize).clip(RoundedCornerShape(12.dp))
                     val image = artwork
                     if (image != null) Image(image, contentDescription = "Portada del disc",
-                        modifier = cover, contentScale = ContentScale.Crop)
-                    else Box(cover.background(Palette.Online.copy(alpha = 0.14f)),
+                        modifier = shape, contentScale = ContentScale.Crop)
+                    else Box(shape.background(Palette.Accent.copy(alpha = 0.14f)),
                         contentAlignment = Alignment.Center) { Text("♫", style = Type.Body) }
-                    Column(Modifier.weight(1f)) {
-                        Text(current.title, style = Type.Body.copy(fontWeight = FontWeight.Bold),
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(listOf(current.artist, "Abaix").filter { it.isNotBlank() }.joinToString(" · "),
-                            style = Type.Tiny, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                val enabled = !player.loading && player.speakers.isNotEmpty()
+                val transport: @Composable () -> Unit = {
+                    Button(enabled = enabled, colors = ButtonDefaults.buttonColors(
+                        containerColor = Palette.Accent,
+                        contentColor = if (Palette.Accent.luminance() > 0.42f) Color.Black else Color.White
+                    ), contentPadding = PaddingValues(horizontal = 10.dp), onClick = {
+                        scope.launch { player.control(if (current.playing) "pause" else "resume") }
+                    }) { Text(if (current.playing) "Pausa" else "Reprèn", maxLines = 1) }
+                    FilledTonalButton(enabled = enabled, contentPadding = PaddingValues(horizontal = 10.dp),
+                        onClick = { scope.launch { player.control("next") } }) {
+                        Text("Següent", maxLines = 1)
                     }
                 }
-                val controlsEnabled = !player.loading && player.speakers.isNotEmpty()
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Button(enabled = controlsEnabled, onClick = {
-                        scope.launch { player.control(if (current.playing) "pause" else "resume") }
-                    }) { Text(if (current.playing) "Pausa" else "Reprèn") }
-                    TextButton(enabled = controlsEnabled, onClick = {
-                        scope.launch { player.control("next") }
-                    }) { Text("Següent") }
-                    player.volumePercent?.let { volume ->
-                        TextButton(enabled = controlsEnabled && volume > 0, onClick = {
+                val volumeControls: @Composable (Int) -> Unit = { volume ->
+                    TextButton(enabled = enabled && volume > 0, contentPadding = PaddingValues(0.dp),
+                        modifier = Modifier.size(44.dp), onClick = {
                             scope.launch { player.setVolume(volume - 5) }
-                        }) { Text("−") }
-                        Text("$volume%", style = Type.Tiny)
-                        TextButton(enabled = controlsEnabled && volume < 100, onClick = {
+                        }) { Text("−", fontSize = 22.sp) }
+                    Text("$volume%", style = Type.Tiny)
+                    TextButton(enabled = enabled && volume < 100, contentPadding = PaddingValues(0.dp),
+                        modifier = Modifier.size(44.dp), onClick = {
                             scope.launch { player.setVolume(volume + 5) }
-                        }) { Text("+") }
+                        }) { Text("+", fontSize = 22.sp) }
+                }
+                if (expanded) {
+                    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        cover()
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+                            metadata()
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically) { transport() }
+                            player.volumePercent?.let { volume ->
+                                Row(verticalAlignment = Alignment.CenterVertically) { volumeControls(volume) }
+                            }
+                        }
+                    }
+                } else {
+                    Column(Modifier.fillMaxWidth()) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            cover()
+                            Column(Modifier.weight(1f)) { metadata() }
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically) {
+                            transport()
+                            player.volumePercent?.let { volumeControls(it) }
+                        }
                     }
                 }
             }
