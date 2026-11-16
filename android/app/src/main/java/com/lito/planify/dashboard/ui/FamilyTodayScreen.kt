@@ -21,6 +21,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
+import androidx.compose.material3.Button
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.net.URL
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
@@ -753,8 +763,9 @@ private fun ShoppingAndSpotify(store: LocalFamilyStore, modifier: Modifier, onSh
             delay(12_000L)
         }
     }
+    val hasShopping = store.groceries.any { !it.bought }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (store.groceries.any { !it.bought }) {
+        if (hasShopping) {
             LocalShoppingTile(store, Modifier.fillMaxWidth().weight(1f), onShopping)
         } else {
             Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
@@ -763,14 +774,48 @@ private fun ShoppingAndSpotify(store: LocalFamilyStore, modifier: Modifier, onSh
             }
         }
         player.nowPlaying?.let { current ->
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                .background(Palette.Card).padding(horizontal = 8.dp, vertical = 4.dp)) {
-                Text("${current.title} · Abaix", style = Type.Small, maxLines = 1,
-                    overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 8.dp))
+            val artwork by produceState<ImageBitmap?>(null, current.artwork) {
+                value = null
+                if (current.artwork.startsWith("https://")) {
+                    value = withContext(Dispatchers.IO) {
+                        runCatching {
+                            val connection = URL(current.artwork).openConnection().apply {
+                                connectTimeout = 5_000
+                                readTimeout = 5_000
+                            }
+                            connection.getInputStream().use { BitmapFactory.decodeStream(it)?.asImageBitmap() }
+                        }.getOrNull()
+                    }
+                }
+            }
+            Column(Modifier.fillMaxWidth()
+                .then(if (hasShopping) Modifier else Modifier.weight(1f))
+                .clip(RoundedCornerShape(16.dp)).background(Palette.Card)
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalArrangement = Arrangement.SpaceBetween) {
+                Row(
+                    Modifier.fillMaxWidth().then(if (hasShopping) Modifier else Modifier.weight(1f)),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val cover = Modifier.size(if (hasShopping) 36.dp else 64.dp)
+                        .clip(RoundedCornerShape(9.dp))
+                    val image = artwork
+                    if (image != null) Image(image, contentDescription = "Portada del disc",
+                        modifier = cover, contentScale = ContentScale.Crop)
+                    else Box(cover.background(Palette.Online.copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center) { Text("♫", style = Type.Body) }
+                    Column(Modifier.weight(1f)) {
+                        Text(current.title, style = Type.Body.copy(fontWeight = FontWeight.Bold),
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(listOf(current.artist, "Abaix").filter { it.isNotBlank() }.joinToString(" · "),
+                            style = Type.Tiny, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
                 val controlsEnabled = !player.loading && player.speakers.isNotEmpty()
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(enabled = controlsEnabled, onClick = {
+                    Button(enabled = controlsEnabled, onClick = {
                         scope.launch { player.control(if (current.playing) "pause" else "resume") }
                     }) { Text(if (current.playing) "Pausa" else "Reprèn") }
                     TextButton(enabled = controlsEnabled, onClick = {
