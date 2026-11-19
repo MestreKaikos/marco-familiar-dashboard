@@ -1,0 +1,39 @@
+name: SHIELD · Marc Familiar TV
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/shield-salvapantalles-familiar]
+    paths: ['shield-tv/**', '.github/workflows/shield-tv.yml']
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v4
+      - name: Prepara l’SDK
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Compila i verifica la signatura
+        env:
+          STABLE_KEY: ${{ secrets.MARC_KEYSTORE_BASE64 || secrets.ANDROID_KEYSTORE_BASE64 }}
+          MARC_SIGNING_PASSWORD: ${{ secrets.MARC_SIGNING_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+          MARC_SIGNING_KEY_PASSWORD: ${{ secrets.MARC_SIGNING_KEY_PASSWORD || secrets.KEY_PASSWORD }}
+          MARC_SIGNING_ALIAS: ${{ secrets.MARC_SIGNING_ALIAS || secrets.KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          export MARC_TV_KEYSTORE="$RUNNER_TEMP/marc-tv.jks"
+          trap 'rm -f "$MARC_TV_KEYSTORE"' EXIT
+          printf '%s' "$STABLE_KEY" | base64 --decode > "$MARC_TV_KEYSTORE"
+          bash shield-tv/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Marc-Familiar-TV-1.0
+          path: shield-tv/build/Marc-Familiar-TV-1.0.apk
+          if-no-files-found: error
