@@ -357,6 +357,7 @@ fun DashboardApp(
                         // La portada familiar funciona sense credencials; el backend antic és opcional.
                         Page.Today -> if (state.ics || state.token == null) FamilyTodayScreen(state, reminders, family, onOpen = selectPage) else TodayScreen(state, lastTouch)
                         Page.Photos -> PhotosScreen(sync, shared = sharedPhotos, presentationMode = automaticPhotos,
+                            now = state.now,
                             slideSeconds = frameMode.config.slideSeconds,
                             shufflePhotos = frameMode.config.shufflePhotos,
                             transition = frameMode.config.photoTransition,
