@@ -46,6 +46,12 @@ import kotlinx.coroutines.withContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import java.io.File
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+
+private val PhotoClockFormat = DateTimeFormatter.ofPattern("HH:mm")
 
 private data class LocalPhoto(val uri: Uri, val name: String)
 private data class GalleryPhoto(
@@ -121,6 +127,7 @@ fun PhotosScreen(
     sync: FamilySync,
     shared: FamilyPhotoCache = rememberFamilyPhotoCache(),
     presentationMode: Boolean = false,
+    now: LocalDateTime,
     slideSeconds: Int = 20,
     shufflePhotos: Boolean = false,
     transition: PhotoTransition = PhotoTransition.FADE,
@@ -264,6 +271,17 @@ fun PhotosScreen(
                 bitmap != null -> PhotoSlide(bitmap!!, photo.name, transition, slideSeconds)
                 error != null -> Text("No es pot mostrar aquesta fotografia", color = Color.White)
                 else -> CircularProgressIndicator()
+            }
+            if (presentationMode && photo != null && bitmap != null) {
+                Text(
+                    now.format(PhotoClockFormat),
+                    color = Color.White,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp)
+                        .background(Color.Black.copy(alpha = 0.65f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                )
             }
             if (presentationMode) {
                 Text("Toca per veure Avui", style = Type.Tiny,
