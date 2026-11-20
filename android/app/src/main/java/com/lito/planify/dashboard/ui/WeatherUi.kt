@@ -21,12 +21,11 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -71,6 +70,7 @@ import java.time.temporal.ChronoUnit
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 // --- Códigos WMO de Open-Meteo ---
 
@@ -337,26 +337,20 @@ fun WeatherCard(
     onChartEdge: ((Int) -> Unit)? = null
 ) {
     val today = now.toLocalDate()
-    var picked by remember { mutableStateOf<LocalDate?>(null) }
-    LaunchedEffect(picked) {
-        if (picked != null) {
-            delay(120_000)
-            picked = null
-        }
-    }
-    val selected = picked?.takeIf { it > today && forecast.dayIndex(it) >= 0 && forecast.hasHours(it) }
-    val onDay: (LocalDate) -> Unit = { date -> picked = if (date == today || date == selected) null else date }
-    // La gráfica es un pager con un día por página (los días con previsión por horas: en Hoy, todos; en Tiempo, los de
-    // la fila, y al pasar del último sigue la página de fuera, Próxima semana). Deslizar o tocar un día mueve el otro.
     val chartDays = forecast.daily.time.map(LocalDate::parse)
         .filter { it >= today && forecast.hasHours(it) && (compact || it < today.plusDays(days.toLong())) }
     val chart = rememberPagerState { chartDays.size }
-    LaunchedEffect(chart.settledPage) {
-        chartDays.getOrNull(chart.settledPage)?.let { picked = it.takeIf { it != today } }
+    val selected = chartDays.getOrNull(chart.settledPage)?.takeIf { it != today }
+    val scope = rememberCoroutineScope()
+    val onDay: (LocalDate) -> Unit = { date ->
+        val target = if (date == today || date == selected) 0 else chartDays.indexOf(date)
+        if (target in chartDays.indices) scope.launch { chart.animateScrollToPage(target) }
     }
     LaunchedEffect(selected) {
-        val page = chartDays.indexOf(selected ?: today).coerceAtLeast(0)
-        if (chartDays.isNotEmpty() && chart.currentPage != page) chart.animateScrollToPage(page)
+        if (selected != null) {
+            delay(120_000)
+            if (!chart.isScrollInProgress) chart.animateScrollToPage(0)
+        }
     }
     Column(
         modifier
@@ -650,22 +644,15 @@ fun WeekWeatherCard(
     onChartEdge: ((Int) -> Unit)? = null
 ) {
     val dates = (0 until 7).map { from.plusDays(it.toLong()) }
-    var picked by remember { mutableStateOf<LocalDate?>(null) }
-    LaunchedEffect(picked) {
-        if (picked != null) {
-            delay(120_000)
-            picked = null
-        }
-    }
-    val selected = picked?.takeIf { it in dates && forecast.hasHours(it) }
-    // La gráfica es un pager: la semana y después cada día (semana → lunes → … → domingo). Antes de la semana sigue la
-    // página de fuera, el día de hoy.
     val steps = listOf<LocalDate?>(null) + dates.filter { forecast.hasHours(it) }
     val chart = rememberPagerState { steps.size }
-    LaunchedEffect(chart.settledPage) { picked = steps.getOrNull(chart.settledPage) }
+    val selected = steps.getOrNull(chart.settledPage)
+    val scope = rememberCoroutineScope()
     LaunchedEffect(selected) {
-        val page = steps.indexOf(selected).coerceAtLeast(0)
-        if (chart.currentPage != page) chart.animateScrollToPage(page)
+        if (selected != null) {
+            delay(120_000)
+            if (!chart.isScrollInProgress) chart.animateScrollToPage(0)
+        }
     }
     Column(
         modifier
@@ -691,7 +678,10 @@ fun WeekWeatherCard(
         }
         DaysRow(
             forecast, dates, highlight = selected, modifier = Modifier.fillMaxWidth().padding(top = 16.dp), showDate = true,
-            onClick = { date -> picked = if (date == selected) null else date }
+            onClick = { date ->
+                val target = if (date == selected) 0 else steps.indexOf(date)
+                if (target >= 0) scope.launch { chart.animateScrollToPage(target) }
+            }
         )
     }
 }
