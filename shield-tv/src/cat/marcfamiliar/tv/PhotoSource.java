@@ -12,10 +12,8 @@ import javax.net.ssl.HttpsURLConnection;
 final class PhotoSource {
     final String endpoint, key;
     PhotoSource(String endpoint, String key) throws IOException {
-        this.endpoint = endpoint.trim();
-        this.key = key.trim();
-        if (!this.endpoint.matches("https://script\\.google\\.com/macros/s/[A-Za-z0-9_-]+/exec"))
-            throw new IOException("Cal l’adreça de Google Apps Script acabada en /exec.");
+        this.endpoint = ServiceAddress.parse(endpoint);
+        this.key = ServiceAddress.clean(key);
         if (!this.key.matches("[A-Fa-f0-9]{64}"))
             throw new IOException("La clau familiar ha de tenir 64 caràcters.");
     }
@@ -53,14 +51,17 @@ final class PhotoSource {
 
     private JSONObject call(String action, JSONObject payload, int limit) throws Exception {
         URL url = new URL(endpoint);
-        byte[] request = new JSONObject().put("key", key).put("action", action).put("payload", payload)
-                .toString().getBytes(StandardCharsets.UTF_8);
+        boolean mobile = endpoint.equals(ServiceAddress.RELAY);
+        JSONObject body = mobile
+                ? new JSONObject().put("method", "apiAction").put("args", new JSONArray().put(key).put(action).put(payload))
+                : new JSONObject().put("key", key).put("action", action).put("payload", payload);
+        byte[] request = body.toString().getBytes(StandardCharsets.UTF_8);
         for (int step = 0; step < 4; step++) {
             HttpsURLConnection conn = (HttpsURLConnection) url.openConnection();
             try {
                 conn.setInstanceFollowRedirects(false);
                 conn.setConnectTimeout(8000);
-                conn.setReadTimeout(18000);
+                conn.setReadTimeout(mobile ? 50000 : 18000);
                 if (step == 0) {
                     conn.setRequestMethod("POST");
                     conn.setDoOutput(true);
@@ -70,6 +71,7 @@ final class PhotoSource {
                 int status = conn.getResponseCode();
                 if (status == 301 || status == 302 || status == 303) {
                     // Apps Script returns its result via a GET to Google ContentService.
+                    if (mobile) throw new IOException("Calendari Familiar ha retornat una redirecció inesperada.");
                     String location = conn.getHeaderField("Location");
                     if (location == null) throw new IOException("La redirecció del servei és incompleta.");
                     url = new URL(url, location);

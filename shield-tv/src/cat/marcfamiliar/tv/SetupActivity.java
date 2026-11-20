@@ -37,9 +37,10 @@ public final class SetupActivity extends Activity {
         title.setTextSize(28);
         form.addView(title);
         form.addView(label("Connecta la mateixa carpeta de fotos que fa servir el marc."));
-        form.addView(label("Adreça del servei familiar"));
-        url = field(form, "https://script.google.com/macros/s/…/exec", InputType.TYPE_TEXT_VARIATION_URI);
-        url.setText(prefs.getString("url", ""));
+        form.addView(label("Adreça del servei (opcional)"));
+        url = field(form, "En blanc per fer servir Calendari Familiar", InputType.TYPE_TEXT_VARIATION_URI);
+        String savedUrl = prefs.getString("url", "");
+        if (!ServiceAddress.RELAY.equals(savedUrl)) url.setText(savedUrl);
         form.addView(label("Clau familiar"));
         key = field(form, "Clau de 64 caràcters", InputType.TYPE_TEXT_VARIATION_PASSWORD);
         key.setText(prefs.getString("key", ""));
@@ -58,7 +59,7 @@ public final class SetupActivity extends Activity {
         });
         form.addView(settings);
         setContentView(scroll);
-        if (prefs.contains("collection")) settings.requestFocus(); else url.requestFocus();
+        if (prefs.contains("collection")) settings.requestFocus(); else key.requestFocus();
     }
 
     private TextView label(String caption) {
@@ -81,7 +82,14 @@ public final class SetupActivity extends Activity {
     }
 
     private void save() {
-        String address = url.getText().toString().trim(), secret = key.getText().toString().trim();
+        final PhotoSource source;
+        try {
+            source = new PhotoSource(url.getText().toString(), key.getText().toString());
+        } catch (IOException error) {
+            status.setText(error.getMessage());
+            return;
+        }
+        String address = source.endpoint, secret = source.key;
         String previous = prefs.getString("collection", "");
         boolean same = !previous.isEmpty() && address.equals(prefs.getString("url", "")) && secret.equals(prefs.getString("key", ""));
         String collection = same ? previous : UUID.randomUUID().toString();
@@ -91,7 +99,6 @@ public final class SetupActivity extends Activity {
             String message;
             File root = new File(getFilesDir(), "collections");
             try {
-                PhotoSource source = new PhotoSource(address, secret);
                 List<PhotoSource.Photo> photos = source.list();
                 PhotoStore cache = new PhotoStore(root, collection);
                 cache.reconcile(photos);

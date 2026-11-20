@@ -34,6 +34,6 @@ jobs:
           bash shield-tv/build.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: Marc-Familiar-TV-1.0
-          path: shield-tv/build/Marc-Familiar-TV-1.0.apk
+          name: Marc-Familiar-TV-1.1
+          path: shield-tv/build/Marc-Familiar-TV-1.1.apk
           if-no-files-found: error

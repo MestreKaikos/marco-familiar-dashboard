@@ -21,4 +21,4 @@ java -m jdk.jartool/sun.tools.jar.Main cf "$work/classes.jar" -C "$work/classes"
   --ks-pass env:MARC_SIGNING_PASSWORD --key-pass env:MARC_SIGNING_KEY_PASSWORD \
   --out "$work/signed.apk" "$work/aligned.apk"
 "$bt/apksigner" verify --verbose "$work/signed.apk"
-mv "$work/signed.apk" "$out/Marc-Familiar-TV-1.0.apk"
+mv "$work/signed.apk" "$out/Marc-Familiar-TV-1.1.apk"
