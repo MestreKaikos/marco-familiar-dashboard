@@ -231,7 +231,7 @@ summary .ui-icon{width:18px;height:18px;vertical-align:-.2em}
 #postItTools{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 #postItText{white-space:pre-wrap;overflow-wrap:anywhere;background:#ffefa6;border-radius:12px;padding:12px;font:1.25rem cursive;color:#302811}
 #postItText{min-height:110px}
-#postItCanvas{display:block;width:100%;height:auto;background:#fff;border-radius:12px;touch-action:none}
+#postItCanvas{display:block;width:100%;height:auto;background:#ffefa6;border-radius:12px;touch-action:none}
 #postItEmojiGrid{display:flex;flex-wrap:wrap;gap:4px}
 #postItEmojiGrid button{min-width:40px;padding:6px}
 #postIt summary{cursor:pointer}
@@ -292,6 +292,7 @@ summary .ui-icon{width:18px;height:18px;vertical-align:-.2em}
           <details id="postItDrawing"><summary>✏️ Dibuixa amb el dit</summary>
             <label>Color del traç <input id="postItPen" type="color" value="#302811"></label>
             <label>Gruix <input id="postItWidth" type="range" min="1" max="12" value="4"></label>
+            <label>Gomet <select id="postItSticker"><option value="">Traç lliure</option><option value="heart">♥ Cor</option><option value="star">★ Estrella</option><option value="ball">🏀 Pilota</option></select></label>
             <canvas id="postItCanvas" width="384" height="224" aria-label="Espai per dibuixar amb el dit"></canvas>
             <button id="postItUndo" type="button">Desfés</button>
             <button id="postItClear" type="button">Esborra el dibuix</button>
@@ -1179,6 +1180,29 @@ $('postItEmojiCategory').onchange=showPostItEmojis;
 showPostItEmojis();
 const postItCanvas=$('postItCanvas'), postItPen=postItCanvas.getContext('2d');
 let postItPointer=null;
+const stickerPaths={
+  heart:[[[0,10],[-11,0],[-14,-6],[-11,-11],[-6,-12],[0,-7],[6,-12],[11,-11],[14,-6],[11,0],[0,10]]],
+  star:[[[0,-14],[4,-5],[14,-4],[7,3],[9,13],[0,8],[-9,13],[-7,3],[-14,-4],[-4,-5],[0,-14]]],
+  ball:[Array.from({length:25},(_,i)=>[14*Math.cos(i*Math.PI/12),14*Math.sin(i*Math.PI/12)]),
+    [[-14,0],[14,0]],[[0,-14],[0,14]],[[-10,-10],[-6,-5],[-5,0],[-6,5],[-10,10]],[[10,-10],[6,-5],[5,0],[6,5],[10,10]]]
+};
+function stampPostIt(sticker,e){
+  const rect=postItCanvas.getBoundingClientRect();
+  const x=Math.max(16,Math.min(368,(e.clientX-rect.left)*384/rect.width));
+  const y=Math.max(16,Math.min(208,(e.clientY-rect.top)*224/rect.height));
+  const encode=n=>Math.round(n*255).toString(16).padStart(2,'0');
+  const color=$('postItPen').value.slice(1);
+  const strokes=stickerPaths[sticker].map(path=>({color,width:3,
+    points:path.map(([dx,dy])=>encode((x+dx)/384)+encode((y+dy)/224)).join('')}));
+  if(postItStrokes.length+strokes.length>32||
+      [...postItStrokes,...strokes].reduce((sum,stroke)=>sum+stroke.points.length,0)>4800){
+    $('postItStatus').textContent='No hi caben més traços. Desfés-ne algun per continuar.';
+    return;
+  }
+  postItStrokes.push(...strokes);
+  $('postItSticker').value='';
+  drawPostIt();
+}
 function drawPostIt(){
   postItPen.clearRect(0,0,384,224);
   for(const {color,width,points} of postItStrokes){
@@ -1209,6 +1233,8 @@ function addPostItPoint(e){
 }
 postItCanvas.addEventListener('pointerdown',e=>{
   if(postItPointer!==null||postItStrokes.length>=32)return;
+  const sticker=$('postItSticker').value;
+  if(sticker){stampPostIt(sticker,e);return;}
   postItPointer=e.pointerId;
   postItCanvas.setPointerCapture(e.pointerId);
   postItStrokes.push({color:$('postItPen').value.slice(1),width:Number($('postItWidth').value),points:''});
