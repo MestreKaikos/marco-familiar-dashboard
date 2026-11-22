@@ -154,6 +154,16 @@ assert.notEqual(updatedNote.id, scheduledNote.id);
 assert.equal(context.apiAction(secret, "postit_remove", {}).ok, true);
 assert.equal(context.apiAction(secret, "postit_get", {}).note, null);
 
+const drawing = [{color:"123abc",width:4,points:"0000ffff"}];
+assert.equal(context.apiAction(secret, "postit_set", {text:"",showAt:0,drawing}).ok, true);
+assert.equal(context.apiAction(secret, "postit_get", {}).note.drawing[0].points, "0000ffff");
+assert.equal(context.apiAction(secret, "postit_set", {text:"",showAt:0,drawing:[{...drawing[0],points:"no"}]}).ok, false);
+assert.equal(context.apiAction(secret, "postit_set", {
+  text:"Bon dia",showAt:0,drawing,runs:[{start:0,end:3,font:"hand",color:"ink",italic:true,underline:true}]
+}).note.runs[0].underline, true);
+assert.equal(context.apiAction(secret, "postit_get", {}).note.runs[0].italic, true);
+context.apiAction(secret, "postit_remove", {});
+
 const first = context.apiAction(secret, "sync", {});
 assert.equal(first.ok, true);
 assert.equal(first.data.groceries.length, 0);
