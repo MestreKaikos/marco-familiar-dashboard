@@ -125,6 +125,13 @@ fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: Setting
         CalendarSetupScreen(state, callbacks, onBack = { calendarSetup = false })
         return
     }
+    val minutesOn = remember(state.now) { android.os.SystemClock.elapsedRealtime() / 60_000L }
+    val uptimeText = "Encès des de fa " + when {
+        minutesOn >= 1440 -> "${minutesOn / 1440} d i ${minutesOn / 60 % 24} h"
+        minutesOn >= 60 -> "${minutesOn / 60} h i ${minutesOn % 60} min"
+        minutesOn > 0 -> "$minutesOn min"
+        else -> "menys d’un minut"
+    }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         if (maxWidth < 1050.dp || maxHeight < 1000.dp) {
             Column(
@@ -132,6 +139,7 @@ fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: Setting
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text("Opcions del Marc Familiar", style = Type.Title)
+                Text(uptimeText, style = Type.Small)
                 Text("Configura la sincronització i els calendaris des d'aquí.",
                     style = Type.Small.copy(color = Palette.InkSoft))
                 PillButton("Aparença i colors", Modifier.fillMaxWidth(), background = Control, onClick = { appearanceSetup = true })
@@ -159,6 +167,7 @@ fun SettingsScreen(state: UiState, actions: DashboardActions, callbacks: Setting
                 Panel(Modifier.weight(1f).fillMaxHeight()) {
                     LocationSection(state, callbacks)
                     Section("Connexió") { WifiCard() }
+                    Text(uptimeText, style = Type.Small)
                 }
                 Panel(Modifier.weight(1f).fillMaxHeight()) {
                     ScheduleSection(state.schedule, callbacks.onSchedule)
