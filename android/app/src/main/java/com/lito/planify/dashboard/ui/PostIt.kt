@@ -1,6 +1,15 @@
 package com.lito.planify.dashboard.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,7 +36,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
-internal data class FamilyPostIt(val id: String, val text: String, val showAt: Long, val runs: JSONArray? = null)
+internal data class FamilyPostIt(val id: String, val text: String, val showAt: Long, val runs: JSONArray? = null, val drawing: JSONArray? = null)
 
 @Composable
 internal fun PostItDialog(note: FamilyPostIt, onDismiss: () -> Unit) {
@@ -55,6 +64,8 @@ internal fun PostItDialog(note: FamilyPostIt, onDismiss: () -> Unit) {
                 addStyle(SpanStyle(
                     color = color,
                     fontFamily = font,
+                    fontStyle = if (run.optBoolean("italic")) FontStyle.Italic else FontStyle.Normal,
+                    textDecoration = if (run.optBoolean("underline")) TextDecoration.Underline else TextDecoration.None,
                     fontWeight = if (run.optBoolean("bold")) FontWeight.Bold else FontWeight.Normal
                 ), start, end)
             }
@@ -71,17 +82,58 @@ internal fun PostItDialog(note: FamilyPostIt, onDismiss: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            Text(
-                formattedText,
-                modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)
-                    .verticalScroll(rememberScrollState()),
-                color = Color(0xFF302811),
-                fontFamily = FontFamily.Cursive,
-                fontSize = 48.sp,
-                lineHeight = 56.sp,
-                textAlign = TextAlign.Center
-            )
+            Column(
+                Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                if (note.text.isNotBlank()) Text(
+                    formattedText,
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color(0xFF302811),
+                    fontFamily = FontFamily.Cursive,
+                    fontSize = 48.sp,
+                    lineHeight = 56.sp,
+                    textAlign = TextAlign.Center
+                )
+                if (note.drawing != null) PostItDrawing(note.drawing)
+            }
             Button(onClick = onDismiss) { Text("Entesos", fontSize = 24.sp) }
+        }
+    }
+}
+
+
+private data class PostItStroke(val color: Color, val width: Float, val points: List<Offset>)
+
+@Composable
+private fun PostItDrawing(drawing: JSONArray) {
+    val strokes = remember(drawing) {
+        (0 until minOf(drawing.length(), 32)).mapNotNull { index ->
+            val stroke = drawing.optJSONObject(index) ?: return@mapNotNull null
+            val color = stroke.optString("color").takeIf { it.length == 6 }
+                ?.toIntOrNull(16) ?: return@mapNotNull null
+            val points = stroke.optString("points").take(4800).chunked(4).mapNotNull points@ { point ->
+                val xy = point.takeIf { it.length == 4 }?.toIntOrNull(16) ?: return@points null
+                Offset((xy shr 8) / 255f, (xy and 255) / 255f)
+            }
+            if (points.isEmpty()) return@mapNotNull null
+            PostItStroke(Color(0xFF000000.toInt() or color), stroke.optInt("width").coerceIn(1, 12).toFloat(), points)
+        }
+    }
+    Canvas(Modifier.fillMaxWidth(0.65f).aspectRatio(384f / 224f)) {
+        for (stroke in strokes) {
+            val width = stroke.width * size.width / 384f
+            val first = stroke.points.first()
+            if (stroke.points.size == 1) {
+                drawCircle(stroke.color, width / 2, Offset(first.x * size.width, first.y * size.height))
+            } else {
+                val path = Path().apply {
+                    moveTo(first.x * size.width, first.y * size.height)
+                    for (point in stroke.points.drop(1)) lineTo(point.x * size.width, point.y * size.height)
+                }
+                drawPath(path, stroke.color, style = Stroke(width, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            }
         }
     }
 }
