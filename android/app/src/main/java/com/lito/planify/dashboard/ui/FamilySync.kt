@@ -392,6 +392,15 @@ class FamilySync internal constructor(context: Context) {
         return post(url, key, action, payload)
     }
 
+    internal suspend fun readPostIt(): FamilyPostIt? {
+        if (!connected) return null
+        val note = post(url, key, "postit_get", JSONObject()).optJSONObject("note") ?: return null
+        val id = note.optString("id")
+        val text = note.optString("text")
+        if (id.isBlank() || text.isBlank()) return null
+        return FamilyPostIt(id, text, note.optLong("showAt"))
+    }
+
     private suspend fun call(endpoint: String, token: String, operations: List<JSONObject>): JSONObject {
         val ops = JSONArray()
         operations.forEach { ops.put(it) }
