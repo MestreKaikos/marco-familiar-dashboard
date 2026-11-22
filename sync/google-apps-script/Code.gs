@@ -570,7 +570,21 @@ function postItAction_(action, payload) {
       showAt > Date.now() + 366 * 86400000) {
     throw new Error("Text o hora del Post-it no vàlids.");
   }
-  const note = {id:Utilities.getUuid(), text, showAt};
+  const offset = payload.text.length - payload.text.trimStart().length;
+  const runs = [];
+  let previousEnd = 0;
+  for (const run of Array.isArray(payload.runs) ? payload.runs.slice(0, 280) : []) {
+    if (!run || !Number.isInteger(run.start) || !Number.isInteger(run.end) ||
+        !["hand", "sans", "serif"].includes(run.font) ||
+        !["ink", "red", "blue", "green", "purple"].includes(run.color)) continue;
+    const start = Math.max(0, run.start - offset);
+    const end = Math.min(text.length, run.end - offset);
+    if (start < previousEnd || end <= start) continue;
+    runs.push({start, end, font:run.font, color:run.color, bold:run.bold === true});
+    previousEnd = end;
+  }
+  const note = {id:Utilities.getUuid(), text, showAt, runs};
+  if (encodeURIComponent(JSON.stringify(note)).replace(/%[0-9A-F]{2}/g, "_").length > 8000) throw new Error("La nota té massa fragments amb format.");
   props.setProperty(property, JSON.stringify(note));
   return {ok:true, note};
 }
