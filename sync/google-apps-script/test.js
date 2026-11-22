@@ -70,7 +70,8 @@ class FakeSheet {
 
 const scriptProps = {
   getProperty: key => store.get(key),
-  setProperty: (key, value) => store.set(key, value)
+  setProperty: (key, value) => store.set(key, value),
+  deleteProperty: key => store.delete(key)
 };
 const context = vm.createContext({
   console,
@@ -135,6 +136,19 @@ assert.match(secret, /^[a-f0-9]{64}$/);
 assert.ok(!Array.from(store.values()).includes(secret), "No s'ha de desar mai el secret en clar");
 assert.equal(context.apiAction("0".repeat(64), "sync", {}).ok, false);
 assert.equal(context.apiAction(secret, "other", {}).ok, false);
+
+assert.equal(context.apiAction(secret, "postit_get", {}).note, null);
+assert.equal(context.apiAction("0".repeat(64), "postit_set", {text:"Intrús", showAt:0}).ok, false);
+const showAt = Date.now() + 60000;
+const scheduledNote = context.apiAction(secret, "postit_set", {text:"  Bon dia!  ", showAt}).note;
+assert.equal(scheduledNote.text, "Bon dia!");
+assert.equal(context.apiAction(secret, "postit_get", {}).note.showAt, showAt);
+assert.equal(context.apiAction(secret, "postit_set", {text:"a".repeat(281), showAt:0}).ok, false);
+assert.equal(context.apiAction(secret, "postit_get", {}).note.id, scheduledNote.id);
+const updatedNote = context.apiAction(secret, "postit_set", {text:"Agafa la bossa", showAt:0}).note;
+assert.notEqual(updatedNote.id, scheduledNote.id);
+assert.equal(context.apiAction(secret, "postit_remove", {}).ok, true);
+assert.equal(context.apiAction(secret, "postit_get", {}).note, null);
 
 const first = context.apiAction(secret, "sync", {});
 assert.equal(first.ok, true);
