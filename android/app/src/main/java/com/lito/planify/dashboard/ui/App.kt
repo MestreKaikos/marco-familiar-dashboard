@@ -222,6 +222,38 @@ fun DashboardApp(
         if (leavePhotos) page = Page.Today
         leavePhotos
     }
+    val postItPrefs = remember(context) { context.getSharedPreferences("marc_postit", Context.MODE_PRIVATE) }
+    var dismissedPostIt by remember(postItPrefs) { mutableStateOf(postItPrefs.getString("dismissed", null)) }
+    var postIt by remember { mutableStateOf<FamilyPostIt?>(null) }
+    LaunchedEffect(sync.connected, appResumed) {
+        if (!sync.connected) {
+            postIt = null
+            return@LaunchedEffect
+        }
+        if (!appResumed) return@LaunchedEffect
+        while (true) {
+            val nextPoll = try {
+                postIt = sync.readPostIt()
+                120_000L
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                300_000L
+            }
+            delay(nextPoll)
+        }
+    }
+    val visiblePostIt = postIt?.takeIf {
+        appResumed && !state.night && it.id != dismissedPostIt &&
+            (it.showAt == 0L || (state.clockValid &&
+                it.showAt <= state.now.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()))
+    }
+    LaunchedEffect(visiblePostIt?.id) {
+        if (visiblePostIt != null) {
+            onInteraction()
+            page = Page.Today
+        }
+    }
     val currentInteraction by rememberUpdatedState(onInteraction)
     val selectPage: (Page) -> Unit = { selected -> onInteraction(); nestDevice = null; page = selected }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
@@ -417,6 +449,11 @@ fun DashboardApp(
             }
         }
         EventOverlay(shownEvent) { shownEvent = null }
+        if (visiblePostIt != null) PostItDialog(visiblePostIt) {
+            dismissedPostIt = visiblePostIt.id
+            postItPrefs.edit().putString("dismissed", visiblePostIt.id).apply()
+            onInteraction()
+        }
     }
 }
 

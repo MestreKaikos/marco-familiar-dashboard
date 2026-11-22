@@ -553,9 +553,49 @@ function photoAction_(action,payload) {
   }
 }
 
+/** Una nota familiar activa. Cada edició té una identitat nova. */
+function postItAction_(action, payload) {
+  const props = PropertiesService.getScriptProperties();
+  const property = "family_postit_v1";
+  if (action === "postit_get") {
+    return {ok:true, note:JSON.parse(props.getProperty(property) || "null")};
+  }
+  if (action === "postit_remove") {
+    props.deleteProperty(property);
+    return {ok:true, note:null};
+  }
+  const text = typeof payload.text === "string" ? payload.text.trim() : "";
+  const showAt = payload.showAt;
+  if (!text || text.length > 280 || !Number.isSafeInteger(showAt) || showAt < 0 ||
+      showAt > Date.now() + 366 * 86400000) {
+    throw new Error("Text o hora del Post-it no vàlids.");
+  }
+  const offset = payload.text.length - payload.text.trimStart().length;
+  const runs = [];
+  let previousEnd = 0;
+  for (const run of Array.isArray(payload.runs) ? payload.runs.slice(0, 280) : []) {
+    if (!run || !Number.isInteger(run.start) || !Number.isInteger(run.end) ||
+        !["hand", "sans", "serif"].includes(run.font) ||
+        !["ink", "red", "blue", "green", "purple"].includes(run.color)) continue;
+    const start = Math.max(0, run.start - offset);
+    const end = Math.min(text.length, run.end - offset);
+    if (start < previousEnd || end <= start) continue;
+    runs.push({start, end, font:run.font, color:run.color, bold:run.bold === true});
+    previousEnd = end;
+  }
+  const note = {id:Utilities.getUuid(), text, showAt, runs};
+  if (encodeURIComponent(JSON.stringify(note)).replace(/%[0-9A-F]{2}/g, "_").length > 8000) throw new Error("La nota té massa fragments amb format.");
+  props.setProperty(property, JSON.stringify(note));
+  return {ok:true, note};
+}
+
 /** Únic punt d'entrada per al panell mòbil i per a les peticions Android. */
 function apiAction(key, action, payload) {
   if (!authenticated_(key)) return { ok: false, error: "Clau de sincronització incorrecta" };
+  if (["postit_get", "postit_set", "postit_remove"].includes(action)) {
+    try { return postItAction_(action, payload || {}); }
+    catch (ex) { return {ok:false, error:String(ex.message || "Error del Post-it").slice(0, 160)}; }
+  }
   if (action !== "sync") {
     try { return photoAction_(action, payload || {}); }
     catch (ex) { return { ok: false, error: String(ex.message || "Error de fotografies").slice(0, 160) }; }
