@@ -121,8 +121,7 @@ private fun PostItDrawing(drawing: JSONArray) {
             PostItStroke(Color(0xFF000000.toInt() or color), stroke.optInt("width").coerceIn(1, 12).toFloat(), points)
         }
     }
-    Canvas(Modifier.fillMaxWidth(0.65f).aspectRatio(384f / 224f)
-        .background(Color.White, RoundedCornerShape(12.dp))) {
+    Canvas(Modifier.fillMaxWidth(0.65f).aspectRatio(384f / 224f)) {
         for (stroke in strokes) {
             val width = stroke.width * size.width / 384f
             val first = stroke.points.first()
