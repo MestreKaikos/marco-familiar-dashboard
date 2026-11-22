@@ -167,6 +167,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 #calendarSettings form input:not([type="checkbox"]):not([type="color"]){width:100%;box-sizing:border-box;margin-top:6px}
 #calendarSettings .item{flex-wrap:wrap}#calendarSettings .name{min-width:100px;overflow-wrap:anywhere}
 #calendarSettings input[type="color"]{padding:4px;width:64px;min-height:44px}
+#postItTools{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+#postItPreview{white-space:pre-wrap;overflow-wrap:anywhere;background:#ffefa6;border-radius:12px;padding:12px;font:1.25rem cursive;color:#302811}
+#postItPreview:empty{display:none}
 #postIt summary{cursor:pointer}
 #postItForm{display:grid;gap:9px;margin-top:14px}
 #postItForm textarea{width:100%;resize:vertical;background:#fff4b8;border:1px solid var(--border);border-radius:12px;padding:12px;font:inherit}
@@ -208,6 +211,15 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
         <form id="postItForm">
           <label for="postItText">Nota</label>
           <textarea id="postItText" rows="3" maxlength="280" required></textarea>
+          <div id="postItTools" aria-label="Format del text">
+            <label>Lletra <select id="postItFont"><option value="hand">Manuscrita</option><option value="sans">Clara</option><option value="serif">Amb serifa</option></select></label>
+            <label>Color <select id="postItColor"><option value="ink">Fosc</option><option value="red">Vermell</option><option value="blue">Blau</option><option value="green">Verd</option><option value="purple">Lila</option></select></label>
+            <label><input type="checkbox" id="postItBold"> Negreta</label>
+            <button type="button" id="postItFormat">Aplica el format</button>
+            <label>Emoji <select id="postItEmoji"><option value="">Tria un emoji</option><option>❤️</option><option>😊</option><option>🏀</option><option>☀️</option><option>🎉</option><option>⭐</option><option>👍</option></select></label>
+          </div>
+          <small>Selecciona un fragment per donar-li format. Sense selecció, s’aplica a tota la nota.</small>
+          <div id="postItPreview" aria-label="Previsualització"></div>
           <label for="postItAt">Data i hora (opcional)</label>
           <input id="postItAt" type="datetime-local">
           <button type="submit" id="postItSave">Mostra ara</button>
@@ -864,8 +876,75 @@ function photoCall(action,payload) {
     return result;
   });
 }
+let postItDraft='', postItStyles=[], postItSelection=[0,0];
+const postItFonts={hand:'cursive',sans:'sans-serif',serif:'serif'};
+const postItColors={ink:'#302811',red:'#9e2424',blue:'#18519b',green:'#216338',purple:'#66378c'};
+function postItRuns(){
+  const runs=[];
+  postItStyles.forEach((style,index)=>{
+    if(!style)return;
+    const last=runs.at(-1);
+    if(last?.end===index&&last.font===style.font&&last.color===style.color&&last.bold===style.bold)last.end++;
+    else runs.push({start:index,end:index+1,...style});
+  });
+  return runs;
+}
+function previewPostIt(){
+  const preview=$('postItPreview');
+  preview.replaceChildren();
+  let end=0;
+  for(const run of postItRuns()){
+    preview.append(postItDraft.slice(end,run.start));
+    const span=document.createElement('span');
+    span.textContent=postItDraft.slice(run.start,run.end);
+    span.style.fontFamily=postItFonts[run.font];
+    span.style.color=postItColors[run.color];
+    span.style.fontWeight=run.bold?'bold':'normal';
+    preview.append(span);
+    end=run.end;
+  }
+  preview.append(postItDraft.slice(end));
+}
+function updatePostItDraft(){
+  const field=$('postItText'), next=field.value;
+  let start=0, suffix=0;
+  while(start<Math.min(next.length,postItDraft.length)&&next[start]===postItDraft[start])start++;
+  while(suffix<Math.min(next.length,postItDraft.length)-start&&next.at(-1-suffix)===postItDraft.at(-1-suffix))suffix++;
+  const style=postItStyles[start]||postItStyles[start-1];
+  postItStyles.splice(start,postItDraft.length-start-suffix,...Array(next.length-start-suffix).fill(style));
+  postItDraft=next;
+  postItSelection=[field.selectionStart,field.selectionEnd];
+  previewPostIt();
+}
+for(const event of ['select','keyup','pointerup','blur']){
+  $('postItText').addEventListener(event,()=>{
+    const field=$('postItText');
+    postItSelection=[field.selectionStart,field.selectionEnd];
+  });
+}
+$('postItText').addEventListener('input',updatePostItDraft);
+$('postItFormat').addEventListener('click',()=>{
+  const [start,end]=postItSelection;
+  const style={font:$('postItFont').value,color:$('postItColor').value,bold:$('postItBold').checked};
+  postItStyles.fill(style,start===end?0:start,start===end?postItDraft.length:end);
+  previewPostIt();
+});
+$('postItEmoji').addEventListener('change',()=>{
+  const emoji=$('postItEmoji').value, field=$('postItText'), [start,end]=postItSelection;
+  if(emoji&&field.value.length-end+start+emoji.length<=field.maxLength){
+    field.setRangeText(emoji,start,end,'end');
+    updatePostItDraft();
+    field.focus();
+  }
+  $('postItEmoji').value='';
+});
 function fillPostIt(note){
-  $('postItText').value=note?.text||'';
+  postItDraft=note?.text||'';
+  $('postItText').value=postItDraft;
+  postItStyles=Array(postItDraft.length).fill(null);
+  for(const {start,end,font,color,bold} of note?.runs||[])postItStyles.fill({font,color,bold},start,end);
+  postItSelection=[postItDraft.length,postItDraft.length];
+  previewPostIt();
   const time=note?.showAt>0?new Date(note.showAt):null;
   $('postItAt').value=time?new Date(time-time.getTimezoneOffset()*60000).toISOString().slice(0,16):'';
   $('postItRemove').hidden=!note;
@@ -896,8 +975,8 @@ $('postIt').addEventListener('toggle',()=>{
 $('postItAt').addEventListener('input',updatePostItButton);
 $('postItForm').addEventListener('submit',e=>{
   e.preventDefault();
-  const text=$('postItText').value.trim(), at=$('postItAt').value;
-  if(text)requestPostIt('postit_set',{text,showAt:at?new Date(at).getTime():0});
+  const text=postItDraft, at=$('postItAt').value;
+  if(text.trim())requestPostIt('postit_set',{text,runs:postItRuns(),showAt:at?new Date(at).getTime():0});
 });
 $('postItRemove').addEventListener('click',()=>requestPostIt('postit_remove'));
 
