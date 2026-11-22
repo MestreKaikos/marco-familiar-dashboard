@@ -10,7 +10,7 @@ function harness(path,stored=new Map()){
  let source=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].at(-1)[1];
  const nodes=new Map(),events={},timers=[],requests=[];let now=10_000_000;
  const storage={getItem:k=>stored.get(k)||null,setItem:(k,v)=>stored.set(k,v),removeItem:k=>stored.delete(k)};
- const get=id=>{if(!nodes.has(id))nodes.set(id,{value:'',addEventListener:(name,fn)=>events[id+':'+name]=fn,classList:{toggle(){}},setAttribute(){},children:[],replaceChildren(){this.children=[];},appendChild(node){this.children.push(node);},append(...nodes){this.children.push(...nodes);},style:{}});return nodes.get(id);};
+ const get=id=>{if(!nodes.has(id))nodes.set(id,{value:'',add(option){if(!this.value)this.value=option.text;},insertAdjacentHTML(){},getContext(){return {};},addEventListener:(name,fn)=>events[id+':'+name]=fn,classList:{toggle(){}},setAttribute(){},children:[],replaceChildren(){this.children=[];},appendChild(node){this.children.push(node);},append(...nodes){this.children.push(...nodes);},style:{}});return nodes.get(id);};
  source=source.replace(/\}\)\(\);\s*$/,`render=renderRai=renderPhotos=renderOverview=()=>{};
  serverCall=(method,...args)=>new Promise((resolve,reject)=>requests.push({method,args,resolve,reject}));
  globalThis.api={calendarPayload,renderCalendars,setData:value=>{data=value;},call,refreshPhotos,refreshAll,raiAction,prepareQueue,stale,intervals,
@@ -19,7 +19,7 @@ function harness(path,stored=new Map()){
  stamp:()=>{lastDataAt=lastRaiAt=lastPhotosAt=Date.now();}};
  })();`);
  const FakeDate=class extends Date{static now(){return now;}};
- const context={requests,document:{hidden:false,getElementById:get,querySelectorAll:()=>[],createElement:tag=>get('created-'+nodes.size),addEventListener:(n,f)=>events[n]=f},window:{scrollTo(){},addEventListener:(n,f)=>events[n]=f},sessionStorage:storage,localStorage:storage,crypto:webcrypto,TextEncoder,self:{crypto:webcrypto},Date:FakeDate,setInterval:fn=>timers.push(fn),console};
+ const context={requests,Option:class {constructor(text){this.text=text;}},document:{hidden:false,getElementById:get,querySelectorAll:()=>[],createElement:tag=>get('created-'+nodes.size),addEventListener:(n,f)=>events[n]=f},window:{scrollTo(){},addEventListener:(n,f)=>events[n]=f},sessionStorage:storage,localStorage:storage,crypto:webcrypto,TextEncoder,self:{crypto:webcrypto},Date:FakeDate,setInterval:fn=>timers.push(fn),console};
  vm.runInNewContext(source,context);
  return {api:context.api,requests,events,timers,stored,context,nodes,advance:ms=>now+=ms};
 }
