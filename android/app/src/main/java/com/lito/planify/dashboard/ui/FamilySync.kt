@@ -398,7 +398,7 @@ class FamilySync internal constructor(context: Context) {
         val id = note.optString("id")
         val text = note.optString("text")
         if (id.isBlank() || text.isBlank()) return null
-        return FamilyPostIt(id, text, note.optLong("showAt"))
+        return FamilyPostIt(id, text, note.optLong("showAt"), note.optJSONArray("runs"))
     }
 
     private suspend fun call(endpoint: String, token: String, operations: List<JSONObject>): JSONObject {
