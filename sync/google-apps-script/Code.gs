@@ -553,9 +553,35 @@ function photoAction_(action,payload) {
   }
 }
 
+/** Una nota familiar activa. Cada edició té una identitat nova. */
+function postItAction_(action, payload) {
+  const props = PropertiesService.getScriptProperties();
+  const property = "family_postit_v1";
+  if (action === "postit_get") {
+    return {ok:true, note:JSON.parse(props.getProperty(property) || "null")};
+  }
+  if (action === "postit_remove") {
+    props.deleteProperty(property);
+    return {ok:true, note:null};
+  }
+  const text = typeof payload.text === "string" ? payload.text.trim() : "";
+  const showAt = payload.showAt;
+  if (!text || text.length > 280 || !Number.isSafeInteger(showAt) || showAt < 0 ||
+      showAt > Date.now() + 366 * 86400000) {
+    throw new Error("Text o hora del Post-it no vàlids.");
+  }
+  const note = {id:Utilities.getUuid(), text, showAt};
+  props.setProperty(property, JSON.stringify(note));
+  return {ok:true, note};
+}
+
 /** Únic punt d'entrada per al panell mòbil i per a les peticions Android. */
 function apiAction(key, action, payload) {
   if (!authenticated_(key)) return { ok: false, error: "Clau de sincronització incorrecta" };
+  if (["postit_get", "postit_set", "postit_remove"].includes(action)) {
+    try { return postItAction_(action, payload || {}); }
+    catch (ex) { return {ok:false, error:String(ex.message || "Error del Post-it").slice(0, 160)}; }
+  }
   if (action !== "sync") {
     try { return photoAction_(action, payload || {}); }
     catch (ex) { return { ok: false, error: String(ex.message || "Error de fotografies").slice(0, 160) }; }
