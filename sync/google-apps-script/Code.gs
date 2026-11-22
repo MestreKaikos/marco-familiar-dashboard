@@ -564,13 +564,22 @@ function postItAction_(action, payload) {
     props.deleteProperty(property);
     return {ok:true, note:null};
   }
-  const text = typeof payload.text === "string" ? payload.text.trim() : "";
+  const rawText = typeof payload.text === "string" ? payload.text : "";
+  const text = rawText.trim();
+  const drawing = payload.drawing === undefined ? [] : payload.drawing;
+  if (!Array.isArray(drawing) || drawing.length > 32 || drawing.some(stroke =>
+      !stroke || typeof stroke.color !== "string" || !/^[0-9a-f]{6}$/i.test(stroke.color) ||
+      !Number.isInteger(stroke.width) || stroke.width < 1 || stroke.width > 12 ||
+      typeof stroke.points !== "string" || !/^(?:[0-9a-f]{4})+$/i.test(stroke.points)) ||
+      drawing.reduce((sum, stroke) => sum + stroke.points.length, 0) > 4800) {
+    throw new Error("El dibuix és massa gran o no és vàlid.");
+  }
   const showAt = payload.showAt;
-  if (!text || text.length > 280 || !Number.isSafeInteger(showAt) || showAt < 0 ||
+  if ((!text && !drawing.length) || text.length > 280 || !Number.isSafeInteger(showAt) || showAt < 0 ||
       showAt > Date.now() + 366 * 86400000) {
     throw new Error("Text o hora del Post-it no vàlids.");
   }
-  const offset = payload.text.length - payload.text.trimStart().length;
+  const offset = rawText.length - rawText.trimStart().length;
   const runs = [];
   let previousEnd = 0;
   for (const run of Array.isArray(payload.runs) ? payload.runs.slice(0, 280) : []) {
@@ -580,11 +589,13 @@ function postItAction_(action, payload) {
     const start = Math.max(0, run.start - offset);
     const end = Math.min(text.length, run.end - offset);
     if (start < previousEnd || end <= start) continue;
-    runs.push({start, end, font:run.font, color:run.color, bold:run.bold === true});
+    runs.push({start, end, font:run.font, color:run.color, bold:run.bold === true,
+      ...(run.italic === true ? {italic:true} : {}),
+      ...(run.underline === true ? {underline:true} : {})});
     previousEnd = end;
   }
-  const note = {id:Utilities.getUuid(), text, showAt, runs};
-  if (encodeURIComponent(JSON.stringify(note)).replace(/%[0-9A-F]{2}/g, "_").length > 8000) throw new Error("La nota té massa fragments amb format.");
+  const note = {id:Utilities.getUuid(), text, showAt, runs, ...(drawing.length ? {drawing:drawing.map(({color,width,points}) => ({color,width,points}))} : {})};
+  if (encodeURIComponent(JSON.stringify(note)).replace(/%[0-9A-F]{2}/g, "_").length > 8000) throw new Error("Simplifica el dibuix o redueix els fragments amb format.");
   props.setProperty(property, JSON.stringify(note));
   return {ok:true, note};
 }
