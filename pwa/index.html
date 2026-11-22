@@ -298,6 +298,8 @@ summary .ui-icon{width:18px;height:18px;vertical-align:-.2em}
           </details>
           <label for="postItAt">Data i hora (opcional)</label>
           <input id="postItAt" type="datetime-local">
+          <label for="postItSend">Què vols enviar?</label>
+          <select id="postItSend"><option value="both">Text i dibuix</option><option value="text">Només text</option><option value="drawing">Només dibuix</option></select>
           <button type="submit" id="postItSave">Mostra ara</button>
           <button type="button" id="postItRemove" hidden>Retira la nota</button>
         </form>
@@ -1236,6 +1238,7 @@ function fillPostIt(note){
 function updatePostItButton(){
   $('postItSave').textContent=$('postItAt').value?'Programa la nota':'Mostra ara';
 }
+let postItLoadedKey=null;
 async function requestPostIt(action,payload){
   const status=$('postItStatus'), form=$('postItForm'), requestKey=key;
   const controls=[...form.elements];
@@ -1247,21 +1250,29 @@ async function requestPostIt(action,payload){
     const result=await serverCall('apiAction',requestKey,action,payload||{});
     if(requestKey!==key)return;
     if(!result?.ok)throw new Error(result?.error||'El servei familiar no ha respost.');
-    fillPostIt(result.note);
+    postItLoadedKey=requestKey;
+    if(action==='postit_set')$('postItRemove').hidden=false;
+    else fillPostIt(result.note);
     status.textContent=action==='postit_remove'?'Nota retirada.':
       action==='postit_set'?'Nota desada.':result.note?'Hi ha una nota desada.':'';
   }catch(error){status.textContent=error.message||'No s’ha pogut connectar.';}
   finally{controls.forEach(el=>el.disabled=false);postItEditor.contentEditable='plaintext-only';}
 }
 $('postIt').addEventListener('toggle',()=>{
-  if($('postIt').open&&key)requestPostIt('postit_get');
+  if($('postIt').open&&key&&postItLoadedKey!==key)requestPostIt('postit_get');
 });
 $('postItAt').addEventListener('input',updatePostItButton);
 $('postItForm').addEventListener('submit',e=>{
   e.preventDefault();
-  const text=postItDraft, at=$('postItAt').value;
-  const drawing=postItStrokes.filter(stroke=>stroke.points);
-  if(text.trim()||drawing.length)requestPostIt('postit_set',{text,runs:postItRuns(),drawing,showAt:at?new Date(at).getTime():0});
+  const mode=$('postItSend').value, at=$('postItAt').value;
+  const text=mode==='drawing'?'':postItDraft;
+  const drawing=mode==='text'?[]:postItStrokes.filter(stroke=>stroke.points);
+  if(!text.trim()&&!drawing.length){
+    $('postItStatus').textContent=mode==='drawing'?'Fes un dibuix abans d’enviar.':
+      mode==='text'?'Escriu una nota abans d’enviar.':'Escriu una nota o fes un dibuix.';
+    return;
+  }
+  requestPostIt('postit_set',{text,runs:mode==='drawing'?[]:postItRuns(),drawing,showAt:at?new Date(at).getTime():0});
 });
 $('postItRemove').addEventListener('click',()=>requestPostIt('postit_remove'));
 
