@@ -347,6 +347,8 @@ summary .ui-icon{width:18px;height:18px;vertical-align:-.2em}
           </details>
           <div class="postItDelivery"><label for="postItAt">Programa l’enviament (opcional)</label>
           <input id="postItAt" type="datetime-local">
+          <label for="postItPaper">Color del paper</label>
+          <select id="postItPaper"><option value="yellow">Groc pastel</option><option value="pink">Rosa pastel</option><option value="blue">Blau pastel</option><option value="green">Verd pastel</option></select>
           <label for="postItSend">Què vols enviar?</label>
           <select id="postItSend"><option value="both">Text i dibuix</option><option value="text">Només text</option><option value="drawing">Només dibuix</option></select>
           <details id="postItPreview"><summary>Previsualitza la nota sencera</summary>
@@ -1319,6 +1321,13 @@ function drawPostIt(){
 const postItPreviewCanvas=$('postItPreviewCanvas');
 const postItPreviewPen=postItPreviewCanvas.getContext('2d');
 const postItCompose=$('postItCompose'), postItCard=$('postItPreviewCard');
+const postItPaper=$('postItPaper');
+const postItPaperColors={yellow:'#ffefa6',pink:'#ffddea',blue:'#dceeff',green:'#e1f4d9'};
+function applyPostItPaper(){
+  const color=postItPaperColors[postItPaper.value]||postItPaperColors.yellow;
+  for(const id of ['postItPreviewCard','postItText','postItCanvas'])$(id).style.backgroundColor=color;
+}
+postItPaper.addEventListener('change',applyPostItPaper);
 let postItLayout={textX:0,textY:50,drawingX:100,drawingY:50};
 function positionPostItBlocks(){
   postItCard.classList.toggle('is-composition',postItCompose.checked);
@@ -1453,6 +1462,8 @@ function fillPostIt(note){
   for(const {start,end,...style} of note?.runs||[])postItStyles.fill({...postItDefault,...style},start,end);
   postItSelection=[postItDraft.length,postItDraft.length];
   paintPostIt();
+  postItPaper.value=Object.hasOwn(postItPaperColors,note?.paper)?note.paper:"yellow";
+  applyPostItPaper();
   postItCompose.checked=!!note?.layout;
   postItLayout=note?.layout||{textX:0,textY:50,drawingX:100,drawingY:50};
   postItStrokes=note?.drawing||[];
@@ -1501,7 +1512,7 @@ $('postItForm').addEventListener('submit',e=>{
       mode==='text'?'Escriu una nota abans d’enviar.':'Escriu una nota o fes un dibuix.';
     return;
   }
-  requestPostIt('postit_set',{text,runs:mode==='drawing'?[]:postItRuns(),drawing,layout:postItCompose.checked?postItLayout:null,showAt:at?new Date(at).getTime():0});
+  requestPostIt('postit_set',{text,runs:mode==='drawing'?[]:postItRuns(),drawing,paper:postItPaper.value,layout:postItCompose.checked?postItLayout:null,showAt:at?new Date(at).getTime():0});
 });
 $('postItRemove').addEventListener('click',()=>requestPostIt('postit_remove'));
 
