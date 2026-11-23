@@ -3,6 +3,8 @@ package com.lito.planify.dashboard.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -36,7 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
-internal data class FamilyPostIt(val id: String, val text: String, val showAt: Long, val runs: JSONArray? = null, val drawing: JSONArray? = null)
+internal data class FamilyPostIt(val id: String, val text: String, val showAt: Long, val runs: JSONArray? = null, val drawing: JSONArray? = null, val layout: org.json.JSONObject? = null, val paper: String = "yellow")
 
 @Composable
 internal fun PostItDialog(note: FamilyPostIt, onDismiss: () -> Unit) {
@@ -77,26 +79,49 @@ internal fun PostItDialog(note: FamilyPostIt, onDismiss: () -> Unit) {
     ) {
         Column(
             Modifier.fillMaxWidth(0.84f)
-                .background(Color(0xFFFFEFA6), RoundedCornerShape(24.dp))
+                .background(when (note.paper) {
+                    "pink" -> Color(0xFFFFDDEA)
+                    "blue" -> Color(0xFFDCEEFF)
+                    "green" -> Color(0xFFE1F4D9)
+                    else -> Color(0xFFFFEFA6)
+                }, RoundedCornerShape(24.dp))
                 .padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            Column(
-                Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                if (note.text.isNotBlank()) Text(
-                    formattedText,
-                    modifier = Modifier.fillMaxWidth(),
-                    color = Color(0xFF302811),
-                    fontFamily = FontFamily.Cursive,
-                    fontSize = 48.sp,
-                    lineHeight = 56.sp,
-                    textAlign = TextAlign.Center
-                )
-                if (note.drawing != null) PostItDrawing(note.drawing)
+            val layout = note.layout
+            if (layout != null) {
+                BoxWithConstraints(Modifier.heightIn(max = 420.dp).aspectRatio(16f / 9f)) {
+                    if (note.drawing != null) PostItDrawing(note.drawing,
+                        Modifier.align(postItAlignment(layout, "drawing")).fillMaxWidth(0.46f))
+                    if (note.text.isNotBlank()) Text(
+                        formattedText,
+                        modifier = Modifier.align(postItAlignment(layout, "text")).fillMaxWidth(0.48f)
+                            .heightIn(max = maxHeight).verticalScroll(rememberScrollState()),
+                        color = Color(0xFF302811),
+                        fontFamily = FontFamily.Cursive,
+                        fontSize = (maxWidth.value * 0.052f).sp,
+                        lineHeight = (maxWidth.value * 0.060f).sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            } else {
+                Column(
+                    Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    if (note.text.isNotBlank()) Text(
+                        formattedText,
+                        modifier = Modifier.fillMaxWidth(),
+                        color = Color(0xFF302811),
+                        fontFamily = FontFamily.Cursive,
+                        fontSize = 48.sp,
+                        lineHeight = 56.sp,
+                        textAlign = TextAlign.Center
+                    )
+                    if (note.drawing != null) PostItDrawing(note.drawing)
+                }
             }
             Button(onClick = onDismiss) { Text("Entesos", fontSize = 24.sp) }
         }
@@ -104,10 +129,16 @@ internal fun PostItDialog(note: FamilyPostIt, onDismiss: () -> Unit) {
 }
 
 
+private fun postItAlignment(layout: org.json.JSONObject, block: String): Alignment {
+    val x = layout.optInt(block + "X", 50).coerceIn(0, 100)
+    val y = layout.optInt(block + "Y", 50).coerceIn(0, 100)
+    return BiasAlignment(x / 50f - 1f, y / 50f - 1f)
+}
+
 private data class PostItStroke(val color: Color, val width: Float, val points: List<Offset>)
 
 @Composable
-private fun PostItDrawing(drawing: JSONArray) {
+private fun PostItDrawing(drawing: JSONArray, modifier: Modifier = Modifier.fillMaxWidth(0.65f)) {
     val strokes = remember(drawing) {
         (0 until minOf(drawing.length(), 32)).mapNotNull { index ->
             val stroke = drawing.optJSONObject(index) ?: return@mapNotNull null
@@ -121,7 +152,7 @@ private fun PostItDrawing(drawing: JSONArray) {
             PostItStroke(Color(0xFF000000.toInt() or color), stroke.optInt("width").coerceIn(1, 12).toFloat(), points)
         }
     }
-    Canvas(Modifier.fillMaxWidth(0.65f).aspectRatio(384f / 224f)) {
+    Canvas(modifier.aspectRatio(384f / 224f)) {
         for (stroke in strokes) {
             val width = stroke.width * size.width / 384f
             val first = stroke.points.first()
