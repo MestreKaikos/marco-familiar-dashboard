@@ -254,6 +254,11 @@ summary .ui-icon{width:18px;height:18px;vertical-align:-.2em}
 #postItStickerGrid button[aria-pressed=true]{background:#ffefa6;color:#302811;outline:2px solid #916b25}
 #postItStickerHint{font-size:.82rem;margin:8px 0}
 #postItCanvas{border:1px dashed #b99f58;margin-top:8px}
+#postItPreviewCard{background:#ffefa6;color:#302811;border-radius:16px;padding:16px;display:grid;justify-items:center;gap:10px}
+#postItPreviewText{width:100%;white-space:pre-wrap;overflow-wrap:anywhere;text-align:center;font:1.5rem cursive}
+#postItPreviewCanvas{display:block;width:65%;height:auto;touch-action:none;cursor:grab}
+#postItPreviewCanvas[hidden],#postItPreviewText[hidden]{display:none}
+.postItClearActions{display:flex;flex-wrap:wrap;gap:8px}
 </style>
 </head>
 <body>
@@ -340,8 +345,21 @@ summary .ui-icon{width:18px;height:18px;vertical-align:-.2em}
           <input id="postItAt" type="datetime-local">
           <label for="postItSend">Què vols enviar?</label>
           <select id="postItSend"><option value="both">Text i dibuix</option><option value="text">Només text</option><option value="drawing">Només dibuix</option></select>
+          <details id="postItPreview"><summary>Previsualitza la nota sencera</summary>
+            <div id="postItPreviewCard">
+              <div id="postItPreviewText"></div>
+              <canvas id="postItPreviewCanvas" width="384" height="224" aria-label="Previsualització del dibuix"></canvas>
+              <span id="postItPreviewEmpty">La nota és buida.</span>
+            </div>
+            <small>Arrossega el dibuix per recol·locar-lo dins la seva zona.</small>
+          </details>
+          <div class="postItClearActions">
+            <button type="button" id="postItClearText">Esborra el text</button>
+            <button type="button" id="postItClearDrawing">Esborra el dibuix</button>
+            <button type="button" id="postItClearAll">Esborra-ho tot</button>
+          </div>
           <button type="submit" id="postItSave" class="primary">Mostra ara</button></div>
-          <button type="button" id="postItRemove" hidden>Retira la nota</button>
+          <button type="button" id="postItRemove" hidden>Retira la nota del marc</button>
         </form>
         <p id="postItStatus" role="status"></p>
       </details>
@@ -1096,11 +1114,11 @@ function postItRuns(){
   });
   return runs;
 }
-function paintPostIt(){
-  postItEditor.replaceChildren();
+function paintPostIt(target=postItEditor){
+  target.replaceChildren();
   let end=0;
   for(const run of postItRuns()){
-    postItEditor.append(postItDraft.slice(end,run.start));
+    target.append(postItDraft.slice(end,run.start));
     const span=document.createElement('span');
     span.textContent=postItDraft.slice(run.start,run.end);
     span.style.fontFamily=postItFonts[run.font];
@@ -1108,10 +1126,11 @@ function paintPostIt(){
     span.style.fontWeight=run.bold?'bold':'normal';
     span.style.fontStyle=run.italic?'italic':'normal';
     span.style.textDecoration=run.underline?'underline':'none';
-    postItEditor.append(span);
+    target.append(span);
     end=run.end;
   }
-  postItEditor.append(postItDraft.slice(end));
+  target.append(postItDraft.slice(end));
+  if(target===postItEditor)refreshPostItPreview();
 }
 function selectPostIt(start,end=start){
   const nodes=document.createTreeWalker(postItEditor,NodeFilter.SHOW_TEXT);
@@ -1176,6 +1195,7 @@ postItEditor.addEventListener('input',()=>{
   const style=postItStyles[start]||postItStyles[start-1];
   postItStyles.splice(start,postItDraft.length-start-suffix,...Array(next.length-start-suffix).fill(style));
   postItDraft=next;
+  refreshPostItPreview();
 });
 function formatPostIt(key,value){
   const [start,end]=postItSelection;
@@ -1272,21 +1292,78 @@ function stampPostIt(sticker,e){
   selectPostItSticker('');
   drawPostIt();
 }
-function drawPostIt(){
-  postItPen.clearRect(0,0,384,224);
-  for(const {color,width,points} of postItStrokes){
-    postItPen.strokeStyle='#'+color;
-    postItPen.lineWidth=width;
-    postItPen.lineCap=postItPen.lineJoin='round';
-    postItPen.beginPath();
+function renderPostItDrawing(pen,strokes,dx=0,dy=0){
+  pen.clearRect(0,0,384,224);
+  for(const {color,width,points} of strokes){
+    pen.strokeStyle='#'+color;
+    pen.lineWidth=width;
+    pen.lineCap=pen.lineJoin='round';
+    pen.beginPath();
     for(let i=0;i<points.length;i+=4){
-      const x=parseInt(points.slice(i,i+2),16)*384/255, y=parseInt(points.slice(i+2,i+4),16)*224/255;
-      if(i===0){postItPen.moveTo(x,y);postItPen.lineTo(x+0.01,y);}
-      else postItPen.lineTo(x,y);
+      const x=parseInt(points.slice(i,i+2),16)*384/255+dx, y=parseInt(points.slice(i+2,i+4),16)*224/255+dy;
+      if(i===0){pen.moveTo(x,y);pen.lineTo(x+0.01,y);}
+      else pen.lineTo(x,y);
     }
-    postItPen.stroke();
+    pen.stroke();
   }
 }
+function drawPostIt(){
+  renderPostItDrawing(postItPen,postItStrokes);
+  refreshPostItPreview();
+}
+const postItPreviewCanvas=$('postItPreviewCanvas');
+const postItPreviewPen=postItPreviewCanvas.getContext('2d');
+function refreshPostItPreview(){
+  if(!$('postItPreview').open)return;
+  const mode=$('postItSend').value;
+  const hasText=mode!=='drawing'&&!!postItDraft.trim();
+  const hasDrawing=mode!=='text'&&postItStrokes.some(stroke=>stroke.points);
+  const previewText=$('postItPreviewText');
+  previewText.hidden=!hasText;
+  paintPostIt(previewText);
+  postItPreviewCanvas.hidden=!hasDrawing;
+  $('postItPreviewEmpty').hidden=hasText||hasDrawing;
+  renderPostItDrawing(postItPreviewPen,postItStrokes);
+}
+let postItMove=null;
+postItPreviewCanvas.addEventListener('pointerdown',e=>{
+  if(postItMove||!postItStrokes.some(stroke=>stroke.points))return;
+  const xs=[],ys=[];
+  for(const {points} of postItStrokes){
+    for(let i=0;i<points.length;i+=4){
+      xs.push(parseInt(points.slice(i,i+2),16));
+      ys.push(parseInt(points.slice(i+2,i+4),16));
+    }
+  }
+  const rect=postItPreviewCanvas.getBoundingClientRect();
+  postItMove={id:e.pointerId,x:e.clientX,y:e.clientY,w:rect.width,h:rect.height,
+    minX:-Math.min(...xs),maxX:255-Math.max(...xs),minY:-Math.min(...ys),maxY:255-Math.max(...ys),dx:0,dy:0};
+  postItPreviewCanvas.setPointerCapture(e.pointerId);
+});
+postItPreviewCanvas.addEventListener('pointermove',e=>{
+  const m=postItMove;
+  if(!m||m.id!==e.pointerId)return;
+  m.dx=Math.max(m.minX,Math.min(m.maxX,Math.round((e.clientX-m.x)*255/m.w)));
+  m.dy=Math.max(m.minY,Math.min(m.maxY,Math.round((e.clientY-m.y)*255/m.h)));
+  renderPostItDrawing(postItPreviewPen,postItStrokes,m.dx*384/255,m.dy*224/255);
+});
+postItPreviewCanvas.addEventListener('pointerup',e=>{
+  const m=postItMove;
+  if(!m||m.id!==e.pointerId)return;
+  const shift=(value,offset)=>(parseInt(value,16)+offset).toString(16).padStart(2,'0');
+  for(const stroke of postItStrokes){
+    stroke.points=stroke.points.replace(/([a-f0-9]{2})([a-f0-9]{2})/gi,(_,x,y)=>shift(x,m.dx)+shift(y,m.dy));
+  }
+  postItMove=null;
+  drawPostIt();
+});
+postItPreviewCanvas.addEventListener('lostpointercapture',()=>{
+  if(!postItMove)return;
+  postItMove=null;
+  refreshPostItPreview();
+});
+$('postItPreview').addEventListener('toggle',refreshPostItPreview);
+$('postItSend').addEventListener('change',refreshPostItPreview);
 function addPostItPoint(e){
   const rect=postItCanvas.getBoundingClientRect();
   const encode=n=>Math.round(Math.min(1,Math.max(0,n))*255).toString(16).padStart(2,'0');
@@ -1318,7 +1395,23 @@ $('postItUndo').onclick=()=>{
   postItStrokes.splice(-count);
   drawPostIt();
 };
-$('postItClear').onclick=()=>{postItStrokes=[];drawPostIt();};
+function clearPostItDraft({text=false,drawing=false}){
+  if(text){
+    postItDraft='';
+    postItStyles=[];
+    postItSelection=[0,0];
+    paintPostIt();
+  }
+  if(drawing){
+    postItStrokes=[];
+    postItMove=null;
+    drawPostIt();
+  }
+  $('postItStatus').textContent='Esborrat de l’editor.';
+}
+$('postItClear').onclick=$('postItClearDrawing').onclick=()=>clearPostItDraft({drawing:true});
+$('postItClearText').onclick=()=>clearPostItDraft({text:true});
+$('postItClearAll').onclick=()=>clearPostItDraft({text:true,drawing:true});
 function fillPostIt(note){
   postItDraft=note?.text||'';
   postItStyles=Array(postItDraft.length).fill(null);
