@@ -237,6 +237,23 @@ summary .ui-icon{width:18px;height:18px;vertical-align:-.2em}
 #postIt summary{cursor:pointer}
 #postItForm{display:grid;gap:9px;margin-top:14px}
 #postItForm textarea{width:100%;resize:vertical;background:#fff4b8;border:1px solid var(--border);border-radius:12px;padding:12px;font:inherit}
+#postIt{border-radius:20px;padding:16px;background:var(--card,#fff)}
+#postItForm{gap:12px}
+#postItForm details{border:1px solid var(--border,#ddd);border-radius:12px;padding:10px 12px}
+#postItForm details[open]>summary{margin-bottom:10px}
+#postItForm details summary{min-height:32px;font-weight:650}
+.postItSectionLabel,.postItDelivery>label{font-weight:650}
+.postItDelivery{display:grid;gap:8px;border-top:1px solid var(--border,#ddd);padding-top:12px}
+#postItSave{min-height:46px}
+.postItBrush{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:8px 0}
+.postItBrush label{display:flex;align-items:center;gap:8px}
+.postItBrush input[type=color]{width:44px;min-height:40px;padding:3px}
+#postItStickerGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(68px,1fr));gap:6px}
+#postItStickerGrid button{display:grid;justify-items:center;gap:2px;min-height:52px;padding:4px;font-size:.75rem}
+#postItStickerGrid button span{font-size:1.35rem}
+#postItStickerGrid button[aria-pressed=true]{background:#ffefa6;color:#302811;outline:2px solid #916b25}
+#postItStickerHint{font-size:.82rem;margin:8px 0}
+#postItCanvas{border:1px dashed #b99f58;margin-top:8px}
 </style>
 </head>
 <body>
@@ -275,8 +292,9 @@ summary .ui-icon{width:18px;height:18px;vertical-align:-.2em}
       <details class="overview-next" id="postIt">
         <summary><strong>Post-it al marc</strong></summary>
         <form id="postItForm">
-          <span id="postItLabel">Nota</span>
+          <span id="postItLabel" class="postItSectionLabel">Escriu una nota</span>
           <div id="postItText" contenteditable="plaintext-only" role="textbox" aria-multiline="true" aria-labelledby="postItLabel"></div>
+          <details id="postItFormatPanel"><summary>Format del text</summary>
           <div id="postItTools" aria-label="Format del text">
             <label>Lletra <select id="postItFont"><option value="hand">Manuscrita</option><option value="sans">Clara</option><option value="serif">Amb serifa</option></select></label>
             <label>Color <select id="postItColor"><option value="ink">Fosc</option><option value="red">Vermell</option><option value="blue">Blau</option><option value="green">Verd</option><option value="purple">Lila</option></select></label>
@@ -285,23 +303,44 @@ summary .ui-icon{width:18px;height:18px;vertical-align:-.2em}
             <button type="button" data-post-style="underline"><u>Subratllat</u></button>
           </div>
           <small>Selecciona un fragment per donar-li format.</small>
+          </details>
           <details id="postItEmojis"><summary>😊 Emojis</summary>
             <select id="postItEmojiCategory" aria-label="Categoria d'emojis"></select>
             <div id="postItEmojiGrid"></div>
           </details>
           <details id="postItDrawing"><summary>✏️ Dibuixa amb el dit</summary>
-            <label>Color del traç <input id="postItPen" type="color" value="#302811"></label>
-            <label>Gruix <input id="postItWidth" type="range" min="1" max="12" value="4"></label>
-            <label>Gomet <select id="postItSticker"><option value="">Traç lliure</option><option value="heart">♥ Cor</option><option value="star">★ Estrella</option><option value="ball">🏀 Pilota</option></select></label>
+            <div class="postItBrush"><label>Color del traç <input id="postItPen" type="color" value="#302811"></label>
+            <label>Gruix <input id="postItWidth" type="range" min="1" max="12" value="4"></label></div>
+            <details id="postItStickers"><summary>Gomets</summary>
+              <div id="postItStickerGrid" role="group" aria-label="Tria un gomet">
+                <button type="button" data-post-sticker="heart" aria-pressed="false"><span aria-hidden="true">♥</span>Cor</button>
+                <button type="button" data-post-sticker="star" aria-pressed="false"><span aria-hidden="true">★</span>Estrella</button>
+                <button type="button" data-post-sticker="ball" aria-pressed="false"><span aria-hidden="true">🏀</span>Pilota</button>
+                <button type="button" data-post-sticker="sun" aria-pressed="false"><span aria-hidden="true">☀</span>Sol</button>
+                <button type="button" data-post-sticker="moon" aria-pressed="false"><span aria-hidden="true">☾</span>Lluna</button>
+                <button type="button" data-post-sticker="smile" aria-pressed="false"><span aria-hidden="true">☺</span>Somriure</button>
+                <button type="button" data-post-sticker="flower" aria-pressed="false"><span aria-hidden="true">✿</span>Flor</button>
+                <button type="button" data-post-sticker="lightning" aria-pressed="false"><span aria-hidden="true">ϟ</span>Llamp</button>
+                <button type="button" data-post-sticker="check" aria-pressed="false"><span aria-hidden="true">✓</span>Fet</button>
+                <button type="button" data-post-sticker="sparkle" aria-pressed="false"><span aria-hidden="true">✦</span>Espurna</button>
+                <button type="button" data-post-sticker="cat" aria-pressed="false"><span aria-hidden="true">🐱</span>Gat</button>
+                <button type="button" data-post-sticker="crown" aria-pressed="false"><span aria-hidden="true">♛</span>Corona</button>
+              </div>
+              <div class="postItBrush">
+                <label>Color del gomet <input id="postItStickerColor" type="color" value="#9e2424"></label>
+                <label>Mida <select id="postItStickerSize"><option value="24">Petit</option><option value="40" selected>Mitjà</option><option value="64">Gran</option><option value="88">Molt gran</option></select></label>
+              </div>
+              <p id="postItStickerHint" role="status">Tria un gomet i toca el dibuix per posar-lo.</p>
+            </details>
             <canvas id="postItCanvas" width="384" height="224" aria-label="Espai per dibuixar amb el dit"></canvas>
-            <button id="postItUndo" type="button">Desfés</button>
-            <button id="postItClear" type="button">Esborra el dibuix</button>
+            <div class="postItBrush"><button id="postItUndo" type="button">Desfés</button>
+            <button id="postItClear" type="button">Esborra el dibuix</button></div>
           </details>
-          <label for="postItAt">Data i hora (opcional)</label>
+          <div class="postItDelivery"><label for="postItAt">Programa l’enviament (opcional)</label>
           <input id="postItAt" type="datetime-local">
           <label for="postItSend">Què vols enviar?</label>
           <select id="postItSend"><option value="both">Text i dibuix</option><option value="text">Només text</option><option value="drawing">Només dibuix</option></select>
-          <button type="submit" id="postItSave">Mostra ara</button>
+          <button type="submit" id="postItSave" class="primary">Mostra ara</button></div>
           <button type="button" id="postItRemove" hidden>Retira la nota</button>
         </form>
         <p id="postItStatus" role="status"></p>
@@ -1180,27 +1219,57 @@ $('postItEmojiCategory').onchange=showPostItEmojis;
 showPostItEmojis();
 const postItCanvas=$('postItCanvas'), postItPen=postItCanvas.getContext('2d');
 let postItPointer=null;
+const stickerCircle=(cx=0,cy=0,r=14)=>Array.from({length:25},(_,i)=>
+  [cx+r*Math.cos(i*Math.PI/12),cy+r*Math.sin(i*Math.PI/12)]);
 const stickerPaths={
+  sun:[stickerCircle(0,0,7),...Array.from({length:8},(_,i)=>{
+    const angle=i*Math.PI/4;
+    return [10,14].map(r=>[r*Math.cos(angle),r*Math.sin(angle)]);
+  })],
+  moon:[[[-1,-14],[-9,-11],[-14,-4],[-14,4],[-9,11],[-1,14],[7,12],[12,7],[4,8],[-2,4],[-4,-2],[-3,-8],[-1,-14]]],
+  smile:[stickerCircle(),[[-5,-4],[-5,-3]],[[5,-4],[5,-3]],[[-7,3],[-4,7],[0,8],[4,7],[7,3]]],
+  flower:[stickerCircle(0,0,3),[[0,-3],[-5,-8],[-4,-13],[2,-14],[5,-10],[2,-3],[9,-6],[14,-2],[12,4],[6,5],[3,2],[5,10],[0,14],[-5,10],[-3,2],[-9,7],[-14,3],[-13,-3],[-8,-5],[0,-3]]],
+  lightning:[[[-1,-14],[9,-14],[3,-4],[11,-4],[-6,14],[-3,3],[-11,3],[-1,-14]]],
+  check:[[[-13,0],[-5,8],[13,-9]]],
+  sparkle:[[[0,-14],[3,-3],[14,0],[3,3],[0,14],[-3,3],[-14,0],[-3,-3],[0,-14]]],
+  cat:[[[-13,2],[-13,-13],[-5,-8],[5,-8],[13,-13],[13,2],[10,9],[4,13],[-4,13],[-10,9],[-13,2]],
+    [[-5,-1],[-5,0]],[[5,-1],[5,0]],[[-2,5],[0,7],[2,5]]],
+  crown:[[[-13,8],[-14,-8],[-7,-2],[0,-12],[7,-2],[14,-8],[13,8],[-13,8]],[[-13,12],[13,12]]],
   heart:[[[0,10],[-11,0],[-14,-6],[-11,-11],[-6,-12],[0,-7],[6,-12],[11,-11],[14,-6],[11,0],[0,10]]],
   star:[[[0,-14],[4,-5],[14,-4],[7,3],[9,13],[0,8],[-9,13],[-7,3],[-14,-4],[-4,-5],[0,-14]]],
   ball:[Array.from({length:25},(_,i)=>[14*Math.cos(i*Math.PI/12),14*Math.sin(i*Math.PI/12)]),
     [[-14,0],[14,0]],[[0,-14],[0,14]],[[-10,-10],[-6,-5],[-5,0],[-6,5],[-10,10]],[[10,-10],[6,-5],[5,0],[6,5],[10,10]]]
 };
+let selectedPostItSticker='';
+const postItStickerButtons=document.querySelectorAll('[data-post-sticker]');
+function selectPostItSticker(sticker){
+  selectedPostItSticker=sticker;
+  postItStickerButtons.forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.postSticker===sticker)));
+  $('postItStickerHint').textContent=sticker?'Toca el dibuix per posar el gomet.':'Tria un gomet i toca el dibuix per posar-lo.';
+}
+postItStickerButtons.forEach(button=>button.addEventListener('click',()=>{
+  const sticker=button.dataset.postSticker;
+  selectPostItSticker(selectedPostItSticker===sticker?'':sticker);
+}));
+const postItStampSizes=new WeakMap();
 function stampPostIt(sticker,e){
   const rect=postItCanvas.getBoundingClientRect();
-  const x=Math.max(16,Math.min(368,(e.clientX-rect.left)*384/rect.width));
-  const y=Math.max(16,Math.min(208,(e.clientY-rect.top)*224/rect.height));
+  const diameter=Number($('postItStickerSize').value);
+  const scale=diameter/28, margin=diameter/2+3;
+  const x=Math.max(margin,Math.min(384-margin,(e.clientX-rect.left)*384/rect.width));
+  const y=Math.max(margin,Math.min(224-margin,(e.clientY-rect.top)*224/rect.height));
   const encode=n=>Math.round(n*255).toString(16).padStart(2,'0');
-  const color=$('postItPen').value.slice(1);
-  const strokes=stickerPaths[sticker].map(path=>({color,width:3,
-    points:path.map(([dx,dy])=>encode((x+dx)/384)+encode((y+dy)/224)).join('')}));
+  const color=$('postItStickerColor').value.slice(1);
+  const strokes=stickerPaths[sticker].map(path=>({color,width:Math.round(Math.max(2,scale*2)),
+    points:path.map(([dx,dy])=>encode((x+dx*scale)/384)+encode((y+dy*scale)/224)).join('')}));
   if(postItStrokes.length+strokes.length>32||
       [...postItStrokes,...strokes].reduce((sum,stroke)=>sum+stroke.points.length,0)>4800){
     $('postItStatus').textContent='No hi caben més traços. Desfés-ne algun per continuar.';
     return;
   }
   postItStrokes.push(...strokes);
-  $('postItSticker').value='';
+  postItStampSizes.set(strokes.at(-1),strokes.length);
+  selectPostItSticker('');
   drawPostIt();
 }
 function drawPostIt(){
@@ -1233,8 +1302,7 @@ function addPostItPoint(e){
 }
 postItCanvas.addEventListener('pointerdown',e=>{
   if(postItPointer!==null||postItStrokes.length>=32)return;
-  const sticker=$('postItSticker').value;
-  if(sticker){stampPostIt(sticker,e);return;}
+  if(selectedPostItSticker){stampPostIt(selectedPostItSticker,e);return;}
   postItPointer=e.pointerId;
   postItCanvas.setPointerCapture(e.pointerId);
   postItStrokes.push({color:$('postItPen').value.slice(1),width:Number($('postItWidth').value),points:''});
@@ -1245,7 +1313,11 @@ postItCanvas.addEventListener('lostpointercapture',()=>{
   postItPointer=null;
   postItStrokes=postItStrokes.filter(stroke=>stroke.points);
 });
-$('postItUndo').onclick=()=>{postItStrokes.pop();drawPostIt();};
+$('postItUndo').onclick=()=>{
+  const count=postItStampSizes.get(postItStrokes.at(-1))||1;
+  postItStrokes.splice(-count);
+  drawPostIt();
+};
 $('postItClear').onclick=()=>{postItStrokes=[];drawPostIt();};
 function fillPostIt(note){
   postItDraft=note?.text||'';
@@ -1254,6 +1326,7 @@ function fillPostIt(note){
   postItSelection=[postItDraft.length,postItDraft.length];
   paintPostIt();
   postItStrokes=note?.drawing||[];
+  selectPostItSticker('');
   $('postItDrawing').open=postItStrokes.length>0;
   drawPostIt();
   const time=note?.showAt>0?new Date(note.showAt):null;
