@@ -38,7 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
-internal data class FamilyPostIt(val id: String, val text: String, val showAt: Long, val runs: JSONArray? = null, val drawing: JSONArray? = null, val layout: org.json.JSONObject? = null)
+internal data class FamilyPostIt(val id: String, val text: String, val showAt: Long, val runs: JSONArray? = null, val drawing: JSONArray? = null, val layout: org.json.JSONObject? = null, val paper: String = "yellow")
 
 @Composable
 internal fun PostItDialog(note: FamilyPostIt, onDismiss: () -> Unit) {
@@ -79,7 +79,12 @@ internal fun PostItDialog(note: FamilyPostIt, onDismiss: () -> Unit) {
     ) {
         Column(
             Modifier.fillMaxWidth(0.84f)
-                .background(Color(0xFFFFEFA6), RoundedCornerShape(24.dp))
+                .background(when (note.paper) {
+                    "pink" -> Color(0xFFFFDDEA)
+                    "blue" -> Color(0xFFDCEEFF)
+                    "green" -> Color(0xFFE1F4D9)
+                    else -> Color(0xFFFFEFA6)
+                }, RoundedCornerShape(24.dp))
                 .padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(20.dp)
