@@ -600,7 +600,8 @@ function postItAction_(action, payload) {
       Number.isInteger(layout[key]) && layout[key] >= 0 && layout[key] <= 100)) {
     throw new Error("La posició del text o del dibuix no és vàlida.");
   }
-  const note = {id:Utilities.getUuid(), text, showAt, runs,
+  const paper = ["pink", "blue", "green"].includes(payload.paper) ? payload.paper : "yellow";
+  const note = {id:Utilities.getUuid(), text, showAt, runs, paper,
     ...(layout == null ? {} : {layout:Object.fromEntries(fields.map(key => [key, layout[key]]))}), ...(drawing.length ? {drawing:drawing.map(({color,width,points}) => ({color,width,points}))} : {})};
   if (encodeURIComponent(JSON.stringify(note)).replace(/%[0-9A-F]{2}/g, "_").length > 8000) throw new Error("Simplifica el dibuix o redueix els fragments amb format.");
   props.setProperty(property, JSON.stringify(note));
