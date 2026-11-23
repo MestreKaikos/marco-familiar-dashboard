@@ -259,6 +259,10 @@ summary .ui-icon{width:18px;height:18px;vertical-align:-.2em}
 #postItPreviewCanvas{display:block;width:65%;height:auto;touch-action:none;cursor:grab}
 #postItPreviewCanvas[hidden],#postItPreviewText[hidden]{display:none}
 .postItClearActions{display:flex;flex-wrap:wrap;gap:8px}
+#postItPreviewCard.is-composition{display:block;position:relative;aspect-ratio:16/9;padding:0;overflow:hidden;container-type:inline-size}
+.is-composition #postItPreviewText,.is-composition #postItPreviewCanvas{position:absolute;touch-action:none;cursor:grab}
+.is-composition #postItPreviewText{width:48%;max-height:100%;overflow:auto;font-size:5.2cqw;line-height:6cqw}
+.is-composition #postItPreviewCanvas{width:46%}
 </style>
 </head>
 <body>
@@ -343,15 +347,18 @@ summary .ui-icon{width:18px;height:18px;vertical-align:-.2em}
           </details>
           <div class="postItDelivery"><label for="postItAt">Programa l’enviament (opcional)</label>
           <input id="postItAt" type="datetime-local">
+          <label for="postItPaper">Color del paper</label>
+          <select id="postItPaper"><option value="yellow">Groc pastel</option><option value="pink">Rosa pastel</option><option value="blue">Blau pastel</option><option value="green">Verd pastel</option></select>
           <label for="postItSend">Què vols enviar?</label>
           <select id="postItSend"><option value="both">Text i dibuix</option><option value="text">Només text</option><option value="drawing">Només dibuix</option></select>
           <details id="postItPreview"><summary>Previsualitza la nota sencera</summary>
+            <label><input type="checkbox" id="postItCompose"> Col·loca el text i el dibuix lliurement</label>
             <div id="postItPreviewCard">
               <div id="postItPreviewText"></div>
               <canvas id="postItPreviewCanvas" width="384" height="224" aria-label="Previsualització del dibuix"></canvas>
               <span id="postItPreviewEmpty">La nota és buida.</span>
             </div>
-            <small>Arrossega el dibuix per recol·locar-lo dins la seva zona.</small>
+            <small>Arrossega el text o el dibuix per moure’l si has activat la composició lliure.</small>
           </details>
           <div class="postItClearActions">
             <button type="button" id="postItClearText">Esborra el text</button>
@@ -1313,6 +1320,24 @@ function drawPostIt(){
 }
 const postItPreviewCanvas=$('postItPreviewCanvas');
 const postItPreviewPen=postItPreviewCanvas.getContext('2d');
+const postItCompose=$('postItCompose'), postItCard=$('postItPreviewCard');
+const postItPaper=$('postItPaper');
+const postItPaperColors={yellow:'#ffefa6',pink:'#ffddea',blue:'#dceeff',green:'#e1f4d9'};
+function applyPostItPaper(){
+  const color=postItPaperColors[postItPaper.value]||postItPaperColors.yellow;
+  for(const id of ['postItPreviewCard','postItText','postItCanvas'])$(id).style.backgroundColor=color;
+}
+postItPaper.addEventListener('change',applyPostItPaper);
+let postItLayout={textX:0,textY:50,drawingX:100,drawingY:50};
+function positionPostItBlocks(){
+  postItCard.classList.toggle('is-composition',postItCompose.checked);
+  for(const [block,element] of [['text',$('postItPreviewText')],['drawing',postItPreviewCanvas]]){
+    const x=postItLayout[block+'X'], y=postItLayout[block+'Y'];
+    element.style.left=postItCompose.checked?x+'%':'';
+    element.style.top=postItCompose.checked?y+'%':'';
+    element.style.transform=postItCompose.checked?'translate(-'+x+'%,-'+y+'%)':'';
+  }
+}
 function refreshPostItPreview(){
   if(!$('postItPreview').open)return;
   const mode=$('postItSend').value;
@@ -1323,11 +1348,12 @@ function refreshPostItPreview(){
   paintPostIt(previewText);
   postItPreviewCanvas.hidden=!hasDrawing;
   $('postItPreviewEmpty').hidden=hasText||hasDrawing;
+  positionPostItBlocks();
   renderPostItDrawing(postItPreviewPen,postItStrokes);
 }
 let postItMove=null;
 postItPreviewCanvas.addEventListener('pointerdown',e=>{
-  if(postItMove||!postItStrokes.some(stroke=>stroke.points))return;
+  if(postItCompose.checked||postItMove||!postItStrokes.some(stroke=>stroke.points))return;
   const xs=[],ys=[];
   for(const {points} of postItStrokes){
     for(let i=0;i<points.length;i+=4){
@@ -1362,6 +1388,24 @@ postItPreviewCanvas.addEventListener('lostpointercapture',()=>{
   postItMove=null;
   refreshPostItPreview();
 });
+postItCompose.addEventListener('change',refreshPostItPreview);
+for(const [block,element] of [['text',$('postItPreviewText')],['drawing',postItPreviewCanvas]]){
+  let drag=null;
+  element.addEventListener('pointerdown',event=>{
+    if(!postItCompose.checked||drag)return;
+    drag={id:event.pointerId,x:event.clientX,y:event.clientY,
+      startX:postItLayout[block+'X'],startY:postItLayout[block+'Y']};
+    element.setPointerCapture(event.pointerId);
+  });
+  element.addEventListener('pointermove',event=>{
+    if(drag?.id!==event.pointerId)return;
+    const limit=n=>Math.max(0,Math.min(100,Math.round(n)));
+    postItLayout[block+'X']=limit(drag.startX+100*(event.clientX-drag.x)/Math.max(1,postItCard.clientWidth-element.offsetWidth));
+    postItLayout[block+'Y']=limit(drag.startY+100*(event.clientY-drag.y)/Math.max(1,postItCard.clientHeight-element.offsetHeight));
+    positionPostItBlocks();
+  });
+  element.addEventListener('lostpointercapture',()=>{drag=null;});
+}
 $('postItPreview').addEventListener('toggle',refreshPostItPreview);
 $('postItSend').addEventListener('change',refreshPostItPreview);
 function addPostItPoint(e){
@@ -1418,6 +1462,10 @@ function fillPostIt(note){
   for(const {start,end,...style} of note?.runs||[])postItStyles.fill({...postItDefault,...style},start,end);
   postItSelection=[postItDraft.length,postItDraft.length];
   paintPostIt();
+  postItPaper.value=Object.hasOwn(postItPaperColors,note?.paper)?note.paper:"yellow";
+  applyPostItPaper();
+  postItCompose.checked=!!note?.layout;
+  postItLayout=note?.layout||{textX:0,textY:50,drawingX:100,drawingY:50};
   postItStrokes=note?.drawing||[];
   selectPostItSticker('');
   $('postItDrawing').open=postItStrokes.length>0;
@@ -1442,6 +1490,14 @@ async function requestPostIt(action,payload){
     const result=await serverCall('apiAction',requestKey,action,payload||{});
     if(requestKey!==key)return;
     if(!result?.ok)throw new Error(result?.error||'El servei familiar no ha respost.');
+    if(action==='postit_set' && (
+      (payload.paper!=='yellow' && result.note?.paper!==payload.paper) ||
+      (payload.layout && Object.keys(payload.layout).some(key=>result.note?.layout?.[key]!==payload.layout[key]))
+    )){
+      $('postItRemove').hidden=false;
+      status.textContent='Nota desada, però sense el color o la posició triats. Actualitza el Code.gs i torna-la a enviar.';
+      return;
+    }
     postItLoadedKey=requestKey;
     if(action==='postit_set')$('postItRemove').hidden=false;
     else fillPostIt(result.note);
@@ -1464,7 +1520,7 @@ $('postItForm').addEventListener('submit',e=>{
       mode==='text'?'Escriu una nota abans d’enviar.':'Escriu una nota o fes un dibuix.';
     return;
   }
-  requestPostIt('postit_set',{text,runs:mode==='drawing'?[]:postItRuns(),drawing,showAt:at?new Date(at).getTime():0});
+  requestPostIt('postit_set',{text,runs:mode==='drawing'?[]:postItRuns(),drawing,paper:postItPaper.value,layout:postItCompose.checked?postItLayout:null,showAt:at?new Date(at).getTime():0});
 });
 $('postItRemove').addEventListener('click',()=>requestPostIt('postit_remove'));
 
